@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
+const db = require('./db/database');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -28,6 +29,17 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Inicializar DB (sql.js) antes de procesar peticiones
+app.use(async (req, res, next) => {
+  try {
+    await db.init();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 app.use('/api', routes);
 
 app.get('/', (req, res) => {
@@ -43,8 +55,15 @@ app.use((err, req, res, next) => {
 if (process.env.VERCEL) {
   module.exports = app;
 } else {
-  app.listen(PORT, () => {
-    console.log(`🚀 Compushop API corriendo en http://localhost:${PORT}`);
-  });
+  db.init()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`🚀 Compushop API corriendo en http://localhost:${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error('Error inicializando DB:', err);
+      process.exit(1);
+    });
   module.exports = app;
 }
