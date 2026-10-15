@@ -23,6 +23,33 @@ test('seed: conteos esperados', async () => {
   assert.equal(db.prepare('SELECT COUNT(*) AS c FROM settings').get().c, 10);
 });
 
+test('isEmpty: detecta una base recien creada sin datos', () => {
+  const emptyPath = path.join(os.tmpdir(), `compushop-empty-${process.pid}.db`);
+  if (fs.existsSync(emptyPath)) fs.unlinkSync(emptyPath);
+  // Otro proceso con su propia DB_PATH: dentro de este proceso el path ya esta fijado.
+  const script = `
+    const db = require(${JSON.stringify(path.join(process.cwd(), 'src', 'db', 'database.js'))});
+    db.init().then(() => {
+      if (db.isEmpty() !== true) {
+        console.error('isEmpty() debio ser true en una base vacia');
+        process.exit(1);
+      }
+      console.log('base vacia detectada');
+    });
+  `;
+  const out = execFileSync(process.execPath, ['-e', script], {
+    env: { ...process.env, DB_PATH: emptyPath },
+    encoding: 'utf8',
+  });
+  assert.match(out, /base vacia detectada/);
+});
+
+test('isEmpty: la base sembrada deja de estar vacia', async () => {
+  await db.init();
+  assert.equal(db.isEmpty(), false);
+  assert.equal(db.isEmpty('services'), false);
+});
+
 test('filtro de activos y lookup por id/slug', async () => {
   await db.init();
   const all = db.prepare('SELECT COUNT(*) AS c FROM products WHERE is_active = 1').get().c;

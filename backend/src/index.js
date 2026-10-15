@@ -51,12 +51,24 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Error interno del servidor' });
 });
 
+// sql.js mantiene la base en memoria y reescribe el archivo al escribir. Si el
+// seed corre con el servidor levantado, el servidor pisa el archivo con su copia
+// (vacia) en la proxima escritura. Avisar al arrancar evita perder tiempo
+// depurando listados vacios.
+function warnIfEmptyDb() {
+  if (!db.isEmpty()) return;
+  console.warn(
+    `⚠️  La base ${db.DB_PATH} no tiene datos. Detene el servidor y ejecuta "npm run seed".`
+  );
+}
+
 // Vercel serverless: exportar app; local: listen
 if (process.env.VERCEL) {
   module.exports = app;
 } else {
   db.init()
     .then(() => {
+      warnIfEmptyDb();
       app.listen(PORT, () => {
         console.log(`🚀 Compushop API corriendo en http://localhost:${PORT}`);
       });
