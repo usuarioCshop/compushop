@@ -136,6 +136,57 @@ test('CRUD round-trip de producto por HTTP', async () => {
   assert.equal(list.pagination.total, 12, 'el catalogo vuelve al estado del seed');
 });
 
+test('pedido: crear un pedido descuenta stock y registra items', async () => {
+  const before = await (await fetch(`${baseUrl}/api/products/1`)).json();
+  const stockAntes = before.product.stock;
+
+  const res = await fetch(`${baseUrl}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      items: [{ id: 1, name: 'Notebook Lenovo', price: 689999, quantity: 2, type: 'product' }],
+      customer_name: 'Pedido E2E',
+      customer_email: 'pedido@e2e.com',
+    }),
+  });
+  assert.equal(res.status, 201);
+  const { order } = await res.json();
+  assert.equal(order.order_number.slice(0, 2), 'CS');
+  assert.equal(order.status, 'confirmed');
+  assert.equal(order.total, 689999 * 2);
+  assert.equal(order.items.length, 1);
+  assert.equal(order.items[0].quantity, 2);
+
+  const after = await (await fetch(`${baseUrl}/api/products/1`)).json();
+  assert.equal(after.product.stock, stockAntes - 2, 'el stock debe descontarse exactamente 2');
+});
+
+test('pedido: si no hay stock suficiente no queda nada a medias', async () => {
+  const before = await (await fetch(`${baseUrl}/api/products/1`)).json();
+  const stockAntes = before.product.stock;
+
+  const res = await fetch(`${baseUrl}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      items: [{ id: 1, name: 'Notebook Lenovo', price: 689999, quantity: stockAntes + 1, type: 'product' }],
+      customer_name: 'Pedido Fallido',
+      customer_email: 'fallido@e2e.com',
+    }),
+  });
+  assert.equal(res.status, 400, 'debe rechazarse por stock insuficiente');
+
+  const after = await (await fetch(`${baseUrl}/api/products/1`)).json();
+  assert.equal(after.product.stock, stockAntes, 'el stock no debe cambiar si el pedido falla');
+
+  // Sin orden ni items fantasma: el catalogo y los pedidos quedan consistentes
+  const orders = await (await fetch(`${baseUrl}/api/orders`, { headers: adminHeaders() })).json();
+  assert.ok(
+    !orders.orders.some((o) => o.customer_email === 'fallido@e2e.com'),
+    'no debe quedar la orden fallida'
+  );
+});
+
 test('persistencia: los cambios quedan escritos en el archivo de la base', async () => {
   const created = await fetch(`${baseUrl}/api/products`, {
     method: 'POST',
