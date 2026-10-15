@@ -1,9 +1,14 @@
 const nodemailer = require('nodemailer');
-const store = require('../db/store');
+const db = require('../db/database');
 
 function getSetting(key, def = '') {
-  const s = store.get().settings || {};
-  return s[key] !== undefined && s[key] !== '' ? s[key] : (process.env[key.toUpperCase()] || def);
+  try {
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    const val = row ? row.value : '';
+    return val !== undefined && val !== '' ? val : (process.env[key.toUpperCase()] || def);
+  } catch (_) {
+    return process.env[key.toUpperCase()] || def;
+  }
 }
 
 function createTransporter() {
