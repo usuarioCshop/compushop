@@ -110,8 +110,11 @@ let SQL;
 let database;
 let initPromise;
 
+let inTransaction = false;
+
 function persist() {
   if (!database) return;
+  if (inTransaction) return; // defer until transaction ends
   const data = database.export();
   const dir = path.dirname(DB_PATH);
   fs.mkdirSync(dir, { recursive: true });
@@ -235,13 +238,16 @@ function transaction(fn) {
   return () => {
     const db = getDb();
     db.run('BEGIN');
+    inTransaction = true;
     try {
       const result = fn();
       db.run('COMMIT');
+      inTransaction = false;
       persist();
       return result;
     } catch (error) {
       try {
+        inTransaction = false;
         db.run('ROLLBACK');
       } catch (_) {}
       throw error;
