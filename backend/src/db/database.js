@@ -155,6 +155,30 @@ function getDb() {
   return database;
 }
 
+// Tablas creadas por SCHEMA; evita interpolar cualquier string como nombre de tabla.
+const KNOWN_TABLES = [
+  'users',
+  'categories',
+  'products',
+  'services',
+  'orders',
+  'order_items',
+  'contact_messages',
+  'settings',
+  'password_resets',
+];
+
+// true cuando la tabla no tiene filas: base recien creada, falta correr el seed.
+function isEmpty(table = 'products') {
+  if (!KNOWN_TABLES.includes(table)) {
+    throw new Error(`Tabla desconocida: ${table}`);
+  }
+  // createStatement envuelve sql.js y devuelve una fila; el Statement crudo de
+  // sql.js devuelve un array en get(), no un objeto.
+  const row = createStatement(`SELECT COUNT(*) AS c FROM ${table}`).get();
+  return !row || row.c === 0;
+}
+
 function lastInsertRowid() {
   const result = getDb().exec('SELECT last_insert_rowid() AS id');
   if (!result.length || !result[0].values.length) return undefined;
@@ -246,6 +270,7 @@ const api = {
   },
   transaction,
   persist,
+  isEmpty,
   DB_PATH,
 };
 
