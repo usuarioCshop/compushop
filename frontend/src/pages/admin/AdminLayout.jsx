@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
-  Box, Flex, VStack, Text, Button, useColorModeValue, Container, Heading, Icon,
+  Box, Flex, VStack, Text, Button, Container, Heading, Icon,
 } from '@chakra-ui/react';
 import {
   FiHome, FiPackage, FiTool, FiShoppingBag, FiUsers, FiMail, FiSettings, FiArrowLeft,
@@ -17,8 +17,8 @@ const links = [
 ];
 
 export default function AdminLayout() {
-  const bg = useColorModeValue('white', 'gray.800');
-  const border = useColorModeValue('gray.200', 'gray.700');
+  const bg = 'bg.surface';
+  const border = 'border.subtle';
   const navigate = useNavigate();
 
   return (

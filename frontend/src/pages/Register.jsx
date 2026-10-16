@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Box, Container, Heading, VStack, FormControl, FormLabel, Input, Button, Text, Link,
-  useToast, useColorModeValue, SimpleGrid,
+  useToast, SimpleGrid,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -13,10 +13,10 @@ export default function Register() {
   const toast = useToast();
   const navigate = useNavigate();
 
-  const bg = useColorModeValue('white', 'gray.800');
-  const border = useColorModeValue('gray.100', 'gray.700');
-  const muted = useColorModeValue('gray.600', 'gray.400');
-  const pageBg = useColorModeValue('surface.light', 'gray.900');
+  const bg = 'bg.surface';
+  const border = 'border.subtle';
+  const muted = 'fg.muted';
+  const pageBg = 'bg.canvas';
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
