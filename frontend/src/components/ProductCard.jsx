@@ -10,8 +10,8 @@ const formatPrice = (n) =>
 export default function ProductCard({ product, type = 'product' }) {
   const { addItem } = useCart();
   const toast = useToast();
-  const bg = useColorModeValue('white', 'gray.800');
-  const muted = useColorModeValue('gray.500', 'gray.400');
+  const bg = 'bg.surface';
+  const muted = 'fg.muted';
 
   const handleAdd = (e) => {
     e.preventDefault();
@@ -48,7 +48,7 @@ export default function ProductCard({ product, type = 'product' }) {
         to={to}
         position="relative"
         h="200px"
-        bg={useColorModeValue('gray.50', 'gray.900')}
+        bg="bg.subtle"
         overflow="hidden"
       >
         <Image
@@ -62,7 +62,7 @@ export default function ProductCard({ product, type = 'product' }) {
           fallbackSrc="https://via.placeholder.com/400x300?text=Compushop"
         />
         {type === 'product' && product.stock <= 5 && product.stock > 0 && (
-          <Badge position="absolute" top={3} left={3} colorScheme="orange" borderRadius="full" px={3}>
+          <Badge position="absolute" top={3} left={3} colorScheme="accent" borderRadius="full" px={3}>
             Últimas unidades
           </Badge>
         )}
@@ -91,7 +91,7 @@ export default function ProductCard({ product, type = 'product' }) {
         >
           {product.name}
         </Text>
-        <Text fontWeight="700" fontSize="xl" color="gray.800" _dark={{ color: 'white' }}>
+        <Text fontWeight="700" fontSize="xl" color="fg.default">
           {formatPrice(product.price)}
         </Text>
         {product.description && (
@@ -101,7 +101,7 @@ export default function ProductCard({ product, type = 'product' }) {
         )}
         <Button
           mt="auto"
-          colorScheme="brand"
+          colorScheme="accent"
           borderRadius="full"
           size="md"
           onClick={handleAdd}

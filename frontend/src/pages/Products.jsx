@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Container, Heading, SimpleGrid, Select, Input, HStack, Spinner, Center, Text, useColorModeValue,
+  Box, Container, Heading, SimpleGrid, Select, Input, HStack, Spinner, Center, Text,
 } from '@chakra-ui/react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
@@ -41,7 +41,7 @@ export default function Products() {
             if (e.target.value) p.set('category', e.target.value); else p.delete('category');
             setParams(p);
           }}
-          bg={useColorModeValue('white', 'gray.800')}
+          bg="bg.surface"
         >
           {categories.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
         </Select>
@@ -56,13 +56,13 @@ export default function Products() {
               setParams(p);
             }
           }}
-          bg={useColorModeValue('white', 'gray.800')}
+          bg="bg.surface"
         />
       </HStack>
       {loading ? (
         <Center py={20}><Spinner size="xl" color="brand.500" /></Center>
       ) : products.length === 0 ? (
-        <Text color="gray.500" textAlign="center" py={10}>No se encontraron productos.</Text>
+        <Text color="fg.muted" textAlign="center" py={10}>No se encontraron productos.</Text>
       ) : (
         <SimpleGrid columns={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing={6}>
           {products.map(p => <ProductCard key={p.id} product={p} />)}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  Box, Container, Heading, VStack, FormControl, FormLabel, Input, Textarea, Button, useToast, useColorModeValue, Text, SimpleGrid,
+  Box, Container, Heading, VStack, FormControl, FormLabel, Input, Textarea, Button, useToast, Text, SimpleGrid,
 } from '@chakra-ui/react';
 import api from '../api/client';
 
@@ -8,7 +8,7 @@ export default function Contact() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
   const [loading, setLoading] = useState(false);
   const toast = useToast();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   const handle = async (e) => {
     e.preventDefault();
@@ -27,7 +27,7 @@ export default function Contact() {
   return (
     <Container maxW="3xl" py={12}>
       <Heading mb={2}>Contacto</Heading>
-      <Text color="gray.500" mb={8}>Escribinos y te respondemos a la brevedad.</Text>
+      <Text color="fg.muted" mb={8}>Escribinos y te respondemos a la brevedad.</Text>
       <Box bg={bg} p={8} borderRadius="xl" borderWidth="1px" shadow="sm">
         <form onSubmit={handle}>
           <VStack spacing={4}>

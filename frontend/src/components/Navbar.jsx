@@ -19,9 +19,9 @@ export default function Navbar() {
   const isHome = location.pathname === '/';
   // En home la navbar flota sobre el hero (estilo plantilla)
   const barBg = useColorModeValue('whiteAlpha.900', 'blackAlpha.700');
-  const barBgSolid = useColorModeValue('white', 'gray.800');
+  const barBgSolid = 'bg.surface';
   const textColor = useColorModeValue('gray.800', 'white');
-  const muted = useColorModeValue('gray.600', 'gray.300');
+  const muted = 'fg.muted';
 
   const links = [
     { to: '/', label: 'Inicio' },
@@ -138,7 +138,7 @@ export default function Navbar() {
                   position="absolute"
                   top="-1"
                   right="-1"
-                  colorScheme="orange"
+                  colorScheme="accent"
                   borderRadius="full"
                   fontSize="xs"
                   minW="18px"
