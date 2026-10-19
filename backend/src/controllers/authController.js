@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
-const store = require('../db/store');
+const db = require('../db/database');
 const { generateToken } = require('../utils/jwt');
 const { sendPasswordResetEmail } = require('../utils/email');
 
@@ -10,23 +10,20 @@ function register(req, res) {
     if (!name || !email || !password) return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
     if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
 
-    const db = store.get();
-    if (db.users.find(u => u.email === email)) return res.status(409).json({ error: 'El email ya está registrado' });
-    if (dni && db.users.find(u => u.dni === dni)) return res.status(409).json({ error: 'El DNI ya está registrado' });
+    const existingEmail = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (existingEmail) return res.status(409).json({ error: 'El email ya está registrado' });
+    if (dni) {
+      const existingDni = db.prepare('SELECT id FROM users WHERE dni = ?').get(dni);
+      if (existingDni) return res.status(409).json({ error: 'El DNI ya está registrado' });
+    }
 
-    const user = {
-      id: store.next('users'),
-      name, email,
-      password: bcrypt.hashSync(password, 10),
-      dni: dni || null, role: 'customer',
-      phone: phone || null, address: address || null,
-      created_at: new Date().toISOString(),
-    };
-    db.users.push(user);
-    store.persist();
+    const result = db.prepare(`
+      INSERT INTO users (name, email, password, dni, role, phone, address)
+      VALUES (?, ?, ?, ?, 'customer', ?, ?)
+    `).run(name, email, bcrypt.hashSync(password, 10), dni || null, phone || null, address || null);
 
-    const { password: _, ...safe } = user;
-    res.status(201).json({ message: 'Usuario registrado correctamente', user: safe, token: generateToken(safe) });
+    const user = db.prepare('SELECT id, name, email, dni, role, phone, address, created_at, updated_at FROM users WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json({ message: 'Usuario registrado correctamente', user, token: generateToken(user) });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error al registrar usuario' });
@@ -38,22 +35,22 @@ function login(req, res) {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email y contraseña son obligatorios' });
 
-    const user = store.get().users.find(u => u.email === email);
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     if (!user || !bcrypt.compareSync(password, user.password)) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
     const { password: _, ...safe } = user;
     res.json({ message: 'Login exitoso', user: safe, token: generateToken(safe) });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: 'Error al iniciar sesión' });
   }
 }
 
 function me(req, res) {
-  const user = store.get().users.find(u => u.id === req.user.id);
+  const user = db.prepare('SELECT id, name, email, dni, role, phone, address, created_at, updated_at FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
-  const { password, ...safe } = user;
-  res.json({ user: safe });
+  res.json({ user });
 }
 
 function forgotPassword(req, res) {
@@ -61,8 +58,7 @@ function forgotPassword(req, res) {
     const { dni, email } = req.body;
     if (!dni) return res.status(400).json({ error: 'El DNI es obligatorio' });
 
-    const db = store.get();
-    const user = db.users.find(u => u.dni === dni);
+    const user = db.prepare('SELECT * FROM users WHERE dni = ?').get(dni);
     if (user && email && user.email !== email) {
       return res.status(400).json({ error: 'El email no coincide con el DNI registrado' });
     }
@@ -71,17 +67,10 @@ function forgotPassword(req, res) {
       return res.json({ message: 'Si el DNI existe en nuestros registros, recibirás un email con instrucciones.' });
     }
 
-    db.password_resets.forEach(r => { if (r.user_id === user.id) r.used = true; });
+    db.prepare('UPDATE password_resets SET used = 1 WHERE user_id = ? AND used = 0').run(user.id);
     const token = uuidv4();
-    db.password_resets.push({
-      id: store.next('password_resets'),
-      user_id: user.id,
-      token,
-      expires_at: new Date(Date.now() + 3600000).toISOString(),
-      used: false,
-      created_at: new Date().toISOString(),
-    });
-    store.persist();
+    db.prepare('INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)')
+      .run(user.id, token, new Date(Date.now() + 3600000).toISOString());
 
     sendPasswordResetEmail(user, token).then(result => {
       const response = { message: 'Si el DNI existe en nuestros registros, recibirás un email con instrucciones.' };
@@ -103,19 +92,23 @@ function resetPassword(req, res) {
     if (!token || !newPassword) return res.status(400).json({ error: 'Token y nueva contraseña son obligatorios' });
     if (newPassword.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
 
-    const db = store.get();
-    const reset = db.password_resets.find(r => r.token === token && !r.used && new Date(r.expires_at) > new Date());
+    const reset = db.prepare(`
+      SELECT * FROM password_resets
+      WHERE token = ? AND used = 0 AND expires_at > ?
+    `).get(token, new Date().toISOString());
+
     if (!reset) return res.status(400).json({ error: 'Token inválido o expirado' });
 
-    const user = db.users.find(u => u.id === reset.user_id);
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(reset.user_id);
     if (!user) return res.status(400).json({ error: 'Usuario no encontrado' });
 
-    user.password = bcrypt.hashSync(newPassword, 10);
-    reset.used = true;
-    store.persist();
+    db.prepare('UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(bcrypt.hashSync(newPassword, 10), reset.user_id);
+    db.prepare('UPDATE password_resets SET used = 1 WHERE id = ?').run(reset.id);
 
     res.json({ message: 'Contraseña actualizada correctamente' });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: 'Error al restablecer la contraseña' });
   }
 }

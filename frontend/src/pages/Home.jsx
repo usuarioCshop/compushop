@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Box, Container, Heading, Text, SimpleGrid, Button, VStack, HStack,
-  useColorModeValue, Spinner, Center, Image, Flex, Stat, StatNumber, StatLabel,
+  Spinner, Center, Image, Flex, Stat, StatNumber, StatLabel,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import api from '../api/client';
@@ -11,9 +11,9 @@ export default function Home() {
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const sectionBg = useColorModeValue('white', 'gray.800');
-  const mutedBg = useColorModeValue('surface.light', 'gray.900');
-  const muted = useColorModeValue('gray.600', 'gray.400');
+  const sectionBg = 'bg.surface';
+  const mutedBg = 'bg.canvas';
+  const muted = 'fg.muted';
 
   useEffect(() => {
     Promise.all([
@@ -158,9 +158,8 @@ export default function Home() {
 
       {/* ===== BANNER DESCUENTO ===== */}
       <Box
-        bg="brand.500"
+        bgGradient="linear(to-br, accent.500, accent.600)"
         py={{ base: 12, md: 16 }}
-        bgImage="linear-gradient(135deg, #0066e6 0%, #0052b3 100%)"
       >
         <Container maxW="4xl" textAlign="center">
           <Heading size="lg" color="white" mb={4} fontWeight="800">
@@ -173,11 +172,11 @@ export default function Home() {
             as={RouterLink}
             to="/registro"
             bg="white"
-            color="brand.600"
+            color="accent.700"
             borderRadius="full"
             size="lg"
             px={8}
-            _hover={{ bg: 'gray.100' }}
+            _hover={{ bg: 'bg.subtle' }}
           >
             Comprar Ahora
           </Button>
@@ -223,7 +222,7 @@ export default function Home() {
       <Box py={{ base: 16, md: 20 }}>
         <Container maxW="4xl">
           <Box
-            bg={useColorModeValue('gray.900', 'gray.800')}
+            bg="bg.inverted"
             borderRadius="3xl"
             p={{ base: 8, md: 12 }}
             textAlign="center"

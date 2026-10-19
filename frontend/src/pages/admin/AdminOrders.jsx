@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Select, Badge, Spinner, Center, useColorModeValue, useToast, Text,
+  Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Select, Badge, Spinner, Center, useToast, Text,
 } from '@chakra-ui/react';
 import api from '../../api/client';
 
@@ -11,7 +11,7 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   const load = () => {
     setLoading(true);
@@ -43,7 +43,7 @@ export default function AdminOrders() {
                 <Td fontFamily="mono">{o.order_number}</Td>
                 <Td>
                   <Text>{o.customer_name}</Text>
-                  <Text fontSize="xs" color="gray.500">{o.customer_email}</Text>
+                  <Text fontSize="xs" color="fg.muted">{o.customer_email}</Text>
                 </Td>
                 <Td>{formatPrice(o.total)}</Td>
                 <Td>
@@ -54,7 +54,7 @@ export default function AdminOrders() {
                 <Td>{new Date(o.created_at).toLocaleString('es-AR')}</Td>
               </Tr>
             ))}
-            {orders.length === 0 && <Tr><Td colSpan={5}><Text textAlign="center" color="gray.500" py={4}>Sin pedidos</Text></Td></Tr>}
+            {orders.length === 0 && <Tr><Td colSpan={5}><Text textAlign="center" color="fg.muted" py={4}>Sin pedidos</Text></Td></Tr>}
           </Tbody>
         </Table>
       </Box>

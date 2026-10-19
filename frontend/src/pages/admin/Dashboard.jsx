@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   SimpleGrid, Box, Stat, StatLabel, StatNumber, Heading, Text, Table, Thead, Tbody, Tr, Th, Td,
-  Spinner, Center, useColorModeValue, Badge,
+  Spinner, Center, Badge,
 } from '@chakra-ui/react';
 import api from '../../api/client';
 
@@ -10,7 +10,7 @@ const formatPrice = (n) =>
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   useEffect(() => {
     api.get('/dashboard/stats').then(r => setData(r.data)).catch(console.error);
@@ -35,7 +35,7 @@ export default function Dashboard() {
         {cards.map(c => (
           <Box key={c.label} bg={bg} p={5} borderRadius="xl" borderWidth="1px">
             <Stat>
-              <StatLabel color="gray.500">{c.label}</StatLabel>
+              <StatLabel color="fg.muted">{c.label}</StatLabel>
               <StatNumber fontSize="2xl">{c.value}</StatNumber>
             </Stat>
           </Box>
@@ -59,7 +59,7 @@ export default function Dashboard() {
               </Tr>
             ))}
             {(!data.recentOrders || data.recentOrders.length === 0) && (
-              <Tr><Td colSpan={5}><Text color="gray.500" textAlign="center" py={4}>Sin pedidos aún</Text></Td></Tr>
+              <Tr><Td colSpan={5}><Text color="fg.muted" textAlign="center" py={4}>Sin pedidos aún</Text></Td></Tr>
             )}
           </Tbody>
         </Table>

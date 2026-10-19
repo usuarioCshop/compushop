@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Box, Heading, Button, Table, Thead, Tbody, Tr, Th, Td, IconButton, useToast, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel,
-  Input, Textarea, NumberInput, NumberInputField, Switch, HStack, Spinner, Center, useColorModeValue,
+  Input, Textarea, NumberInput, NumberInputField, Switch, HStack, Spinner, Center,
 } from '@chakra-ui/react';
 import { FiPlus, FiEdit, FiTrash2 } from 'react-icons/fi';
 import api from '../../api/client';
@@ -17,7 +17,7 @@ export default function AdminServices() {
   const [editId, setEditId] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   const load = () => {
     setLoading(true);

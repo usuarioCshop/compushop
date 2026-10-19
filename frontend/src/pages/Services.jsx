@@ -15,7 +15,7 @@ export default function Services() {
   return (
     <Container maxW="7xl" py={10}>
       <Heading mb={2}>Servicios técnicos</Heading>
-      <Text color="gray.500" mb={8}>Armado, reparación, mantenimiento y más.</Text>
+      <Text color="fg.muted" mb={8}>Armado, reparación, mantenimiento y más.</Text>
       {loading ? (
         <Center py={20}><Spinner size="xl" color="brand.500" /></Center>
       ) : (

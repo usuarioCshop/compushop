@@ -1,12 +1,13 @@
 import {
   Box, Flex, HStack, IconButton, Button, useColorMode, useColorModeValue,
-  Container, Text, Badge, Menu, MenuButton, MenuList, MenuItem,
+  Container, Image, Badge, Menu, MenuButton, MenuList, MenuItem,
   useDisclosure, Drawer, DrawerBody, DrawerHeader, DrawerOverlay, DrawerContent, DrawerCloseButton, VStack,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import portada from '../assets/portada.png';
 
 export default function Navbar() {
   const { colorMode, toggleColorMode } = useColorMode();
@@ -19,9 +20,8 @@ export default function Navbar() {
   const isHome = location.pathname === '/';
   // En home la navbar flota sobre el hero (estilo plantilla)
   const barBg = useColorModeValue('whiteAlpha.900', 'blackAlpha.700');
-  const barBgSolid = useColorModeValue('white', 'gray.800');
-  const textColor = useColorModeValue('gray.800', 'white');
-  const muted = useColorModeValue('gray.600', 'gray.300');
+  const barBgSolid = 'bg.surface';
+  const muted = 'fg.muted';
 
   const links = [
     { to: '/', label: 'Inicio' },
@@ -65,32 +65,24 @@ export default function Navbar() {
               onClick={onOpen}
               aria-label="Menú"
             />
-            {/* Logo circular + nombre */}
-            <HStack
+            {/* Logo */}
+            <Box
               as={RouterLink}
               to="/"
-              spacing={2}
+              display="flex"
+              alignItems="center"
               _hover={{ opacity: 0.9 }}
             >
-              <Box
-                w={{ base: 9, md: 10 }}
-                h={{ base: 9, md: 10 }}
-                borderRadius="full"
-                bg="brand.500"
-                display="flex"
-                alignItems="center"
-                justifyContent="center"
-                color="white"
-                fontWeight="bold"
-                fontSize="sm"
+              <Image
+                src={portada}
+                alt="Compushop"
+                h={{ base: 8, md: 9 }}
+                w="auto"
+                objectFit="contain"
+                borderRadius="md"
                 flexShrink={0}
-              >
-                CS
-              </Box>
-              <Text fontWeight="700" fontSize={{ base: 'md', md: 'lg' }} color={textColor} letterSpacing="tight">
-                Compu<span style={{ color: '#0066e6' }}>shop</span>
-              </Text>
-            </HStack>
+              />
+            </Box>
           </HStack>
 
           <HStack spacing={1} display={{ base: 'none', md: 'flex' }}>
@@ -138,7 +130,7 @@ export default function Navbar() {
                   position="absolute"
                   top="-1"
                   right="-1"
-                  colorScheme="orange"
+                  colorScheme="accent"
                   borderRadius="full"
                   fontSize="xs"
                   minW="18px"

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   Box, Container, Heading, VStack, HStack, Text, Button, Image, IconButton,
-  Divider, Input, FormControl, FormLabel, useToast, useColorModeValue, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper,
+  Divider, Input, FormControl, FormLabel, useToast, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper,
 } from '@chakra-ui/react';
 import { FiTrash2 } from 'react-icons/fi';
 import { useCart } from '../context/CartContext';
@@ -17,7 +17,7 @@ export default function Cart() {
   const { user } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     customer_name: user?.name || '',
@@ -68,7 +68,7 @@ export default function Cart() {
                 <Image src={item.image} boxSize="80px" objectFit="cover" borderRadius="md" fallbackSrc="https://via.placeholder.com/80" />
                 <VStack align="start" flex="1" spacing={1}>
                   <Text fontWeight="semibold">{item.name}</Text>
-                  <Text fontSize="sm" color="gray.500">{item.type === 'service' ? 'Servicio' : 'Producto'}</Text>
+                  <Text fontSize="sm" color="fg.muted">{item.type === 'service' ? 'Servicio' : 'Producto'}</Text>
                   <Text color="brand.500" fontWeight="bold">{formatPrice(item.price)}</Text>
                 </VStack>
                 <NumberInput size="sm" maxW="100px" value={item.quantity} min={1}
@@ -115,7 +115,7 @@ export default function Cart() {
               <Input size="sm" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
             </FormControl>
           </VStack>
-          <Button colorScheme="brand" size="lg" w="100%" isLoading={loading} onClick={handleConfirm}>
+          <Button colorScheme="accent" size="lg" w="100%" isLoading={loading} onClick={handleConfirm}>
             Confirmar pedido
           </Button>
         </Box>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Box, Container, Heading, Text, Image, Button, HStack, VStack, Badge, Spinner, Center,
-  SimpleGrid, useToast, useColorModeValue, List, ListItem,
+  SimpleGrid, useToast, List, ListItem,
 } from '@chakra-ui/react';
 import { FiShoppingCart } from 'react-icons/fi';
 import api from '../api/client';
@@ -17,7 +17,7 @@ export default function ProductDetail() {
   const [loading, setLoading] = useState(true);
   const { addItem } = useCart();
   const toast = useToast();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   useEffect(() => {
     api.get(`/products/${id}`).then(r => setProduct(r.data.product))
@@ -43,7 +43,7 @@ export default function ProductDetail() {
           {product.brand && <Badge colorScheme="blue">{product.brand}</Badge>}
           <Heading size="lg">{product.name}</Heading>
           <Text fontSize="2xl" fontWeight="bold" color="brand.500">{formatPrice(product.price)}</Text>
-          <Text color="gray.500">{product.description}</Text>
+          <Text color="fg.muted">{product.description}</Text>
           {product.stock !== undefined && (
             <Text fontSize="sm" color={product.stock > 0 ? 'green.500' : 'red.500'}>
               {product.stock > 0 ? `Stock: ${product.stock} unidades` : 'Sin stock'}
@@ -59,7 +59,7 @@ export default function ProductDetail() {
               </List>
             </Box>
           )}
-          <Button leftIcon={<FiShoppingCart />} colorScheme="brand" size="lg" onClick={handleAdd}
+          <Button leftIcon={<FiShoppingCart />} colorScheme="accent" size="lg" onClick={handleAdd}
             isDisabled={product.stock === 0}>
             Agregar al carrito
           </Button>
