@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Container, Heading, VStack, FormControl, FormLabel, Input, Button, useToast, useColorModeValue } from '@chakra-ui/react';
+import { Box, Container, Heading, VStack, FormControl, FormLabel, Input, Button, useToast } from '@chakra-ui/react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 
@@ -10,7 +10,7 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const toast = useToast();
   const navigate = useNavigate();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   const handle = async (e) => {
     e.preventDefault();

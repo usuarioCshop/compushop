@@ -5,24 +5,72 @@ const config = {
   useSystemColorMode: false,
 };
 
-// Paleta original del proyecto Compushop (azul corporativo)
-const colors = {
-  brand: {
-    50: '#e6f0ff',
-    100: '#b3d1ff',
-    200: '#80b3ff',
-    300: '#4d94ff',
-    400: '#1a75ff',
-    500: '#0066e6',
-    600: '#0052b3',
-    700: '#003d80',
-    800: '#00294d',
-    900: '#00141a',
-  },
-  surface: {
-    light: '#f4f7fb',
-    card: '#ffffff',
-    muted: '#eef2f7',
+// ─── Paleta Compushop ────────────────────────────────────────────────────────
+// Modo claro → marca #001BE6 (Azul Compushop)  / acción #FF6B00 (Naranja Eléctrico)
+// Modo oscuro → marca #3B82F6 (Azul Neón)      / acción #FF8A00 (Naranja Neón)
+// Las rampas 50..900 se derivan del color base para que los componentes de
+// Chakra (que consumen .500/.600/.50/.200...) funcionen en ambos modos.
+const brandLight = {
+  50: '#F1F2FE', 100: '#D8DDFD', 200: '#AFB9FD', 300: '#7081FF', 400: '#334BFF',
+  500: '#001BE6', 600: '#0016B8', 700: '#00108A', 800: '#000B61', 900: '#000739',
+};
+const brandDark = {
+  50: '#F1F6FE', 100: '#D8E6FD', 200: '#B1CDFB', 300: '#76A8F9', 400: '#3C83F6',
+  500: '#3B82F6', 600: '#0F66F4', 700: '#0953CC', 800: '#0843A5', 900: '#06337E',
+};
+const accentLight = {
+  50: '#FEF6F1', 100: '#FDE8D8', 200: '#FDD0AF', 300: '#FFAC70', 400: '#FF8933',
+  500: '#FF6B00', 600: '#D15800', 700: '#A34400', 800: '#7A3300', 900: '#522200',
+};
+const accentDark = {
+  50: '#FEF8F1', 100: '#FDECD8', 200: '#FDD9AF', 300: '#FFBD70', 400: '#FFA133',
+  500: '#FF8A00', 600: '#D17100', 700: '#A35800', 800: '#7A4200', 900: '#522C00',
+};
+
+// Combina las dos rampas en una escala semántica que cambia según el modo.
+function modeScale(light, dark) {
+  return Object.fromEntries(
+    Object.keys(light).map((step) => [step, { default: light[step], _dark: dark[step] }]),
+  );
+}
+
+// Chakra ya declara sus tokens internos (chakra-body-bg, chakra-subtle-bg, ...)
+// usando las claves `_light`/`_dark`. Si los pisamos solo con `default`, ese valor
+// cae en `:root` y la regla `[data-theme="light"]` del tema base lo gana en modo
+// claro (bug real, verificado en el CSS emitido). Hay que usar las MISMAS claves.
+function chakraToken(light, dark) {
+  return { default: light, _light: light, _dark: dark };
+}
+
+const semanticTokens = {
+  colors: {
+    brand: modeScale(brandLight, brandDark),
+    accent: modeScale(accentLight, accentDark),
+
+    // Roles neutros de la paleta
+    bg: {
+      canvas: { default: '#F8FAFC', _dark: '#0B0F19' },   // Fondo principal
+      surface: { default: '#FFFFFF', _dark: '#1E293B' },  // Tarjetas / paneles
+      subtle: { default: '#E2E8F0', _dark: '#1E293B' },   // Fondo secundario
+      inverted: { default: '#0F172A', _dark: '#1E293B' }, // Bloques oscuros fijos
+    },
+    fg: {
+      default: { default: '#0F172A', _dark: '#E2E8F0' },  // Texto principal
+      muted: { default: '#475569', _dark: '#94A3B8' },    // Texto secundario
+    },
+    border: {
+      subtle: { default: '#E2E8F0', _dark: '#334155' },
+      strong: { default: '#CBD5E1', _dark: '#475569' },
+    },
+
+    // Tokens internos de Chakra: al pisarlos, la paleta se propaga a TODOS los
+    // componentes (Menu, Drawer, Table, Modal, Input, etc.) sin tocar cada uno.
+    'chakra-body-bg': chakraToken('#F8FAFC', '#0B0F19'),
+    'chakra-body-text': chakraToken('#0F172A', '#E2E8F0'),
+    'chakra-subtle-bg': chakraToken('#E2E8F0', '#1E293B'),
+    'chakra-subtle-text': chakraToken('#475569', '#94A3B8'),
+    'chakra-border-color': chakraToken('#E2E8F0', '#334155'),
+    'chakra-placeholder-color': chakraToken('#64748B', '#94A3B8'),
   },
 };
 
@@ -43,12 +91,12 @@ const radii = {
 };
 
 const styles = {
-  global: (props) => ({
+  global: {
     body: {
-      bg: props.colorMode === 'dark' ? 'gray.900' : 'surface.light',
-      color: props.colorMode === 'dark' ? 'gray.100' : 'gray.800',
+      bg: 'bg.canvas',
+      color: 'fg.default',
     },
-  }),
+  },
 };
 
 const components = {
@@ -77,7 +125,8 @@ const components = {
         color: `${props.colorScheme}.500`,
         bg: 'transparent',
         _hover: {
-          bg: props.colorMode === 'dark' ? 'whiteAlpha.100' : `${props.colorScheme}.50`,
+          // En modo oscuro conviene un tinte translúcido antes que un fondo casi blanco.
+          bg: props.colorMode === 'dark' ? 'whiteAlpha.200' : `${props.colorScheme}.50`,
         },
       }),
       // Outline sobre fondos oscuros (hero)
@@ -97,32 +146,71 @@ const components = {
   Input: {
     defaultProps: { focusBorderColor: 'brand.500' },
     variants: {
-      outline: (props) => ({
+      outline: {
         field: {
           borderRadius: 'lg',
-          bg: props.colorMode === 'dark' ? 'gray.700' : 'white',
-          borderColor: props.colorMode === 'dark' ? 'gray.600' : 'gray.200',
-          _hover: {
-            borderColor: props.colorMode === 'dark' ? 'gray.500' : 'gray.300',
-          },
+          bg: 'bg.surface',
+          borderColor: 'border.strong',
+          _hover: { borderColor: 'border.strong' },
           _focus: {
             borderColor: 'brand.500',
             boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
           },
         },
-      }),
+      },
     },
   },
+  Textarea: {
+    defaultProps: { focusBorderColor: 'brand.500' },
+  },
+  Select: {
+    defaultProps: { focusBorderColor: 'brand.500' },
+  },
   FormLabel: {
-    baseStyle: (props) => ({
-      color: props.colorMode === 'dark' ? 'gray.200' : 'gray.700',
+    baseStyle: {
+      color: 'fg.default',
       fontWeight: '600',
       fontSize: 'sm',
-    }),
+    },
   },
   Link: {
     baseStyle: { _hover: { textDecoration: 'none' } },
   },
+  Menu: {
+    baseStyle: {
+      list: { bg: 'bg.surface', borderColor: 'border.subtle' },
+      item: {
+        bg: 'bg.surface',
+        _hover: { bg: 'bg.subtle' },
+        _focus: { bg: 'bg.subtle' },
+      },
+    },
+  },
+  Drawer: {
+    baseStyle: {
+      dialog: { bg: 'bg.surface' },
+    },
+  },
+  Modal: {
+    baseStyle: {
+      dialog: { bg: 'bg.surface' },
+    },
+  },
+  Table: {
+    baseStyle: {
+      table: { borderColor: 'border.subtle' },
+    },
+  },
+  Divider: {
+    baseStyle: { borderColor: 'border.subtle' },
+  },
 };
 
-export default extendTheme({ config, colors, fonts, radii, styles, components });
+export default extendTheme({
+  config,
+  semanticTokens,
+  fonts,
+  radii,
+  styles,
+  components,
+});

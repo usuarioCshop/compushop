@@ -24,3 +24,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Entorno — secretos, nunca commitear
+.env
+.env.local
+.env.*.local
+
+# Base de datos SQLite generada
+*.db

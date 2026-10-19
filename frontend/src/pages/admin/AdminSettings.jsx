@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Heading, VStack, FormControl, FormLabel, Input, Button, useToast, useColorModeValue, Text, SimpleGrid,
+  Box, Heading, VStack, FormControl, FormLabel, Input, Button, useToast, Text, SimpleGrid,
 } from '@chakra-ui/react';
 import api from '../../api/client';
 
@@ -8,7 +8,7 @@ export default function AdminSettings() {
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(false);
   const toast = useToast();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   useEffect(() => {
     api.get('/settings').then(r => setSettings(r.data.settings || {})).catch(console.error);
@@ -31,7 +31,7 @@ export default function AdminSettings() {
   return (
     <Box>
       <Heading size="lg" mb={2}>Configuración</Heading>
-      <Text color="gray.500" mb={6}>Datos de la tienda y SMTP para emails de contacto / recuperación.</Text>
+      <Text color="fg.muted" mb={6}>Datos de la tienda y SMTP para emails de contacto / recuperación.</Text>
 
       <Box bg={bg} p={6} borderRadius="xl" borderWidth="1px" mb={6}>
         <Heading size="sm" mb={4}>Datos de la tienda</Heading>
@@ -45,7 +45,7 @@ export default function AdminSettings() {
 
       <Box bg={bg} p={6} borderRadius="xl" borderWidth="1px" mb={6}>
         <Heading size="sm" mb={4}>SMTP (envío de emails)</Heading>
-        <Text fontSize="sm" color="gray.500" mb={4}>Para Gmail usá una “Contraseña de aplicación”.</Text>
+        <Text fontSize="sm" color="fg.muted" mb={4}>Para Gmail usá una “Contraseña de aplicación”.</Text>
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
           <FormControl><FormLabel>Host</FormLabel><Input value={settings.smtp_host || ''} onChange={e => set('smtp_host', e.target.value)} placeholder="smtp.gmail.com" /></FormControl>
           <FormControl><FormLabel>Puerto</FormLabel><Input value={settings.smtp_port || ''} onChange={e => set('smtp_port', e.target.value)} placeholder="587" /></FormControl>

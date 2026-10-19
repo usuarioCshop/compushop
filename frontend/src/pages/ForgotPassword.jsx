@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Container, Heading, VStack, FormControl, FormLabel, Input, Button, Text, useToast, useColorModeValue, Code } from '@chakra-ui/react';
+import { Box, Container, Heading, VStack, FormControl, FormLabel, Input, Button, Text, useToast, Code } from '@chakra-ui/react';
 import api from '../api/client';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,7 +10,7 @@ export default function ForgotPassword() {
   const [devToken, setDevToken] = useState(null);
   const toast = useToast();
   const navigate = useNavigate();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   const handle = async (e) => {
     e.preventDefault();
@@ -31,7 +31,7 @@ export default function ForgotPassword() {
     <Container maxW="md" py={16}>
       <Box bg={bg} p={8} borderRadius="xl" shadow="md" borderWidth="1px">
         <Heading size="lg" mb={2} textAlign="center">Recuperar contraseña</Heading>
-        <Text fontSize="sm" color="gray.500" mb={6} textAlign="center">Ingresá tu DNI para recibir un enlace de recuperación.</Text>
+        <Text fontSize="sm" color="fg.muted" mb={6} textAlign="center">Ingresá tu DNI para recibir un enlace de recuperación.</Text>
         <form onSubmit={handle}>
           <VStack spacing={4}>
             <FormControl isRequired>

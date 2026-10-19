@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Badge, Spinner, Center, useColorModeValue, Text, IconButton, useToast, HStack,
+  Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Badge, Spinner, Center, Text, IconButton, useToast, HStack,
 } from '@chakra-ui/react';
 import { FiTrash2 } from 'react-icons/fi';
 import api from '../../api/client';
@@ -9,7 +9,7 @@ export default function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useToast();
-  const bg = useColorModeValue('white', 'gray.800');
+  const bg = 'bg.surface';
 
   const load = () => {
     setLoading(true);
