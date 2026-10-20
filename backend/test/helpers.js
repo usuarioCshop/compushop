@@ -22,9 +22,35 @@ const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
 // false, o el motivo por el que se saltean. El segundo caso le importa a quien
 // lee la salida: "skipped" sin explicacion parece un test roto.
+// RUIDO: una suite que se saltea entera y sale con codigo 0 es un falso verde
+// identico a una suite que pasa. Esto ya paso una vez (22 tests, 0 ejecutados)
+// y nadie se dio cuenta hasta que alguien los corro a mano. Por eso en CI falla
+// de entrada, y en local imprime un aviso que no se puede pasar por alto.
+const isCI = process.env.CI === 'true' || process.env.CI === '1' || !!process.env.GITHUB_ACTIONS;
+
+if (!TEST_DATABASE_URL && isCI) {
+  throw new Error(
+    'TEST_DATABASE_URL no esta definida y esto es CI: la suite se saltaria TODOS los tests ' +
+    'y reportaria verde sin ejecutar nada. Configura TEST_DATABASE_URL como secret del pipeline.'
+  );
+}
+
 const skip = TEST_DATABASE_URL
   ? false
   : 'Falta TEST_DATABASE_URL en backend/.env (estos tests son destructivos y no tocan la base de la app)';
+
+if (skip) {
+  process.emitWarning(
+    '\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n' +
+    '  SUITE DE BASE DE DATOS COMPLETAMENTE SALTEADA\n' +
+    '  Se ejecutaran 0 tests y el proceso saldra con codigo 0.\n' +
+    '  Esto NO es un verde: es un falso verde.\n' +
+    '  Motivo: ' + skip + '\n' +
+    '  Fix: definir TEST_DATABASE_URL en backend/.env\n' +
+    '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n',
+    'TestDatabaseSkipped'
+  );
+}
 
 // Deja la base de test lista: migrada y sembrada. Se llama una sola vez, al
 // cargar el archivo.
