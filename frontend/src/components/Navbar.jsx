@@ -7,7 +7,7 @@ import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import portada from '../assets/portada.png';
+import portada from '../assets/portada.jpg';
 
 export default function Navbar() {
   const { colorMode, toggleColorMode } = useColorMode();
