@@ -12,53 +12,58 @@ function slugify(text) {
     .replace(/--+/g, '-');
 }
 
+// Nota sobre el mapeo de filas: en Postgres, specs ya vuelve como objeto (la
+// columna es jsonb) e is_active como booleano. Los JSON.parse/!! que hacía falta
+// con SQLite desaparecieron.
+
 // GET /api/products
-function getAll(req, res) {
+async function getAll(req, res) {
   try {
     const { category, search, active, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let sql = `
-      SELECT p.*, c.name as category_name, c.slug as category_slug
-      FROM products p
-      LEFT JOIN categories c ON p.category_id = c.id
-      WHERE 1=1
-    `;
+    // El WHERE se arma una vez y lo comparten la consulta de conteo y la de
+    // listado. Antes se derivaba el conteo con un replace() por regex sobre el
+    // SELECT, que se rompía con solo tocar la lista de columnas.
+    const conditions = ['1=1'];
     const params = [];
 
     if (active !== 'all') {
-      sql += ' AND p.is_active = 1';
+      conditions.push('p.is_active = true');
     }
 
     if (category) {
-      sql += ' AND c.slug = ?';
       params.push(category);
+      conditions.push(`c.slug = $${params.length}`);
     }
 
     if (search) {
-      sql += ' AND (p.name LIKE ? OR p.description LIKE ? OR p.brand LIKE ?)';
-      const term = `%${search}%`;
-      params.push(term, term, term);
+      // ILIKE, no LIKE: en SQLite LIKE ignoraba mayúsculas, en Postgres no.
+      // El mismo término se referencia tres veces con el mismo $n.
+      params.push(`%${search}%`);
+      conditions.push(
+        `(p.name ILIKE $${params.length} OR p.description ILIKE $${params.length} OR p.brand ILIKE $${params.length})`
+      );
     }
 
-    // Count
-    const countSql = sql.replace(/SELECT p\.\*, c\.name as category_name, c\.slug as category_slug/, 'SELECT COUNT(*) as total');
-    const { total } = db.prepare(countSql).get(...params);
+    const from = `
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE ${conditions.join(' AND ')}
+    `;
 
-    sql += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
+    const { total } = await db.prepare(`SELECT COUNT(*) as total ${from}`).get(...params);
+
     params.push(parseInt(limit), offset);
-
-    const products = db.prepare(sql).all(...params);
-
-    // Parse specs
-    const result = products.map(p => ({
-      ...p,
-      specs: p.specs ? JSON.parse(p.specs) : null,
-      is_active: !!p.is_active,
-    }));
+    const products = await db.prepare(`
+      SELECT p.*, c.name as category_name, c.slug as category_slug
+      ${from}
+      ORDER BY p.created_at DESC
+      LIMIT $${params.length - 1} OFFSET $${params.length}
+    `).all(...params);
 
     res.json({
-      products: result,
+      products,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -73,33 +78,26 @@ function getAll(req, res) {
 }
 
 // GET /api/products/:id or /api/products/slug/:slug
-function getOne(req, res) {
+async function getOne(req, res) {
   try {
     const { id } = req.params;
     let product;
 
+    const baseQuery = `
+      SELECT p.*, c.name as category_name, c.slug as category_slug
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+    `;
+
     if (isNaN(id)) {
-      product = db.prepare(`
-        SELECT p.*, c.name as category_name, c.slug as category_slug
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.slug = ?
-      `).get(id);
+      product = await db.prepare(`${baseQuery} WHERE p.slug = $1`).get(id);
     } else {
-      product = db.prepare(`
-        SELECT p.*, c.name as category_name, c.slug as category_slug
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.id = ?
-      `).get(id);
+      product = await db.prepare(`${baseQuery} WHERE p.id = $1`).get(id);
     }
 
     if (!product) {
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
-
-    product.specs = product.specs ? JSON.parse(product.specs) : null;
-    product.is_active = !!product.is_active;
 
     res.json({ product });
   } catch (error) {
@@ -109,7 +107,7 @@ function getOne(req, res) {
 }
 
 // POST /api/products (admin)
-function create(req, res) {
+async function create(req, res) {
   try {
     const { name, description, price, stock, category_id, brand, image, specs, is_active = 1 } = req.body;
 
@@ -118,15 +116,19 @@ function create(req, res) {
     }
 
     let slug = slugify(name);
-    // Asegurar unicidad
-    const existing = db.prepare('SELECT id FROM products WHERE slug = ?').get(slug);
-    if (existing) {
+
+    // Asegurar unicidad: si el slug ya existe, se agrega un sufijo.
+    const existingSlug = await db.prepare('SELECT id FROM products WHERE slug = $1').get(slug);
+    if (existingSlug) {
       slug = `${slug}-${Date.now()}`;
     }
 
-    const result = db.prepare(`
+    // RETURNING * devuelve la fila creada en la misma sentencia: reemplaza al
+    // INSERT + SELECT WHERE id = lastInsertRowid de sql.js.
+    const inserted = await db.prepare(`
       INSERT INTO products (name, slug, description, price, stock, category_id, brand, image, specs, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
     `).run(
       name,
       slug,
@@ -136,14 +138,11 @@ function create(req, res) {
       category_id || null,
       brand || null,
       image || null,
-      specs ? JSON.stringify(specs) : null,
-      is_active ? 1 : 0
+      specs || null,
+      Boolean(is_active)
     );
 
-    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(result.lastInsertRowid);
-    product.specs = product.specs ? JSON.parse(product.specs) : null;
-
-    res.status(201).json({ message: 'Producto creado', product });
+    res.status(201).json({ message: 'Producto creado', product: inserted.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al crear producto' });
@@ -151,10 +150,10 @@ function create(req, res) {
 }
 
 // PUT /api/products/:id (admin)
-function update(req, res) {
+async function update(req, res) {
   try {
     const { id } = req.params;
-    const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    const existing = await db.prepare('SELECT * FROM products WHERE id = $1').get(id);
     if (!existing) {
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
@@ -167,35 +166,33 @@ function update(req, res) {
       category_id = existing.category_id,
       brand = existing.brand,
       image = existing.image,
-      specs = existing.specs ? JSON.parse(existing.specs) : null,
+      specs = existing.specs,
       is_active = existing.is_active,
     } = req.body;
 
     let slug = existing.slug;
     if (name !== existing.name) {
       slug = slugify(name);
-      const conflict = db.prepare('SELECT id FROM products WHERE slug = ? AND id != ?').get(slug, id);
+      const conflict = await db.prepare('SELECT id FROM products WHERE slug = $1 AND id != $2').get(slug, id);
       if (conflict) slug = `${slug}-${id}`;
     }
 
-    db.prepare(`
+    // updated_at lo pone el trigger de la tabla, no la consulta.
+    const updated = await db.prepare(`
       UPDATE products SET
-        name = ?, slug = ?, description = ?, price = ?, stock = ?,
-        category_id = ?, brand = ?, image = ?, specs = ?, is_active = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+        name = $1, slug = $2, description = $3, price = $4, stock = $5,
+        category_id = $6, brand = $7, image = $8, specs = $9, is_active = $10
+      WHERE id = $11
+      RETURNING *
     `).run(
       name, slug, description, price, stock,
       category_id, brand, image,
-      specs ? JSON.stringify(specs) : null,
-      is_active ? 1 : 0,
+      specs || null,
+      Boolean(is_active),
       id
     );
 
-    const product = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
-    product.specs = product.specs ? JSON.parse(product.specs) : null;
-
-    res.json({ message: 'Producto actualizado', product });
+    res.json({ message: 'Producto actualizado', product: updated.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al actualizar producto' });
@@ -203,15 +200,15 @@ function update(req, res) {
 }
 
 // DELETE /api/products/:id (admin)
-function remove(req, res) {
+async function remove(req, res) {
   try {
     const { id } = req.params;
-    const existing = db.prepare('SELECT id FROM products WHERE id = ?').get(id);
+    const existing = await db.prepare('SELECT id FROM products WHERE id = $1').get(id);
     if (!existing) {
       return res.status(404).json({ error: 'Producto no encontrado' });
     }
 
-    db.prepare('DELETE FROM products WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM products WHERE id = $1').run(id);
     res.json({ message: 'Producto eliminado' });
   } catch (error) {
     console.error(error);

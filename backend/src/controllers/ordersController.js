@@ -11,7 +11,7 @@ function generateOrderNumber() {
 }
 
 // POST /api/orders  (confirmar pedido desde el carrito)
-function create(req, res) {
+async function create(req, res) {
   try {
     const {
       items, // [{ type: 'product'|'service', id, quantity, name, price }]
@@ -30,58 +30,57 @@ function create(req, res) {
       return res.status(400).json({ error: 'Nombre y email del cliente son obligatorios' });
     }
 
+    // La tabla tiene un CHECK que solo acepta 'product' o 'service'. Sin esta
+    // validación, un tipo inválido saldría como 500 desde el motor en vez de 400.
+    const tipoInvalido = items.find((item) => item.type !== 'product' && item.type !== 'service');
+    if (tipoInvalido) {
+      return res.status(400).json({ error: 'Tipo de ítem inválido' });
+    }
+
     const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const orderNumber = generateOrderNumber();
     const userId = req.user ? req.user.id : null;
 
-    const insertOrder = db.prepare(`
-      INSERT INTO orders (user_id, order_number, status, total, shipping_address, notes, customer_name, customer_email, customer_phone)
-      VALUES (?, ?, 'confirmed', ?, ?, ?, ?, ?, ?)
-    `);
+    // Todo el pedido ocurre en UNA transacción, con el runner `tx` atado a esa
+    // conexión. Usar db.prepare() acá adentro tomaría otra conexión del pool y
+    // partiría la transacción en dos.
+    const orderId = await db.transaction(async (tx) => {
+      const insertedOrder = await tx.prepare(`
+        INSERT INTO orders (order_number, status, total, shipping_address, notes, customer_name, customer_email, customer_phone, user_id)
+        VALUES ($1, 'confirmed', $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id
+      `).run(orderNumber, total, shipping_address || null, notes || null, customer_name, customer_email, customer_phone || null, userId);
 
-    const insertItem = db.prepare(`
-      INSERT INTO order_items (order_id, product_id, service_id, name, price, quantity, type)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+      const newOrderId = insertedOrder.rows[0].id;
 
-    const updateStock = db.prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?');
-
-    const transaction = db.transaction(() => {
-      const result = insertOrder.run(
-        userId,
-        orderNumber,
-        total,
-        shipping_address || null,
-        notes || null,
-        customer_name,
-        customer_email,
-        customer_phone || null
+      const insertItem = tx.prepare(`
+        INSERT INTO order_items (order_id, product_id, service_id, name, price, quantity, type)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `);
+      const updateStock = tx.prepare(
+        'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $3'
       );
-
-      const orderId = result.lastInsertRowid;
 
       for (const item of items) {
         const productId = item.type === 'product' ? item.id : null;
         const serviceId = item.type === 'service' ? item.id : null;
 
-        insertItem.run(orderId, productId, serviceId, item.name, item.price, item.quantity, item.type);
+        await insertItem.run(newOrderId, productId, serviceId, item.name, item.price, item.quantity, item.type);
 
         // Descontar stock solo de productos
         if (item.type === 'product') {
-          const info = updateStock.run(item.quantity, item.id, item.quantity);
+          const info = await updateStock.run(item.quantity, item.id, item.quantity);
           if (info.changes === 0) {
             throw new Error(`Stock insuficiente para: ${item.name}`);
           }
         }
       }
 
-      return orderId;
+      return newOrderId;
     });
 
-    const orderId = transaction();
-
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
-    const orderItems = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(orderId);
+    const order = await db.prepare('SELECT * FROM orders WHERE id = $1').get(orderId);
+    const orderItems = await db.prepare('SELECT * FROM order_items WHERE order_id = $1').all(orderId);
 
     res.status(201).json({
       message: 'Pedido confirmado correctamente',
@@ -89,12 +88,18 @@ function create(req, res) {
     });
   } catch (error) {
     console.error(error);
+    // Este endpoint es público: no devolvemos el mensaje crudo de Postgres, que
+    // nombra tablas y constraints. Los errores de negocio que lanzamos nosotros
+    // no traen `code`, así que igual llegan al usuario con su texto.
+    if (error.code) {
+      return res.status(400).json({ error: 'No se pudo confirmar el pedido' });
+    }
     res.status(400).json({ error: error.message || 'Error al crear el pedido' });
   }
 }
 
 // GET /api/orders (admin: todos | customer: solo los suyos)
-function getAll(req, res) {
+async function getAll(req, res) {
   try {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -103,22 +108,22 @@ function getAll(req, res) {
     const params = [];
 
     if (req.user.role !== 'admin') {
-      sql += ' AND user_id = ?';
       params.push(req.user.id);
+      sql += ` AND user_id = $${params.length}`;
     }
 
     if (status) {
-      sql += ' AND status = ?';
       params.push(status);
+      sql += ` AND status = $${params.length}`;
     }
 
     const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
-    const { total } = db.prepare(countSql).get(...params);
+    const { total } = await db.prepare(countSql).get(...params);
 
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(parseInt(limit), offset);
+    sql += ` ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
 
-    const orders = db.prepare(sql).all(...params);
+    const orders = await db.prepare(sql).all(...params);
 
     res.json({
       orders,
@@ -136,10 +141,10 @@ function getAll(req, res) {
 }
 
 // GET /api/orders/:id
-function getOne(req, res) {
+async function getOne(req, res) {
   try {
     const { id } = req.params;
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+    const order = await db.prepare('SELECT * FROM orders WHERE id = $1').get(id);
 
     if (!order) {
       return res.status(404).json({ error: 'Pedido no encontrado' });
@@ -150,7 +155,7 @@ function getOne(req, res) {
       return res.status(403).json({ error: 'No autorizado' });
     }
 
-    const items = db.prepare('SELECT * FROM order_items WHERE order_id = ?').all(id);
+    const items = await db.prepare('SELECT * FROM order_items WHERE order_id = $1').all(id);
     res.json({ order: { ...order, items } });
   } catch (error) {
     console.error(error);
@@ -159,7 +164,7 @@ function getOne(req, res) {
 }
 
 // PUT /api/orders/:id/status (admin)
-function updateStatus(req, res) {
+async function updateStatus(req, res) {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -169,16 +174,17 @@ function updateStatus(req, res) {
       return res.status(400).json({ error: 'Estado inválido' });
     }
 
-    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
+    const order = await db.prepare('SELECT * FROM orders WHERE id = $1').get(id);
     if (!order) {
       return res.status(404).json({ error: 'Pedido no encontrado' });
     }
 
-    db.prepare('UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-      .run(status, id);
+    // updated_at lo pone el trigger de la tabla.
+    const updated = await db.prepare(
+      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *'
+    ).run(status, id);
 
-    const updated = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-    res.json({ message: 'Estado actualizado', order: updated });
+    res.json({ message: 'Estado actualizado', order: updated.rows[0] });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al actualizar estado' });
