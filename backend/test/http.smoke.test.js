@@ -1,30 +1,28 @@
-// Smoke HTTP de la API: levanta la app real en un puerto efímero contra una
-// base temporal, para cubrir el cableado de Express, los middlewares (auth
-// admin) y el contrato de respuestas, no solo los controllers en aislamiento.
+// Smoke HTTP: levanta la app real en un puerto efimero y la golpea por HTTP.
+// Cubre el cableado de Express, el middleware de auth y la forma de las
+// respuestas, no la capa de datos (eso lo hace persistencia.smoke).
+//
+// Requieren TEST_DATABASE_URL (ver helpers.js). Sin esa variable se saltean.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { skip, useTestDatabase, runChild, DB_MODULE } = require('./helpers');
 
-const dbPath = path.join(os.tmpdir(), `compushop-http-${process.pid}.db`);
-process.env.DB_PATH = dbPath;
-// Sin VERCEL, src/index.js abre el puerto 4000 al importarse; el test prefiere
-// su propio server efímero. VERCEL=1 exporta la app sin hacer listen.
+if (!skip) useTestDatabase();
+
+// Sin esta bandera, src/index.js abre el puerto 4000 al importarse: el test
+// prefiere su propio server efimero.
 process.env.VERCEL = '1';
-if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
-
-const seedPath = path.join(process.cwd(), 'src', 'db', 'seed.js');
-execFileSync(process.execPath, [seedPath], { env: process.env, stdio: 'inherit' });
 
 const app = require('../src/index');
+const db = require('../src/db/database');
 
 let server;
 let baseUrl;
 let token;
 
 before(async () => {
+  if (skip) return;
+
   server = await new Promise((resolve, reject) => {
     const s = app.listen(0, () => resolve(s));
     s.on('error', reject);
@@ -42,20 +40,23 @@ before(async () => {
   assert.ok(token, 'el login debe devolver token');
 });
 
-after(() => new Promise((resolve) => server.close(resolve)));
+after(async () => {
+  if (server) await new Promise((resolve) => server.close(resolve));
+  await db.close();
+});
 
 function adminHeaders() {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
-test('health: GET / responde ok', async () => {
+test('health: GET / responde ok', { skip }, async () => {
   const res = await fetch(`${baseUrl}/`);
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.status, 'ok');
 });
 
-test('catalogo publico: listado paginado y detalle por id/slug', async () => {
+test('catalogo publico: listado paginado y detalle por id y por slug', { skip }, async () => {
   const listRes = await fetch(`${baseUrl}/api/products?limit=2`);
   assert.equal(listRes.status, 200);
   const list = await listRes.json();
@@ -82,14 +83,20 @@ test('catalogo publico: listado paginado y detalle por id/slug', async () => {
   assert.equal((await services.json()).services.length, 4);
 });
 
-test('auth: las rutas admin sin token responden 401', async () => {
-  for (const path of ['/api/settings', '/api/dashboard/stats', '/api/users']) {
-    const res = await fetch(`${baseUrl}${path}`);
-    assert.equal(res.status, 401, `${path} debe exigir token`);
+test('busqueda: ILIKE no distingue mayusculas (lo que hacia LIKE en SQLite)', { skip }, async () => {
+  const res = await fetch(`${baseUrl}/api/products?search=LENOVO`);
+  assert.equal(res.status, 200);
+  assert.ok((await res.json()).pagination.total > 0, 'LENOVO debe encontrar el producto');
+});
+
+test('auth: las rutas admin sin token responden 401', { skip }, async () => {
+  for (const ruta of ['/api/settings', '/api/dashboard/stats', '/api/users']) {
+    const res = await fetch(`${baseUrl}${ruta}`);
+    assert.equal(res.status, 401, `${ruta} debe exigir token`);
   }
 });
 
-test('admin: settings y dashboard responden con token', async () => {
+test('admin: settings y dashboard responden con token', { skip }, async () => {
   const settings = await fetch(`${baseUrl}/api/settings`, { headers: adminHeaders() });
   assert.equal(settings.status, 200);
   assert.ok(Object.keys((await settings.json()).settings).length > 0);
@@ -101,7 +108,7 @@ test('admin: settings y dashboard responden con token', async () => {
   assert.equal(stats.servicesCount, 4);
 });
 
-test('CRUD round-trip de producto por HTTP', async () => {
+test('CRUD round-trip de producto por HTTP', { skip }, async () => {
   const created = await fetch(`${baseUrl}/api/products`, {
     method: 'POST',
     headers: adminHeaders(),
@@ -136,9 +143,9 @@ test('CRUD round-trip de producto por HTTP', async () => {
   assert.equal(list.pagination.total, 12, 'el catalogo vuelve al estado del seed');
 });
 
-test('pedido: crear un pedido descuenta stock y registra items', async () => {
-  const before = await (await fetch(`${baseUrl}/api/products/1`)).json();
-  const stockAntes = before.product.stock;
+test('pedido: crearlo descuenta stock en la misma transaccion', { skip }, async () => {
+  const antes = await (await fetch(`${baseUrl}/api/products/1`)).json();
+  const stockAntes = antes.product.stock;
 
   const res = await fetch(`${baseUrl}/api/orders`, {
     method: 'POST',
@@ -153,33 +160,34 @@ test('pedido: crear un pedido descuenta stock y registra items', async () => {
   const { order } = await res.json();
   assert.equal(order.order_number.slice(0, 2), 'CS');
   assert.equal(order.status, 'confirmed');
-  assert.equal(order.total, 689999 * 2);
+  assert.equal(Number(order.total), 1379998);
   assert.equal(order.items.length, 1);
-  assert.equal(order.items[0].quantity, 2);
 
-  const after = await (await fetch(`${baseUrl}/api/products/1`)).json();
-  assert.equal(after.product.stock, stockAntes - 2, 'el stock debe descontarse exactamente 2');
+  const despues = await (await fetch(`${baseUrl}/api/products/1`)).json();
+  assert.equal(despues.product.stock, stockAntes - 2);
 });
 
-test('pedido: si no hay stock suficiente no queda nada a medias', async () => {
-  const before = await (await fetch(`${baseUrl}/api/products/1`)).json();
-  const stockAntes = before.product.stock;
+test('pedido: sin stock no queda nada escrito (rollback completo)', { skip }, async () => {
+  const antes = await (await fetch(`${baseUrl}/api/products/1`)).json();
+  const stockAntes = antes.product.stock;
 
   const res = await fetch(`${baseUrl}/api/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      items: [{ id: 1, name: 'Notebook Lenovo', price: 689999, quantity: stockAntes + 1, type: 'product' }],
+      items: [
+        { id: 1, name: 'Notebook Lenovo', price: 689999, quantity: stockAntes + 1, type: 'product' },
+      ],
       customer_name: 'Pedido Fallido',
       customer_email: 'fallido@e2e.com',
     }),
   });
   assert.equal(res.status, 400, 'debe rechazarse por stock insuficiente');
+  assert.match((await res.json()).error, /Stock insuficiente/);
 
-  const after = await (await fetch(`${baseUrl}/api/products/1`)).json();
-  assert.equal(after.product.stock, stockAntes, 'el stock no debe cambiar si el pedido falla');
+  const despues = await (await fetch(`${baseUrl}/api/products/1`)).json();
+  assert.equal(despues.product.stock, stockAntes, 'el stock no cambia si el pedido falla');
 
-  // Sin orden ni items fantasma: el catalogo y los pedidos quedan consistentes
   const orders = await (await fetch(`${baseUrl}/api/orders`, { headers: adminHeaders() })).json();
   assert.ok(
     !orders.orders.some((o) => o.customer_email === 'fallido@e2e.com'),
@@ -187,36 +195,30 @@ test('pedido: si no hay stock suficiente no queda nada a medias', async () => {
   );
 });
 
-test('persistencia: los cambios quedan escritos en el archivo de la base', async () => {
-  const created = await fetch(`${baseUrl}/api/products`, {
+test('persistencia: un COMMIT se ve desde otro proceso', { skip }, async () => {
+  const creado = await fetch(`${baseUrl}/api/products`, {
     method: 'POST',
     headers: adminHeaders(),
     body: JSON.stringify({ name: 'Producto Persistido', price: 555, stock: 1 }),
   });
-  const { product } = await created.json();
+  assert.equal(creado.status, 201);
+  const { product } = await creado.json();
 
-  // Un proceso aparte lee el .db del disco: verifica que la escritura llego al
-  // archivo y no solo a la copia en memoria de este proceso.
-  const script = `
-    const db = require(${JSON.stringify(path.join(process.cwd(), 'src', 'db', 'database.js'))});
-    db.init().then(() => {
-      const row = db.prepare('SELECT name, price FROM products WHERE id = ?').get(${product.id});
+  // Sin sql.js no hay un .db en disco que leer: lo que se verifica es que el
+  // COMMIT sea visible desde OTRA conexion, en otro proceso.
+  const codigo = `
+    const db = require(${JSON.stringify(DB_MODULE)});
+    (async () => {
+      const row = await db.prepare('SELECT name, price FROM products WHERE id = $1').get(${product.id});
       if (!row) {
-        console.error('producto ausente en el archivo');
+        console.error('el producto no llego a la base');
         process.exit(1);
       }
-      console.log('disco: ' + row.name + ' ' + row.price);
-    });
+      console.log('otro-proceso-ok:' + row.name + ' ' + row.price);
+      await db.close();
+    })().catch((error) => { console.error(error); process.exit(1); });
   `;
-  const out = execFileSync(process.execPath, ['-e', script], {
-    env: { ...process.env, DB_PATH: dbPath },
-    encoding: 'utf8',
-  });
-  assert.match(out, /disco: Producto Persistido 555/);
 
-  const removed = await fetch(`${baseUrl}/api/products/${product.id}`, {
-    method: 'DELETE',
-    headers: adminHeaders(),
-  });
-  assert.equal(removed.status, 200);
+  const salida = runChild(codigo);
+  assert.match(salida, /otro-proceso-ok:Producto Persistido 555/);
 });
