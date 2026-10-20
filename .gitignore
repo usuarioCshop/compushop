@@ -32,3 +32,4 @@ dist-ssr
 
 # Base de datos SQLite generada
 *.db
+.neon

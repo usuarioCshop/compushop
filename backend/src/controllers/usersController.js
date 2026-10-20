@@ -2,7 +2,7 @@ const bcrypt = require('bcryptjs');
 const db = require('../db/database');
 
 // GET /api/users (admin)
-function getAll(req, res) {
+async function getAll(req, res) {
   try {
     const { role, search, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -11,22 +11,23 @@ function getAll(req, res) {
     const params = [];
 
     if (role) {
-      sql += ' AND role = ?';
       params.push(role);
+      sql += ` AND role = $${params.length}`;
     }
     if (search) {
-      sql += ' AND (name LIKE ? OR email LIKE ? OR dni LIKE ?)';
       const term = `%${search}%`;
-      params.push(term, term, term);
+      params.push(term);
+      // Un solo $n para el termino repetido: se envia una sola vez en params.
+      sql += ` AND (name ILIKE $${params.length} OR email ILIKE $${params.length} OR dni ILIKE $${params.length})`;
     }
 
     const countSql = sql.replace(/SELECT .+ FROM/, 'SELECT COUNT(*) as total FROM');
-    const { total } = db.prepare(countSql).get(...params);
+    const { total } = await db.prepare(countSql).get(...params);
 
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
 
-    const users = db.prepare(sql).all(...params);
+    const users = await db.prepare(sql).all(...params);
     res.json({
       users,
       pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) },
@@ -38,10 +39,10 @@ function getAll(req, res) {
 }
 
 // PUT /api/users/:id (admin)
-function update(req, res) {
+async function update(req, res) {
   try {
     const { id } = req.params;
-    const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    const existing = await db.prepare('SELECT * FROM users WHERE id = $1').get(id);
     if (!existing) return res.status(404).json({ error: 'Usuario no encontrado' });
 
     const {
@@ -60,21 +61,21 @@ function update(req, res) {
 
     if (password) {
       const hashed = bcrypt.hashSync(password, 10);
-      db.prepare(`
-        UPDATE users SET name=?, email=?, dni=?, role=?, phone=?, address=?, password=?, updated_at=CURRENT_TIMESTAMP
-        WHERE id=?
+      await db.prepare(`
+        UPDATE users SET name=$1, email=$2, dni=$3, role=$4, phone=$5, address=$6, password=$7, updated_at=CURRENT_TIMESTAMP
+        WHERE id=$8
       `).run(name, email, dni, role, phone, address, hashed, id);
     } else {
-      db.prepare(`
-        UPDATE users SET name=?, email=?, dni=?, role=?, phone=?, address=?, updated_at=CURRENT_TIMESTAMP
-        WHERE id=?
+      await db.prepare(`
+        UPDATE users SET name=$1, email=$2, dni=$3, role=$4, phone=$5, address=$6, updated_at=CURRENT_TIMESTAMP
+        WHERE id=$7
       `).run(name, email, dni, role, phone, address, id);
     }
 
-    const user = db.prepare('SELECT id, name, email, dni, role, phone, address, created_at FROM users WHERE id = ?').get(id);
+    const user = await db.prepare('SELECT id, name, email, dni, role, phone, address, created_at FROM users WHERE id = $1').get(id);
     res.json({ message: 'Usuario actualizado', user });
   } catch (error) {
-    if (error.message.includes('UNIQUE')) {
+    if (db.isUniqueViolation(error)) {
       return res.status(409).json({ error: 'Email o DNI ya existe' });
     }
     console.error(error);
@@ -83,16 +84,16 @@ function update(req, res) {
 }
 
 // DELETE /api/users/:id (admin)
-function remove(req, res) {
+async function remove(req, res) {
   try {
     const { id } = req.params;
     if (parseInt(id) === req.user.id) {
       return res.status(400).json({ error: 'No podés eliminarte a vos mismo' });
     }
-    const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(id);
+    const existing = await db.prepare('SELECT id FROM users WHERE id = $1').get(id);
     if (!existing) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM users WHERE id = $1').run(id);
     res.json({ message: 'Usuario eliminado' });
   } catch (error) {
     console.error(error);

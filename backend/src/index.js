@@ -30,7 +30,9 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Inicializar DB (sql.js) antes de procesar peticiones
+// Verificar la conexion antes de procesar peticiones. init() esta memoizado: la
+// primera llamada valida contra Postgres y las siguientes son un no-op, asi que
+// en serverless (donde esto corre en cada cold start) el costo es una sola query.
 app.use(async (req, res, next) => {
   try {
     await db.init();
@@ -48,33 +50,46 @@ app.get('/', (req, res) => {
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ error: err.message || 'Error interno del servidor' });
+  // No devolvemos err.message al cliente: los errores de Postgres traen nombres
+  // de tablas, columnas y a veces valores. Los controllers ya responden sus
+  // propios mensajes en español; esto solo cubre lo inesperado.
+  res.status(500).json({ error: 'Error interno del servidor' });
 });
 
-// sql.js mantiene la base en memoria y reescribe el archivo al escribir. Si el
-// seed corre con el servidor levantado, el servidor pisa el archivo con su copia
-// (vacia) en la proxima escritura. Avisar al arrancar evita perder tiempo
-// depurando listados vacios.
-function warnIfEmptyDb() {
-  if (!db.isEmpty()) return;
-  console.warn(
-    `⚠️  La base ${db.DB_PATH} no tiene datos. Detene el servidor y ejecuta "npm run seed".`
-  );
+// Diagnostico de arranque. Con sql.js el esquema se creaba solo al abrir la app;
+// ahora hay dos pasos explicitos (npm run migrate, npm run seed) y los dos
+// errores mas probables al levantar el server merecen un mensaje claro en vez de
+// un 500 en la primera consulta.
+async function startupDiagnostics() {
+  const schema = await db.checkSchema();
+  if (!schema.ready) {
+    console.warn(`⚠️  Faltan tablas en ${db.describeConnection()}: ${schema.missing.join(', ')}`);
+    console.warn('   Ejecutá "npm run migrate".');
+    return;
+  }
+  if (await db.isEmpty()) {
+    console.warn(`⚠️  La base ${db.describeConnection()} no tiene datos. Ejecutá "npm run seed".`);
+  }
 }
 
 // Vercel serverless: exportar app; local: listen
 if (process.env.VERCEL) {
+  // En serverless no hay arranque: el modulo se evalua en cada cold start.
+  startupDiagnostics().catch((err) =>
+    console.error('Diagnóstico de arranque falló:', err.message)
+  );
   module.exports = app;
 } else {
   db.init()
-    .then(() => {
-      warnIfEmptyDb();
+    .then(async () => {
+      await startupDiagnostics();
       app.listen(PORT, () => {
         console.log(`🚀 Compushop API corriendo en http://localhost:${PORT}`);
+        console.log(`   Base: ${db.describeConnection()}`);
       });
     })
     .catch((err) => {
-      console.error('Error inicializando DB:', err);
+      console.error('Error inicializando la base:', err.message);
       process.exit(1);
     });
   module.exports = app;

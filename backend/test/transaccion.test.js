@@ -1,75 +1,151 @@
-const { test } = require('node:test');
+// Tests de transaction(): es el patron que usa el controlador de pedidos.
+//
+// Requieren TEST_DATABASE_URL (ver helpers.js). Sin esa variable se saltean.
+const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { skip, useTestDatabase, runChild, DB_MODULE } = require('./helpers');
 
-const dbPath = path.join(os.tmpdir(), `compushop-tx-${process.pid}.db`);
-process.env.DB_PATH = dbPath;
-if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
-
-const seedPath = path.join(process.cwd(), 'src', 'db', 'seed.js');
-execFileSync(process.execPath, [seedPath], { env: process.env, stdio: 'inherit' });
+if (!skip) useTestDatabase();
 
 const db = require('../src/db/database');
 
-test('transaccion: multiples escrituras dentro de transaction() no fallan en COMMIT', async () => {
-  await db.init();
-  const insertOrder = db.prepare(
-    'INSERT INTO orders (order_number, status, total, customer_name, customer_email) VALUES (?, ?, ?, ?, ?)'
-  );
-  const insertItem = db.prepare(
-    'INSERT INTO order_items (order_id, product_id, service_id, name, price, quantity, type) VALUES (?, ?, ?, ?, ?, ?, ?)'
-  );
-  const updateStock = db.prepare('UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?');
-
-  // Replica el patron del controlador de pedidos: varias escrituras en una transaccion
-  const fn = db.transaction(() => {
-    const order = insertOrder.run(`TEST-${Date.now()}`, 'confirmed', 100, 'T', 't@t.com');
-    const orderId = order.lastInsertRowid;
-    insertItem.run(orderId, 1, null, 'Producto', 100, 1, 'product');
-    const info = updateStock.run(1, 1, 1);
-    if (info.changes === 0) throw new Error('Stock insuficiente');
-    return orderId;
-  });
-
-  const orderId = fn();
-  assert.ok(orderId > 0, 'la transaccion debe devolver el id insertado');
-  const total = db.prepare('SELECT COUNT(*) as c FROM orders').get().c;
-  assert.ok(total >= 1);
+after(async () => {
+  await db.close();
 });
 
-test('transaccion: si algo falla, se hace rollback y no queda a medias', async () => {
-  await db.init();
-  const before = db.prepare('SELECT COUNT(*) as c FROM orders').get().c;
-  const fn = db.transaction(() => {
-    db.prepare(
-      'INSERT INTO orders (order_number, status, total, customer_name, customer_email) VALUES (?, ?, ?, ?, ?)'
-    ).run(`RB-${Date.now()}`, 'confirmed', 1, 'T', 't@t.com');
-    throw new Error('falla deliberada');
+const contarOrdenes = async () => (await db.prepare('SELECT COUNT(*) AS c FROM orders').get()).c;
+const stockDe = async () => (await db.prepare('SELECT stock FROM products WHERE id = $1').get(1)).stock;
+
+test('transaction(): varias escrituras commitean juntas', { skip }, async () => {
+  const ordenesAntes = await contarOrdenes();
+  const stockAntes = await stockDe();
+
+  const orderId = await db.transaction(async (tx) => {
+    const orden = await tx.prepare(`
+      INSERT INTO orders (order_number, status, total, customer_name, customer_email)
+      VALUES ($1, 'confirmed', 100, 'Prueba', 't@t.com')
+      RETURNING id
+    `).run(`TX-${Date.now()}`);
+    const id = orden.rows[0].id;
+
+    await tx.prepare(`
+      INSERT INTO order_items (order_id, product_id, name, price, quantity, type)
+      VALUES ($1, 1, 'Producto', 100, 1, 'product')
+    `).run(id);
+
+    const info = await tx.prepare('UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $3').run(1, 1, 1);
+    assert.equal(info.changes, 1, 'el update de stock tiene que afectar una fila');
+
+    return id;
   });
 
-  assert.throws(() => fn(), /falla deliberada/);
-  const after = db.prepare('SELECT COUNT(*) as c FROM orders').get().c;
-  assert.equal(after, before, 'el rollback debe dejar la base como estaba');
+  assert.ok(orderId > 0);
+  assert.equal(await contarOrdenes(), ordenesAntes + 1);
+
+  const items = await db.prepare('SELECT COUNT(*) AS c FROM order_items WHERE order_id = $1').get(orderId);
+  assert.equal(items.c, 1, 'el item quedo asociado al pedido');
+  assert.equal(await stockDe(), stockAntes - 1);
 });
 
-test('transaccion: lo escrito dentro de la transaccion llega al archivo', () => {
-  const script = `
-    const db = require(${JSON.stringify(path.join(process.cwd(), 'src', 'db', 'database.js'))});
-    db.init().then(() => {
-      const r = db.prepare("SELECT COUNT(*) AS c FROM orders WHERE order_number LIKE 'TEST-%'").get();
-      if (r.c < 1) {
-        console.error('el pedido de la transaccion no esta en el archivo');
+test('transaction(): si el callback tira, no queda NADA a medio escribir', { skip }, async () => {
+  const ordenesAntes = await contarOrdenes();
+  const stockAntes = await stockDe();
+
+  await assert.rejects(
+    () =>
+      db.transaction(async (tx) => {
+        const orden = await tx.prepare(`
+          INSERT INTO orders (order_number, status, total, customer_name, customer_email)
+          VALUES ($1, 'confirmed', 10, 'Prueba', 't@t.com')
+          RETURNING id
+        `).run(`ROLLBACK-${Date.now()}`);
+        const id = orden.rows[0].id;
+
+        await tx.prepare(`
+          INSERT INTO order_items (order_id, product_id, name, price, quantity, type)
+          VALUES ($1, 1, 'Producto', 10, 1, 'product')
+        `).run(id);
+
+        await tx.prepare('UPDATE products SET stock = stock - $1 WHERE id = $2').run(1, 1);
+
+        throw new Error('corte a proposito');
+      }),
+    /corte a proposito/
+  );
+
+  assert.equal(await contarOrdenes(), ordenesAntes, 'la orden no puede quedar');
+  assert.equal(await stockDe(), stockAntes, 'el stock no puede cambiar');
+
+  const ordenesSueltas = await db.prepare("SELECT COUNT(*) AS c FROM orders WHERE order_number LIKE $1").get('ROLLBACK-%');
+  assert.equal(ordenesSueltas.c, 0, 'no puede quedar la orden del rollback');
+
+  const itemsSueltos = await db.prepare(`
+    SELECT COUNT(*) AS c FROM order_items i
+    JOIN orders o ON o.id = i.order_id
+    WHERE o.order_number LIKE $1
+  `).get('ROLLBACK-%');
+  assert.equal(itemsSueltos.c, 0, 'no pueden quedar items huerfanos');
+});
+
+test('transaction(): un update que no afecta filas aborta el pedido', { skip }, async () => {
+  const ordenesAntes = await contarOrdenes();
+  const stockAntes = await stockDe();
+
+  await assert.rejects(
+    () =>
+      db.transaction(async (tx) => {
+        const orden = await tx.prepare(`
+          INSERT INTO orders (order_number, status, total, customer_name, customer_email)
+          VALUES ($1, 'confirmed', 10, 'Prueba', 't@t.com')
+          RETURNING id
+        `).run(`SIN-STOCK-${Date.now()}`);
+        await tx.prepare(`
+          INSERT INTO order_items (order_id, product_id, name, price, quantity, type)
+          VALUES ($1, 1, 'Producto', 10, 1, 'product')
+        `).run(orden.rows[0].id);
+
+        // Pide mas stock del que hay: el UPDATE no afecta ninguna fila.
+        const info = await tx
+          .prepare('UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $3')
+          .run(stockAntes + 1, 1, stockAntes + 1);
+
+        assert.equal(info.changes, 0, 'no puede descontar mas stock del que hay');
+        throw new Error('Stock insuficiente para: Producto');
+      }),
+    /Stock insuficiente/
+  );
+
+  assert.equal(await contarOrdenes(), ordenesAntes);
+  assert.equal(await stockDe(), stockAntes);
+});
+
+test('un COMMIT se ve desde otro proceso', { skip }, async () => {
+  const nombre = `Producto de otro proceso ${Date.now()}`;
+
+  await db.transaction(async (tx) => {
+    await tx.prepare('INSERT INTO products (name, slug, price, stock) VALUES ($1, $2, $3, $4)').run(
+      nombre,
+      `otro-proceso-${Date.now()}`,
+      123,
+      1
+    );
+  });
+
+  // Sin sql.js no hay "archivo de la base": lo que se puede verificar es que la
+  // escritura sea visible desde OTRA conexion, en otro proceso.
+  const codigo = `
+    const db = require(${JSON.stringify(DB_MODULE)});
+    (async () => {
+      const row = await db.prepare('SELECT name FROM products WHERE name = $1').get(${JSON.stringify(nombre)});
+      if (!row) {
+        console.error('el producto no llego a la base');
         process.exit(1);
       }
-      console.log('archivo ok');
-    });
+      console.log('otro-proceso-ok:' + row.name);
+      await db.close();
+    })().catch((error) => { console.error(error); process.exit(1); });
   `;
-  const out = execFileSync(process.execPath, ['-e', script], {
-    env: { ...process.env, DB_PATH: dbPath },
-    encoding: 'utf8',
-  });
-  assert.match(out, /archivo ok/);
+
+  const salida = runChild(codigo);
+  assert.match(salida, /otro-proceso-ok:/);
 });
