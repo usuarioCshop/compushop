@@ -195,6 +195,102 @@ test('pedido: sin stock no queda nada escrito (rollback completo)', { skip }, as
   );
 });
 
+test('pedido: cancelar repone stock, repetir no duplica y reabrir lo descuenta', { skip }, async () => {
+  const leerStock = async () =>
+    Number((await (await fetch(`${baseUrl}/api/products/1`)).json()).product.stock);
+
+  const stockOriginal = await leerStock();
+
+  const res = await fetch(`${baseUrl}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      items: [{ id: 1, name: 'Notebook Lenovo', price: 689999, quantity: 2, type: 'product' }],
+      customer_name: 'Pedido Cancelable',
+      customer_email: 'cancelable@e2e.com',
+    }),
+  });
+  assert.equal(res.status, 201);
+  const { order } = await res.json();
+  assert.equal(order.status, 'confirmed');
+  assert.equal(await leerStock(), stockOriginal - 2, 'crear descuenta stock');
+
+  const cambiar = (status) =>
+    fetch(`${baseUrl}/api/orders/${order.id}/status`, {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ status }),
+    });
+
+  const cancelada = await cambiar('cancelled');
+  assert.equal(cancelada.status, 200);
+  assert.equal((await cancelada.json()).order.status, 'cancelled');
+  assert.equal(await leerStock(), stockOriginal, 'cancelar debe reponer el stock');
+
+  // Mismo estado: no debe mover stock otra vez (doble reposicion = inflar inventario).
+  const repetida = await cambiar('cancelled');
+  assert.equal(repetida.status, 200);
+  assert.equal(await leerStock(), stockOriginal, 'cancelar dos veces no duplica la reposicion');
+
+  const reabierta = await cambiar('confirmed');
+  assert.equal(reabierta.status, 200);
+  assert.equal(await leerStock(), stockOriginal - 2, 'reabrir debe volver a descontar');
+});
+
+test('pedido: reabrir sin stock responde 409 y no cambia nada', { skip }, async () => {
+  const created = await fetch(`${baseUrl}/api/products`, {
+    method: 'POST',
+    headers: adminHeaders(),
+    body: JSON.stringify({ name: 'Producto Reabrir', price: 100, stock: 5 }),
+  });
+  assert.equal(created.status, 201);
+  const { product } = await created.json();
+
+  const leerStock = async () =>
+    Number((await (await fetch(`${baseUrl}/api/products/${product.id}`)).json()).product.stock);
+
+  const crearOrden = async (email) => {
+    const r = await fetch(`${baseUrl}/api/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items: [{ id: product.id, name: product.name, price: 100, quantity: 5, type: 'product' }],
+        customer_name: 'Reabrir',
+        customer_email: email,
+      }),
+    });
+    assert.equal(r.status, 201);
+    return (await r.json()).order;
+  };
+
+  const ordenA = await crearOrden('reabrir-a@e2e.com');
+  assert.equal(await leerStock(), 0, 'el pedido se lleva las 5 unidades');
+
+  const cancelada = await fetch(`${baseUrl}/api/orders/${ordenA.id}/status`, {
+    method: 'PUT',
+    headers: adminHeaders(),
+    body: JSON.stringify({ status: 'cancelled' }),
+  });
+  assert.equal(cancelada.status, 200);
+  assert.equal(await leerStock(), 5, 'cancelar las devuelve');
+
+  // Alguien mas se lleva las 5 unidades mientras la orden A estaba cancelada.
+  await crearOrden('reabrir-b@e2e.com');
+  assert.equal(await leerStock(), 0);
+
+  const reabrir = await fetch(`${baseUrl}/api/orders/${ordenA.id}/status`, {
+    method: 'PUT',
+    headers: adminHeaders(),
+    body: JSON.stringify({ status: 'confirmed' }),
+  });
+  assert.equal(reabrir.status, 409, 'no debe reabrir si no hay stock');
+  assert.match((await reabrir.json()).error, /stock suficiente/);
+
+  assert.equal(await leerStock(), 0, 'el stock no debe quedar negativo ni alterado');
+  const reread = await (await fetch(`${baseUrl}/api/orders/${ordenA.id}`, { headers: adminHeaders() })).json();
+  assert.equal(reread.order.status, 'cancelled', 'la orden debe seguir cancelada (rollback total)');
+});
+
 test('persistencia: un COMMIT se ve desde otro proceso', { skip }, async () => {
   const creado = await fetch(`${baseUrl}/api/products`, {
     method: 'POST',
