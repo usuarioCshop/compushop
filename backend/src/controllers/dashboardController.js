@@ -1,42 +1,42 @@
 const db = require('../db/database');
 
 // GET /api/dashboard/stats (admin)
-function getStats(req, res) {
+async function getStats(req, res) {
   try {
-    const productsCount = db.prepare('SELECT COUNT(*) as c FROM products WHERE is_active = 1').get().c;
-    const servicesCount = db.prepare('SELECT COUNT(*) as c FROM services WHERE is_active = 1').get().c;
-    const usersCount = db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'customer'").get().c;
-    const ordersCount = db.prepare('SELECT COUNT(*) as c FROM orders').get().c;
-    const pendingOrders = db.prepare("SELECT COUNT(*) as c FROM orders WHERE status IN ('pending','confirmed','processing')").get().c;
-    const unreadMessages = db.prepare('SELECT COUNT(*) as c FROM contact_messages WHERE is_read = 0').get().c;
+    const productsCount = (await db.prepare('SELECT COUNT(*) as c FROM products WHERE is_active = true').get()).c;
+    const servicesCount = (await db.prepare('SELECT COUNT(*) as c FROM services WHERE is_active = true').get()).c;
+    const usersCount = (await db.prepare("SELECT COUNT(*) as c FROM users WHERE role = 'customer'").get()).c;
+    const ordersCount = (await db.prepare('SELECT COUNT(*) as c FROM orders').get()).c;
+    const pendingOrders = (await db.prepare("SELECT COUNT(*) as c FROM orders WHERE status IN ('pending','confirmed','processing')").get()).c;
+    const unreadMessages = (await db.prepare('SELECT COUNT(*) as c FROM contact_messages WHERE is_read = false').get()).c;
 
-    const revenue = db.prepare(`
+    const revenue = (await db.prepare(`
       SELECT COALESCE(SUM(total), 0) as total
       FROM orders
       WHERE status NOT IN ('cancelled')
-    `).get().total;
+    `).get()).total;
 
-    const recentOrders = db.prepare(`
+    const recentOrders = await db.prepare(`
       SELECT id, order_number, customer_name, total, status, created_at
       FROM orders
       ORDER BY created_at DESC
       LIMIT 5
     `).all();
 
-    const lowStock = db.prepare(`
+    const lowStock = await db.prepare(`
       SELECT id, name, stock, price
       FROM products
-      WHERE is_active = 1 AND stock <= 5
+      WHERE is_active = true AND stock <= 5
       ORDER BY stock ASC
       LIMIT 10
     `).all();
 
     // Ventas por mes (últimos 6 meses)
-    const salesByMonth = db.prepare(`
-      SELECT strftime('%Y-%m', created_at) as month, SUM(total) as total, COUNT(*) as orders
+    const salesByMonth = await db.prepare(`
+      SELECT to_char(created_at, 'YYYY-MM') as month, SUM(total) as total, COUNT(*) as orders
       FROM orders
       WHERE status NOT IN ('cancelled')
-        AND created_at >= date('now', '-6 months')
+        AND created_at >= now() - interval '6 months'
       GROUP BY month
       ORDER BY month
     `).all();

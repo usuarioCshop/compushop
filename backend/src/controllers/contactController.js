@@ -11,9 +11,9 @@ async function sendMessage(req, res) {
     }
 
     // Guardar siempre en DB
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO contact_messages (name, email, phone, subject, message)
-      VALUES (?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5)
     `).run(name, email, phone || null, subject || null, message);
 
     // Intentar enviar email
@@ -31,7 +31,7 @@ async function sendMessage(req, res) {
 }
 
 // GET /api/contact (admin)
-function getMessages(req, res) {
+async function getMessages(req, res) {
   try {
     const { unread, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -40,16 +40,16 @@ function getMessages(req, res) {
     const params = [];
 
     if (unread === 'true') {
-      sql += ' AND is_read = 0';
+      sql += ' AND is_read = false';
     }
 
     const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
-    const { total } = db.prepare(countSql).get(...params);
+    const { total } = await db.prepare(countSql).get(...params);
 
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    sql += ` ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
     params.push(parseInt(limit), offset);
 
-    const messages = db.prepare(sql).all(...params).map(m => ({
+    const messages = (await db.prepare(sql).all(...params)).map(m => ({
       ...m,
       is_read: !!m.is_read,
     }));
@@ -65,10 +65,10 @@ function getMessages(req, res) {
 }
 
 // PUT /api/contact/:id/read (admin)
-function markAsRead(req, res) {
+async function markAsRead(req, res) {
   try {
     const { id } = req.params;
-    db.prepare('UPDATE contact_messages SET is_read = 1 WHERE id = ?').run(id);
+    await db.prepare('UPDATE contact_messages SET is_read = true WHERE id = $1').run(id);
     res.json({ message: 'Mensaje marcado como leído' });
   } catch (error) {
     res.status(500).json({ error: 'Error al actualizar mensaje' });

@@ -1,9 +1,9 @@
 const nodemailer = require('nodemailer');
 const db = require('../db/database');
 
-function getSetting(key, def = '') {
+async function getSetting(key, def = '') {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    const row = await db.prepare('SELECT value FROM settings WHERE key = $1').get(key);
     const val = row ? row.value : '';
     return val !== undefined && val !== '' ? val : (process.env[key.toUpperCase()] || def);
   } catch (_) {
@@ -11,19 +11,19 @@ function getSetting(key, def = '') {
   }
 }
 
-function createTransporter() {
-  const host = getSetting('smtp_host', 'smtp.gmail.com');
-  const port = parseInt(getSetting('smtp_port', '587'), 10);
-  const user = getSetting('smtp_user', '');
-  const pass = getSetting('smtp_pass', '');
+async function createTransporter() {
+  const host = await getSetting('smtp_host', 'smtp.gmail.com');
+  const port = parseInt(await getSetting('smtp_port', '587'), 10);
+  const user = await getSetting('smtp_user', '');
+  const pass = await getSetting('smtp_pass', '');
   if (!user || !pass) return null;
   return nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass } });
 }
 
 async function sendContactEmail({ name, email, phone, subject, message }) {
-  const transporter = createTransporter();
-  const to = getSetting('contact_to', 'contacto@compushop.com');
-  const from = getSetting('smtp_from', 'Compushop <noreply@compushop.com>');
+  const transporter = await createTransporter();
+  const to = await getSetting('contact_to', 'contacto@compushop.com');
+  const from = await getSetting('smtp_from', 'Compushop <noreply@compushop.com>');
   if (!transporter) {
     console.warn('⚠️  SMTP no configurado. Mensaje guardado pero no enviado.');
     return { sent: false, reason: 'SMTP no configurado' };
@@ -45,8 +45,8 @@ async function sendContactEmail({ name, email, phone, subject, message }) {
 }
 
 async function sendPasswordResetEmail(user, token) {
-  const transporter = createTransporter();
-  const from = getSetting('smtp_from', 'Compushop <noreply@compushop.com>');
+  const transporter = await createTransporter();
+  const from = await getSetting('smtp_from', 'Compushop <noreply@compushop.com>');
   if (!transporter) {
     console.warn('⚠️  SMTP no configurado.');
     return { sent: false, token };
