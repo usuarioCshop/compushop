@@ -179,14 +179,73 @@ async function updateStatus(req, res) {
       return res.status(404).json({ error: 'Pedido no encontrado' });
     }
 
-    // updated_at lo pone el trigger de la tabla.
-    const updated = await db.prepare(
-      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *'
-    ).run(status, id);
+    // Mismo estado: nada que mover. Devolvemos igual para que el cliente no
+    // tenga que tratarlo como error.
+    if (order.status === status) {
+      return res.json({ message: 'Estado actualizado', order });
+    }
 
-    res.json({ message: 'Estado actualizado', order: updated.rows[0] });
+    // El descuento de stock pasa adentro de create(), al confirmar. Cancelar
+    // tiene que devolverlo y reabrir tiene que volver a reservarlo: si sólo
+    // repusiéramos al cancelar, reabrir una orden dejaría el stock inflado y
+    // crearíamos otro bug en lugar de cerrar este.
+    const haciaCancelado = status === 'cancelled';
+    const desdeCancelado = order.status === 'cancelled';
+
+    const updated = await db.transaction(async (tx) => {
+      // Compare-and-swap sobre el estado anterior: dos admins cancelando a la
+      // vez sólo uno gana, así el stock se mueve UNA sola vez.
+      const claimed = await tx.prepare(
+        'UPDATE orders SET status = $1 WHERE id = $2 AND status = $3 RETURNING id'
+      ).run(status, id, order.status);
+
+      if (claimed.changes === 0) {
+        const err = new Error('La orden cambió de estado mientras la actualizabas; recargá y volvé a intentar');
+        err.httpStatus = 409;
+        throw err;
+      }
+
+      // Sólo 'product' lleva stock; create() no descuenta los 'service'.
+      // Una transición que no entra ni sale de 'cancelled' no mueve nada.
+      if (haciaCancelado || desdeCancelado) {
+        const items = await tx.prepare(
+          "SELECT product_id, quantity FROM order_items WHERE order_id = $1 AND type = 'product' AND product_id IS NOT NULL"
+        ).all(id);
+
+        for (const item of items) {
+          if (haciaCancelado) {
+            await tx.prepare('UPDATE products SET stock = stock + $1 WHERE id = $2')
+              .run(item.quantity, item.product_id);
+          } else {
+            // El CHECK (stock >= 0) del esquema es la última red de seguridad;
+            // acá evitamos igual llegar a él y que reviente un 500.
+            const info = await tx.prepare(
+              'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1'
+            ).run(item.quantity, item.product_id);
+
+            if (info.changes === 0) {
+              const err = new Error('No hay stock suficiente para reabrir este pedido: otro pedido ya reservó esas unidades');
+              err.httpStatus = 409;
+              throw err;
+            }
+          }
+        }
+      }
+
+      return tx.prepare('SELECT * FROM orders WHERE id = $1').get(id);
+    });
+
+    res.json({ message: 'Estado actualizado', order: updated });
   } catch (error) {
     console.error(error);
+    // Igual que create(): los errores de negocio que lanzamos nosotros no
+    // traen `code` de Postgres, así que su mensaje se puede devolver.
+    if (!error.code && error.httpStatus) {
+      return res.status(error.httpStatus).json({ error: error.message });
+    }
+    if (!error.code && error.message) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: 'Error al actualizar estado' });
   }
 }
