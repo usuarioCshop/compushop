@@ -1,164 +1,28 @@
-const fs = require('fs');
-const path = require('path');
+// Capa unica de persistencia: Postgres, via el driver pg.
+//
+// La forma de la API es la misma que tenia sql.js (prepare() -> run/get/all),
+// pero ahora es ASINCRONA: cada operacion devuelve una promesa.
+//
+// Dentro de una transaccion hay que usar SIEMPRE el runner que entrega
+// transaction(), nunca db.prepare(): este ultimo sale del pool y tomaria otra
+// conexion, con lo cual la transaccion quedaria partida en dos.
+const { Pool, types } = require('pg');
 
-function resolveDbPath() {
-  const raw = process.env.DB_PATH || './src/db/compushop.db';
-  return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
-}
+// ---------------------------------------------------------------------------
+// Mapeo de tipos
+// ---------------------------------------------------------------------------
+// node-postgres devuelve numeric y bigint como STRING, para no perder precision
+// (un decimal de 40 digitos no entra en un number de JS). La API de Compushop
+// siempre devolvio numeros, asi que restauramos ese contrato una sola vez aca,
+// en la capa de datos, en lugar de convertir en cada controller.
+//   1700 = numeric -> precios, totales, SUM()
+//     20 = int8    -> COUNT(), ids internos de Postgres
+// En este dominio (precios y conteos de una casa de computacion) no existen
+// valores que no entren con seguridad en un number.
+types.setTypeParser(1700, (value) => (value === null ? null : Number(value)));
+types.setTypeParser(20, (value) => (value === null ? null : Number(value)));
 
-const DB_PATH = resolveDbPath();
-
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  email TEXT NOT NULL UNIQUE,
-  password TEXT NOT NULL,
-  dni TEXT,
-  role TEXT DEFAULT 'customer',
-  phone TEXT,
-  address TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS categories (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
-  description TEXT,
-  image TEXT,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS products (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
-  description TEXT,
-  price REAL NOT NULL,
-  stock INTEGER DEFAULT 0,
-  category_id INTEGER,
-  brand TEXT,
-  image TEXT,
-  specs TEXT,
-  is_active INTEGER DEFAULT 1,
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now')),
-  FOREIGN KEY (category_id) REFERENCES categories(id)
-);
-CREATE TABLE IF NOT EXISTS services (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
-  description TEXT,
-  price REAL NOT NULL,
-  duration TEXT,
-  image TEXT,
-  is_active INTEGER DEFAULT 1,
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER,
-  order_number TEXT NOT NULL,
-  status TEXT DEFAULT 'confirmed',
-  total REAL NOT NULL,
-  shipping_address TEXT,
-  notes TEXT,
-  customer_name TEXT NOT NULL,
-  customer_email TEXT NOT NULL,
-  customer_phone TEXT,
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS order_items (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id INTEGER NOT NULL,
-  product_id INTEGER,
-  service_id INTEGER,
-  name TEXT NOT NULL,
-  price REAL NOT NULL,
-  quantity INTEGER NOT NULL,
-  type TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS contact_messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT,
-  email TEXT,
-  phone TEXT,
-  subject TEXT,
-  message TEXT NOT NULL,
-  is_read INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS settings (
-  key TEXT PRIMARY KEY,
-  value TEXT,
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS password_resets (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL,
-  token TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  used INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-`;
-
-let SQL;
-let database;
-let initPromise;
-
-let inTransaction = false;
-
-function persist() {
-  if (!database) return;
-  if (inTransaction) return; // defer until transaction ends
-  const data = database.export();
-  const dir = path.dirname(DB_PATH);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
-}
-
-async function init() {
-  if (initPromise) return initPromise;
-  initPromise = (async () => {
-    const initSqlJs = require('sql.js');
-    SQL = await initSqlJs({
-      locateFile: (file) => path.join(path.dirname(require.resolve('sql.js')), file),
-    });
-    const dir = path.dirname(DB_PATH);
-    fs.mkdirSync(dir, { recursive: true });
-
-    if (fs.existsSync(DB_PATH)) {
-      const buffer = fs.readFileSync(DB_PATH);
-      database = new SQL.Database(buffer);
-    } else {
-      database = new SQL.Database();
-    }
-
-    database.run(SCHEMA);
-    if (!fs.existsSync(DB_PATH)) {
-      persist();
-    }
-    return database;
-  })();
-  initPromise = initPromise.catch((err) => {
-    initPromise = null;
-    throw err;
-  });
-  return initPromise;
-}
-
-function getDb() {
-  if (!database) {
-    throw new Error('Base de datos no inicializada. Ejecutar db.init() antes de usarla.');
-  }
-  return database;
-}
-
-// Tablas creadas por SCHEMA; evita interpolar cualquier string como nombre de tabla.
+// Tablas del esquema. Evita interpolar cualquier string como nombre de tabla.
 const KNOWN_TABLES = [
   'users',
   'categories',
@@ -171,113 +35,175 @@ const KNOWN_TABLES = [
   'password_resets',
 ];
 
-// true cuando la tabla no tiene filas: base recien creada, falta correr el seed.
-function isEmpty(table = 'products') {
+let pool = null;
+let initPromise = null;
+
+function connectionString() {
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    throw new Error(
+      'Falta DATABASE_URL. Pegá la cadena de conexión de Neon en backend/.env (ver .env.example).'
+    );
+  }
+  return url;
+}
+
+function getPool() {
+  if (!pool) {
+    pool = new Pool({
+      connectionString: connectionString(),
+      // Neon exige TLS y su certificado lo firma una CA publica, asi que por
+      // defecto lo verificamos. PG_SSL_NO_VERIFY=true lo relaja para entornos
+      // donde el bundle de CA de Node no lo reconoce; PGSSL=disable lo apaga
+      // (util contra un Postgres local sin TLS).
+      ssl:
+        process.env.PGSSL === 'disable'
+          ? false
+          : { rejectUnauthorized: process.env.PG_SSL_NO_VERIFY !== 'true' },
+      // Serverless (Vercel): cada invocacion mantiene su propia instancia del
+      // modulo y hay decenas en paralelo, asi que el pool va chico; del otro
+      // lado, el pooler de Neon multiplexa las conexiones reales.
+      max: Number(process.env.PGPOOL_MAX || 1),
+      idleTimeoutMillis: 10000,
+      connectionTimeoutMillis: 15000,
+      // Permite que el proceso termine solo cuando no queda trabajo pendiente.
+      allowExitOnIdle: true,
+    });
+    // Sin este handler, un error en una conexion ociosa del pool tumba el proceso.
+    pool.on('error', (error) => {
+      console.error('Error en una conexión ociosa del pool:', error.message);
+    });
+  }
+  return pool;
+}
+
+// Compatibilidad con la API vieja: run(1, 2) y run([1, 2]) hacian lo mismo.
+function normalizeParams(params) {
+  return params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+}
+
+// Envuelve un ejecutor (el pool, o una conexion tomada para una transaccion) con
+// la API que esperan los controllers.
+function createRunner(execute) {
+  return {
+    prepare(sql) {
+      return {
+        async run(...params) {
+          const result = await execute(sql, normalizeParams(params));
+          // `changes` conserva el nombre que tenia en sql.js (filas afectadas);
+          // `rows` trae lo que devuelva un RETURNING.
+          return { changes: result.rowCount, rows: result.rows };
+        },
+        async get(...params) {
+          return (await execute(sql, normalizeParams(params))).rows[0];
+        },
+        async all(...params) {
+          return (await execute(sql, normalizeParams(params))).rows;
+        },
+      };
+    },
+    query: (sql, params = []) => execute(sql, params),
+  };
+}
+
+const poolRunner = createRunner((sql, params) => getPool().query(sql, params));
+
+// Memoizado: la primera llamada verifica conectividad, las siguientes son un
+// no-op. Si falla, se libera para permitir el reintento.
+async function init() {
+  if (initPromise) return initPromise;
+  initPromise = (async () => {
+    await poolRunner.query('SELECT 1');
+    return true;
+  })();
+  initPromise = initPromise.catch((error) => {
+    initPromise = null;
+    throw error;
+  });
+  return initPromise;
+}
+
+async function missingTables() {
+  const result = await poolRunner.query(
+    `SELECT t.name
+       FROM unnest($1::text[]) AS t (name)
+      WHERE to_regclass('public.' || t.name) IS NULL`,
+    [KNOWN_TABLES]
+  );
+  return result.rows.map((row) => row.name);
+}
+
+// Postgres: 23505 = unique_violation. Los controllers lo usan para responder 409
+// en lugar de un 500 generico.
+function isUniqueViolation(error) {
+  return Boolean(error) && (error.code === '23505' || /UNIQUE/i.test(error.message || ''));
+}
+
+// true cuando la tabla no tiene filas: base recien migrada, falta correr el seed.
+async function isEmpty(table = 'products') {
   if (!KNOWN_TABLES.includes(table)) {
     throw new Error(`Tabla desconocida: ${table}`);
   }
-  // createStatement envuelve sql.js y devuelve una fila; el Statement crudo de
-  // sql.js devuelve un array en get(), no un objeto.
-  const row = createStatement(`SELECT COUNT(*) AS c FROM ${table}`).get();
+  const row = await poolRunner.prepare(`SELECT COUNT(*) AS c FROM ${table}`).get();
   return !row || row.c === 0;
 }
 
-function lastInsertRowid() {
-  const result = getDb().exec('SELECT last_insert_rowid() AS id');
-  if (!result.length || !result[0].values.length) return undefined;
-  return result[0].values[0][0];
+// Host y base, sin usuario ni contrasena: se puede loguear sin filtrar secretos.
+function describeConnection() {
+  try {
+    const url = new URL(connectionString());
+    return `${url.hostname}${url.pathname}`;
+  } catch (_) {
+    return '(DATABASE_URL no configurada)';
+  }
 }
 
-function createStatement(sql) {
-  return {
-    run(...params) {
-      const db = getDb();
-      const flat = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
-      const stmt = db.prepare(sql);
-      try {
-        if (flat.length) stmt.bind(flat);
-        stmt.step();
-      } finally {
-        stmt.free();
-      }
-      const changes = db.getRowsModified();
-      const rid = lastInsertRowid();
-      persist();
-      return { changes, lastInsertRowid: rid };
-    },
-    get(...params) {
-      const db = getDb();
-      const flat = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
-      const stmt = db.prepare(sql);
-      let row = null;
-      try {
-        if (flat.length) stmt.bind(flat);
-        if (stmt.step()) row = stmt.getAsObject();
-      } finally {
-        stmt.free();
-      }
-      return row;
-    },
-    all(...params) {
-      const db = getDb();
-      const flat = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
-      const stmt = db.prepare(sql);
-      const rows = [];
-      try {
-        if (flat.length) stmt.bind(flat);
-        while (stmt.step()) rows.push(stmt.getAsObject());
-      } finally {
-        stmt.free();
-      }
-      return rows;
-    },
-  };
+async function checkSchema() {
+  const missing = await missingTables();
+  return { ready: missing.length === 0, missing };
 }
 
-function transaction(fn) {
-  return () => {
-    const db = getDb();
-    db.run('BEGIN');
-    inTransaction = true;
+// Ejecuta fn dentro de una transaccion. El callback recibe el runner atado a esa
+// conexion; todo lo que se ejecute con el participa del COMMIT/ROLLBACK.
+async function transaction(fn) {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const result = await fn(createRunner((sql, params) => client.query(sql, params)));
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
     try {
-      const result = fn();
-      db.run('COMMIT');
-      inTransaction = false;
-      persist();
-      return result;
-    } catch (error) {
-      try {
-        inTransaction = false;
-        db.run('ROLLBACK');
-      } catch (_) {}
-      throw error;
+      await client.query('ROLLBACK');
+    } catch (_) {
+      // Si el ROLLBACK falla, el error original es el que importa.
     }
-  };
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
-const api = {
-  init,
-  get: getDb,
-  prepare: (sql) => createStatement(sql),
-  exec: (sql, params = []) => {
-    const db = getDb();
-    if (params && params.length) {
-      const stmt = db.prepare(sql);
-      try {
-        stmt.bind(Array.isArray(params) ? params : [params]);
-        stmt.step();
-      } finally {
-        stmt.free();
-      }
-    } else {
-      db.run(sql);
-    }
-    persist();
-  },
-  transaction,
-  persist,
-  isEmpty,
-  DB_PATH,
-};
+// Cierra el pool. Necesario en scripts y tests: si queda una conexion abierta el
+// proceso no termina.
+async function close() {
+  if (!pool) return;
+  const closing = pool;
+  pool = null;
+  initPromise = null;
+  await closing.end();
+}
 
-module.exports = api;
+module.exports = {
+  init,
+  close,
+  checkSchema,
+  isEmpty,
+  describeConnection,
+  isUniqueViolation,
+  missingTables,
+  prepare: (sql) => poolRunner.prepare(sql),
+  query: (sql, params = []) => poolRunner.query(sql, params),
+  transaction,
+  KNOWN_TABLES,
+};
