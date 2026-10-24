@@ -23,7 +23,8 @@ export default function Products() {
     const q = new URLSearchParams();
     if (category) q.set('category', category);
     if (search) q.set('search', search);
-    q.set('limit', '50');
+    q.set('limit', '20');
+    q.set('promo_first', '1');
     api.get(`/products?${q}`).then(r => setProducts(r.data.products || []))
       .catch(console.error).finally(() => setLoading(false));
   }, [category, search]);

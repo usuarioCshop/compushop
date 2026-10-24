@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 
 const { authenticate, requireAdmin, optionalAuth } = require('../middleware/auth');
 const { sendContactEmail } = require('../utils/email');
@@ -13,6 +14,21 @@ const usersCtrl = require('../controllers/usersController');
 const contactCtrl = require('../controllers/contactController');
 const settingsCtrl = require('../controllers/settingsController');
 const dashboardCtrl = require('../controllers/dashboardController');
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(xlsx|xls|csv)$/i.test(file.originalname) || [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'text/csv',
+      'application/csv',
+    ].includes(file.mimetype);
+    if (!ok) return cb(new Error('Formato no permitido. Usá .xlsx, .xls o .csv'));
+    cb(null, true);
+  },
+});
 
 // ========== AUTH ==========
 router.post('/auth/register', authCtrl.register);
@@ -30,6 +46,7 @@ router.delete('/categories/:id', authenticate, requireAdmin, categoriesCtrl.remo
 // ========== PRODUCTS ==========
 router.get('/products', productsCtrl.getAll);
 router.get('/products/:id', productsCtrl.getOne);
+router.post('/products/import', authenticate, requireAdmin, upload.single('file'), productsCtrl.importProducts);
 router.post('/products', authenticate, requireAdmin, productsCtrl.create);
 router.put('/products/:id', authenticate, requireAdmin, productsCtrl.update);
 router.delete('/products/:id', authenticate, requireAdmin, productsCtrl.remove);

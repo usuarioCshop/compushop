@@ -38,6 +38,16 @@ app.use(async (req, res, next) => {
     await db.init();
     next();
   } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    // Errores de configuración son seguros para distinguir: no filtran nombres
+    // de tablas/columnas ni valores. Los errores de Postgres van al handler
+    // genérico para no filtrar información sensible.
+    if (msg.includes('Falta DATABASE_URL')) {
+      console.error('❌ Configuración incompleta:', msg);
+      return res
+        .status(500)
+        .json({ error: 'Base de datos no configurada. Falta DATABASE_URL en las variables de entorno.' });
+    }
     next(err);
   }
 });
