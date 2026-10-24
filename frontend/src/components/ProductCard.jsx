@@ -27,8 +27,8 @@ export default function ProductCard({ product, type = 'product' }) {
   };
 
   const to = type === 'product'
-    ? `/producto/${product.slug || product.id}`
-    : `/servicio/${product.slug || product.id}`;
+    ? `/producto/${product.id}`
+    : `/servicio/${product.id}`;
 
   return (
     <Box
@@ -61,12 +61,17 @@ export default function ProductCard({ product, type = 'product' }) {
           _groupHover={{ transform: 'scale(1.05)' }}
           fallbackSrc="https://via.placeholder.com/400x300?text=Compushop"
         />
-        {type === 'product' && product.stock <= 5 && product.stock > 0 && (
+        {type === 'product' && product.is_promo && (
+          <Badge position="absolute" top={3} left={3} colorScheme="purple" borderRadius="full" px={3} fontWeight="bold" boxShadow="md">
+            PROMOCIÓN
+          </Badge>
+        )}
+        {type === 'product' && !product.is_promo && product.stock <= 5 && product.stock > 0 && (
           <Badge position="absolute" top={3} left={3} colorScheme="accent" borderRadius="full" px={3}>
             Últimas unidades
           </Badge>
         )}
-        {type === 'product' && product.stock === 0 && (
+        {type === 'product' && !product.is_promo && product.stock === 0 && (
           <Badge position="absolute" top={3} left={3} colorScheme="red" borderRadius="full" px={3}>
             Sin stock
           </Badge>
