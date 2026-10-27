@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   SimpleGrid, Box, Stat, StatLabel, StatNumber, Heading, Text, Table, Thead, Tbody, Tr, Th, Td,
-  Spinner, Center, Badge,
+  Spinner, Center, Badge, HStack, Input, Button, useToast, FormControl, FormLabel,
 } from '@chakra-ui/react';
 import api from '../../api/client';
 
@@ -10,11 +10,47 @@ const formatPrice = (n) =>
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
+  const [settings, setSettings] = useState({});
+  const [usdRate, setUsdRate] = useState('');
+  const [iibbPercent, setIibbPercent] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const toast = useToast();
   const bg = 'bg.surface';
 
   useEffect(() => {
     api.get('/dashboard/stats').then(r => setData(r.data)).catch(console.error);
+    api.get('/settings').then(r => {
+      setSettings(r.data.settings || {});
+      setUsdRate(r.data.settings?.usd_rate || '');
+      setIibbPercent(r.data.settings?.iibb_percent || '');
+    }).catch(console.error);
   }, []);
+
+  const saveUsd = async () => {
+    try {
+      setSaving(true);
+      const res = await api.put('/settings', { usd_rate: usdRate, iibb_percent: iibbPercent });
+      setSettings(res.data.settings || {});
+      toast({ title: 'Configuración actualizada', status: 'success' });
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.error, status: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updatePrices = async () => {
+    try {
+      setUpdating(true);
+      const res = await api.post('/products/update-prices');
+      toast({ title: 'Precios actualizados', description: `${res.data.actualizados} productos`, status: 'success' });
+    } catch (err) {
+      toast({ title: 'Error', description: err.response?.data?.error, status: 'error' });
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   if (!data) return <Center py={20}><Spinner size="xl" color="brand.500" /></Center>;
 
@@ -31,6 +67,24 @@ export default function Dashboard() {
   return (
     <Box>
       <Heading size="lg" mb={6}>Dashboard</Heading>
+      <Box bg={bg} p={5} borderRadius="xl" borderWidth="1px" mb={8} maxW="500px">
+        <Heading size="md" mb={3}>Cotización y márgenes</Heading>
+        <HStack align="end" flexWrap="wrap">
+          <FormControl maxW="200px">
+            <FormLabel fontSize="sm">Valor 1 USD (ARS)</FormLabel>
+            <Input value={usdRate} onChange={(e) => setUsdRate(e.target.value)} placeholder="Ej: 1200" />
+          </FormControl>
+          <FormControl maxW="200px">
+            <FormLabel fontSize="sm">IIBB (%)</FormLabel>
+            <Input value={iibbPercent} onChange={(e) => setIibbPercent(e.target.value)} placeholder="Ej: 3" />
+          </FormControl>
+          <Button colorScheme="brand" onClick={saveUsd} isLoading={saving}>Guardar</Button>
+        </HStack>
+        <HStack mt={4} spacing={3} flexWrap="wrap">
+          <Button colorScheme="green" onClick={updatePrices} isLoading={updating}>Actualizar precios desde compra USD</Button>
+        </HStack>
+        <Text fontSize="xs" color="fg.muted" mt={2}>Fórmula: (Compra USD × Dólar × (1+IVA) × (1+IIBB) × (1+Gasto Variable)) + Flete + Ganancia</Text>
+      </Box>
       <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={10}>
         {cards.map(c => (
           <Box key={c.label} bg={bg} p={5} borderRadius="xl" borderWidth="1px">

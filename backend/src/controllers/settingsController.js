@@ -1,6 +1,6 @@
 const db = require('../db/database');
 
-// GET /api/settings (admin)
+// GET /api/settings (admin/public según uso, pero protegido con admin en rutas)
 async function getAll(req, res) {
   try {
     const rows = await db.prepare('SELECT key, value FROM settings').all();
@@ -20,6 +20,8 @@ async function update(req, res) {
     const allowed = [
       'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from', 'contact_to',
       'store_name', 'store_phone', 'store_address', 'store_email',
+      'usd_rate',
+      'iibb_percent',
     ];
 
     // Dentro de la transaccion se usa siempre el runner que entrega el callback

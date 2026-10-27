@@ -46,6 +46,7 @@ router.delete('/categories/:id', authenticate, requireAdmin, categoriesCtrl.remo
 // ========== PRODUCTS ==========
 router.get('/products', productsCtrl.getAll);
 router.get('/products/:id', productsCtrl.getOne);
+router.post('/products/update-prices', authenticate, requireAdmin, productsCtrl.updatePricesByCost);
 router.post('/products/import', authenticate, requireAdmin, upload.single('file'), productsCtrl.importProducts);
 router.post('/products', authenticate, requireAdmin, productsCtrl.create);
 router.put('/products/:id', authenticate, requireAdmin, productsCtrl.update);

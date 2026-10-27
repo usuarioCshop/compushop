@@ -163,7 +163,7 @@ async function getOne(req, res) {
 // POST /api/products (admin)
 async function create(req, res) {
   try {
-    const { name, description, price, stock, category_id, brand, image, specs, is_active = 1, is_promo = false } = req.body;
+    const { name, description, price, stock, category_id, brand, image, specs, is_active = 1, is_promo = false, flete = 0, ganancia = 0, gasto_variable = 0, ingreso_bruto = 0 } = req.body;
 
     if (!name || price === undefined) {
       return res.status(400).json({ error: 'Nombre y precio son obligatorios' });
@@ -180,8 +180,8 @@ async function create(req, res) {
     // RETURNING * devuelve la fila creada en la misma sentencia: reemplaza al
     // INSERT + SELECT WHERE id = lastInsertRowid de sql.js.
     const inserted = await db.prepare(`
-      INSERT INTO products (name, slug, description, price, stock, category_id, brand, image, specs, is_active, is_promo)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO products (name, slug, description, price, stock, category_id, brand, image, specs, is_active, is_promo, flete, ganancia, gasto_variable, ingreso_bruto)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `).run(
       name,
@@ -194,7 +194,11 @@ async function create(req, res) {
       image || null,
       specs || null,
       Boolean(is_active),
-      Boolean(is_promo)
+      Boolean(is_promo),
+      Number(flete) || 0,
+      Number(ganancia) || 0,
+      Number(gasto_variable) || 0,
+      Number(ingreso_bruto) || 0
     );
 
     res.status(201).json({ message: 'Producto creado', product: inserted.rows[0] });
@@ -224,6 +228,10 @@ async function update(req, res) {
       specs = existing.specs,
       is_active = existing.is_active,
       is_promo = existing.is_promo,
+      flete = existing.flete,
+      ganancia = existing.ganancia,
+      gasto_variable = existing.gasto_variable,
+      ingreso_bruto = existing.ingreso_bruto,
     } = req.body;
 
     let slug = existing.slug;
@@ -237,8 +245,9 @@ async function update(req, res) {
     const updated = await db.prepare(`
       UPDATE products SET
         name = $1, slug = $2, description = $3, price = $4, stock = $5,
-        category_id = $6, brand = $7, image = $8, specs = $9, is_active = $10, is_promo = $11
-      WHERE id = $12
+        category_id = $6, brand = $7, image = $8, specs = $9, is_active = $10, is_promo = $11,
+        flete = $12, ganancia = $13, gasto_variable = $14, ingreso_bruto = $15
+      WHERE id = $16
       RETURNING *
     `).run(
       name, slug, description, price, stock,
@@ -246,6 +255,10 @@ async function update(req, res) {
       specs || null,
       Boolean(is_active),
       Boolean(is_promo),
+      Number(flete) || 0,
+      Number(ganancia) || 0,
+      Number(gasto_variable) || 0,
+      Number(ingreso_bruto) || 0,
       id
     );
 
@@ -648,4 +661,58 @@ async function importProducts(req, res) {
   }
 }
 
-module.exports = { getAll, getOne, create, update, remove, importProducts };
+async function updatePricesByCost(req, res) {
+  try {
+    const { db } = require('../db/database');
+    const rows = await require('../db/database').prepare('SELECT key, value FROM settings').all();
+    const settings = {};
+    rows.forEach(r => { settings[r.key] = r.value; });
+
+    const usdRate = parseFloat(settings.usd_rate) || 0;
+    const iibbPercent = parseFloat(settings.iibb_percent) || 0;
+
+    if (usdRate <= 0) {
+      return res.status(400).json({ error: 'Falta configurar la cotización del dólar' });
+    }
+
+    const products = await require('../db/database').prepare(`
+      SELECT id, purchase_price, vat_rate, gasto_variable, flete, ganancia, ingreso_bruto
+      FROM products
+      WHERE purchase_price IS NOT NULL AND purchase_price > 0
+    `).all();
+
+    let actualizados = 0;
+
+    await require('../db/database').transaction(async (tx) => {
+      for (const p of products) {
+        const compraUsd = parseFloat(p.purchase_price) || 0;
+        if (compraUsd <= 0) continue;
+
+        let base = compraUsd * usdRate;
+
+        const vatRate = parseFloat(p.vat_rate) || 0;
+        const gastoVar = parseFloat(p.gasto_variable) || 0;
+
+        base = base * (1 + vatRate / 100);
+        base = base * (1 + iibbPercent / 100);
+        base = base * (1 + gastoVar / 100);
+
+        const flete = parseFloat(p.flete) || 0;
+        const ganancia = parseFloat(p.ganancia) || 0;
+
+        let precio = base + flete + ganancia;
+        precio = Math.round(precio);
+
+        await tx.prepare('UPDATE products SET price = $1 WHERE id = $2').run(precio, p.id);
+        actualizados++;
+      }
+    });
+
+    res.json({ message: 'Precios actualizados', actualizados, usdRate, iibbPercent });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al actualizar precios' });
+  }
+}
+
+module.exports = { getAll, getOne, create, update, remove, importProducts, updatePricesByCost };
