@@ -40,7 +40,12 @@ export default function ProductDetail() {
             fallbackSrc="https://via.placeholder.com/600x400?text=Compushop" />
         </Box>
         <VStack align="start" spacing={4}>
-          {product.brand && <Badge colorScheme="blue">{product.brand}</Badge>}
+          <HStack spacing={2} flexWrap="wrap">
+            {product.is_promo && <Badge colorScheme="purple" fontSize="sm" px={3} py={1}>PROMOCIÓN</Badge>}
+            {product.brand && <Badge colorScheme="blue">{product.brand}</Badge>}
+            {!product.is_promo && product.stock <= 5 && product.stock > 0 && <Badge colorScheme="accent">Últimas unidades</Badge>}
+            {!product.is_promo && product.stock === 0 && <Badge colorScheme="red">Sin stock</Badge>}
+          </HStack>
           <Heading size="lg">{product.name}</Heading>
           <Text fontSize="2xl" fontWeight="bold" color="brand.500">{formatPrice(product.price)}</Text>
           <Text color="fg.muted">{product.description}</Text>

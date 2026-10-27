@@ -5,7 +5,7 @@ const isLocalhost = isBrowser && /localhost|127\.0\.0\.1/.test(window.location.h
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  (isLocalhost ? 'http://localhost:4000/api' : 'https://compushop-backend.vercel.app/api');
+  (isLocalhost ? '/api' : 'https://compushop-backend.vercel.app/api');
 
 const api = axios.create({
   baseURL: API_URL,
