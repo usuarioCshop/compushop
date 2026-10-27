@@ -58,7 +58,7 @@ async function getOne(req, res) {
 
 async function create(req, res) {
   try {
-    const { name, description, price, duration, image, is_active = 1 } = req.body;
+    const { name, description, price, duration, image, is_active = 1, purchase_price = null, vat_rate = null, flete = 0, ganancia = 0, gasto_variable = 0, ingreso_bruto = 0 } = req.body;
 
     if (!name || price === undefined) {
       return res.status(400).json({ error: 'Nombre y precio son obligatorios' });
@@ -69,10 +69,10 @@ async function create(req, res) {
     if (existing) slug = `${slug}-${Date.now()}`;
 
     const result = await db.prepare(`
-      INSERT INTO services (name, slug, description, price, duration, image, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      INSERT INTO services (name, slug, description, price, duration, image, is_active, purchase_price, vat_rate, flete, ganancia, gasto_variable, ingreso_bruto)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       RETURNING *
-    `).run(name, slug, description || null, price, duration || null, image || null, is_active ? true : false);
+    `).run(name, slug, description || null, price, duration || null, image || null, is_active ? true : false, purchase_price || null, vat_rate || null, Number(flete) || 0, Number(ganancia) || 0, Number(gasto_variable) || 0, Number(ingreso_bruto) || 0);
 
     const service = result.rows[0];
     res.status(201).json({ message: 'Servicio creado', service });
@@ -97,6 +97,12 @@ async function update(req, res) {
       duration = existing.duration,
       image = existing.image,
       is_active = existing.is_active,
+      purchase_price = existing.purchase_price,
+      vat_rate = existing.vat_rate,
+      flete = existing.flete,
+      ganancia = existing.ganancia,
+      gasto_variable = existing.gasto_variable,
+      ingreso_bruto = existing.ingreso_bruto,
     } = req.body;
 
     let slug = existing.slug;
