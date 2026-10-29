@@ -93,8 +93,8 @@ if (process.env.VERCEL) {
   db.init()
     .then(async () => {
       await startupDiagnostics();
-      app.listen(PORT, () => {
-        console.log(`🚀 Compushop API corriendo en http://localhost:${PORT}`);
+      app.listen(PORT, '127.0.0.1', () => {
+        console.log(`🚀 Compushop API corriendo en http://127.0.0.1:${PORT}`);
         console.log(`   Base: ${db.describeConnection()}`);
       });
     })

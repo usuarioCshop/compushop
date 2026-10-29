@@ -25,11 +25,12 @@ export default function Contact() {
   };
 
   return (
-    <Container maxW="3xl" py={12}>
+    <Container maxW="5xl" py={12}>
       <Heading mb={2}>Contacto</Heading>
       <Text color="fg.muted" mb={8}>Escribinos y te respondemos a la brevedad.</Text>
-      <Box bg={bg} p={8} borderRadius="xl" borderWidth="1px" shadow="sm">
-        <form onSubmit={handle}>
+      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={8} alignItems="start">
+        <Box bg={bg} p={8} borderRadius="xl" borderWidth="1px" shadow="sm">
+          <form onSubmit={handle}>
           <VStack spacing={4}>
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="100%">
               <FormControl isRequired>
@@ -58,7 +59,25 @@ export default function Contact() {
             <Button type="submit" colorScheme="brand" size="lg" w="100%" isLoading={loading}>Enviar mensaje</Button>
           </VStack>
         </form>
-      </Box>
+        </Box>
+        <Box bg={bg} p={8} borderRadius="xl" borderWidth="1px" shadow="sm">
+          <VStack align="stretch" spacing={4}>
+            <Heading size="md">Datos de contacto</Heading>
+            <VStack align="stretch" spacing={2}>
+              <Text fontWeight="600">Teléfono</Text>
+              <Text color="fg.muted">+54 3482 468040</Text>
+            </VStack>
+            <VStack align="stretch" spacing={2}>
+              <Text fontWeight="600">Dirección</Text>
+              <Text color="fg.muted">Villa Ocampo, Santa Fe - Av. San Martín 1730</Text>
+            </VStack>
+            <VStack align="stretch" spacing={2}>
+              <Text fontWeight="600">Email</Text>
+              <Text color="fg.muted">info@compushop.com</Text>
+            </VStack>
+          </VStack>
+        </Box>
+      </SimpleGrid>
     </Container>
   );
 }
