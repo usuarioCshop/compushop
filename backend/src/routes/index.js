@@ -18,6 +18,7 @@ const usersCtrl = require('../controllers/usersController');
 const contactCtrl = require('../controllers/contactController');
 const settingsCtrl = require('../controllers/settingsController');
 const dashboardCtrl = require('../controllers/dashboardController');
+const wishlistCtrl = require('../controllers/wishlistController');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -85,6 +86,11 @@ router.put('/settings', authenticate, requireAdmin, settingsCtrl.update);
 
 // ========== DASHBOARD ==========
 router.get('/dashboard/stats', authenticate, requireAdmin, dashboardCtrl.getStats);
+
+// ========== WISHLIST ==========
+router.get('/wishlist', authenticate, wishlistCtrl.getAll);
+router.post('/wishlist', authenticate, wishlistCtrl.add);
+router.delete('/wishlist/:product_id', authenticate, wishlistCtrl.remove);
 
 // ========== HEALTH ==========
 router.get('/health', async (req, res) => {

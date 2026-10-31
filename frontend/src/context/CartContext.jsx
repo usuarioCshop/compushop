@@ -1,19 +1,34 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext(null);
 
+const getCartKey = (userId) => (userId ? `compushop_cart_${userId}` : 'compushop_cart_guest');
+
 export function CartProvider({ children }) {
+  const { user } = useAuth();
+  const userId = user?.id || null;
+  const cartKey = getCartKey(userId);
+
   const [items, setItems] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('compushop_cart') || '[]');
+      return JSON.parse(localStorage.getItem(cartKey) || '[]');
     } catch {
       return [];
     }
   });
 
   useEffect(() => {
-    localStorage.setItem('compushop_cart', JSON.stringify(items));
-  }, [items]);
+    try {
+      setItems(JSON.parse(localStorage.getItem(cartKey) || '[]'));
+    } catch {
+      setItems([]);
+    }
+  }, [cartKey]);
+
+  useEffect(() => {
+    localStorage.setItem(cartKey, JSON.stringify(items));
+  }, [items, cartKey]);
 
   const addItem = (product, quantity = 1, type = 'product') => {
     const qty = Math.max(1, Number(quantity) || 1);

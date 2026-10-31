@@ -1,15 +1,22 @@
 import {
-  Box, Image, Text, Badge, Button, VStack, HStack, useToast,
+  Box, Image, Text, Badge, Button, VStack, HStack, useToast, IconButton,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
+import { FiHeart } from 'react-icons/fi';
+import { FaHeart } from 'react-icons/fa';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
+import { useAuth } from '../context/AuthContext';
 
 const formatPrice = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
 
 export default function ProductCard({ product, type = 'product' }) {
   const { addItem } = useCart();
+  const { toggle, has } = useWishlist();
+  const { user } = useAuth();
   const toast = useToast();
+  const fav = has(product.id);
   const bg = 'bg.surface';
   const muted = 'fg.muted';
   const borderColor = 'border.subtle';
@@ -59,6 +66,40 @@ export default function ProductCard({ product, type = 'product' }) {
         bg="bg.subtle"
         overflow="hidden"
       >
+        {type === 'product' && (
+          <IconButton
+            aria-label={fav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            icon={fav ? <FaHeart /> : <FiHeart />}
+            size="sm"
+            position="absolute"
+            top={2}
+            right={2}
+            borderRadius="full"
+            colorScheme={fav ? 'red' : 'gray'}
+            variant={fav ? 'solid' : 'ghost'}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!user) {
+                toast({ title: 'Iniciá sesión para agregar a favoritos', status: 'info', duration: 2000, isClosable: true });
+                return;
+              }
+              if (fav) {
+                toggle(product.id);
+              } else {
+                toggle(product.id);
+              }
+              toast({
+                title: fav ? 'Eliminado de favoritos' : 'Agregado a favoritos',
+                status: 'success',
+                duration: 1500,
+                isClosable: true,
+                position: 'top-right',
+              });
+            }}
+            zIndex={1}
+          />
+        )}
         <Image
           src={product.image || 'https://via.placeholder.com/400x400?text=Compushop'}
           alt={product.name}
