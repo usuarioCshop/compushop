@@ -14,6 +14,7 @@ import Register from './pages/Register';
 import Contact from './pages/Contact';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import Wishlist from './pages/Wishlist';
 import { useAuth } from './context/AuthContext';
 
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/servicios" element={<Services />} />
         <Route path="/servicio/:id" element={<ServiceDetail />} />
         <Route path="/carrito" element={<Cart />} />
+        <Route path="/favoritos" element={<Wishlist />} />
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Register />} />
         <Route path="/contacto" element={<Contact />} />

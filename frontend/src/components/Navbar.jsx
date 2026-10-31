@@ -4,15 +4,17 @@ import {
   useDisclosure, Drawer, DrawerBody, DrawerHeader, DrawerOverlay, DrawerContent, DrawerCloseButton, VStack, Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
-import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings } from 'react-icons/fi';
+import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useWishlist } from '../context/WishlistContext';
 import logo from '../assets/logo-header.png';
 
 export default function Navbar() {
   const { colorMode, toggleColorMode } = useColorMode();
   const { user, logout, isAdmin } = useAuth();
   const { totalItems } = useCart();
+  const { totalItems: wishlistCount } = useWishlist();
   const navigate = useNavigate();
   const location = useLocation();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -105,6 +107,29 @@ export default function Navbar() {
           </HStack>
 
           <HStack spacing={2}>
+            <Box position="relative">
+              <IconButton
+                as={RouterLink}
+                to="/favoritos"
+                icon={<FiHeart />}
+                variant="ghost"
+                borderRadius="full"
+                size="sm"
+                aria-label="Favoritos"
+              />
+              {user && wishlistCount > 0 && (
+                <Badge
+                  position="absolute"
+                  top="-1"
+                  right="-1"
+                  colorScheme="red"
+                  borderRadius="full"
+                  fontSize="xs"
+                >
+                  {wishlistCount}
+                </Badge>
+              )}
+            </Box>
             <IconButton
               icon={colorMode === 'light' ? <FiMoon /> : <FiSun />}
               onClick={toggleColorMode}
