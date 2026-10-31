@@ -112,14 +112,31 @@ async function update(req, res) {
       if (conflict) slug = `${slug}-${id}`;
     }
 
-    await db.prepare(`
+    const result = await db.prepare(`
       UPDATE services SET
         name = $1, slug = $2, description = $3, price = $4, duration = $5, image = $6, is_active = $7,
+        purchase_price = $8, vat_rate = $9, flete = $10, ganancia = $11, gasto_variable = $12, ingreso_bruto = $13,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
-    `).run(name, slug, description, price, duration, image, is_active ? true : false, id);
+      WHERE id = $14
+      RETURNING *
+    `).run(
+      name,
+      slug,
+      description || null,
+      price,
+      duration || null,
+      image || null,
+      is_active ? true : false,
+      purchase_price === '' ? null : purchase_price,
+      vat_rate === '' ? null : vat_rate,
+      Number(flete) || 0,
+      Number(ganancia) || 0,
+      Number(gasto_variable) || 0,
+      Number(ingreso_bruto) || 0,
+      id
+    );
 
-    const service = await db.prepare('SELECT * FROM services WHERE id = $1').get(id);
+    const service = result.rows[0];
     res.json({ message: 'Servicio actualizado', service });
   } catch (error) {
     console.error(error);
