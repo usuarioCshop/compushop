@@ -1,11 +1,16 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 const db = require('./db/database');
+const AppError = require('./utils/AppError');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+app.use(helmet());
 
 // Orígenes permitidos (local + producción Vercel)
 const allowedOrigins = [
@@ -29,6 +34,28 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Probá de nuevo más tarde.' },
+});
+
+const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiados mensajes. Probá de nuevo más tarde.' },
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
+app.use('/api/contact', contactLimiter);
 
 // Verificar la conexion antes de procesar peticiones. init() esta memoizado: la
 // primera llamada valida contra Postgres y las siguientes son un no-op, asi que
@@ -59,10 +86,20 @@ app.get('/', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  // No devolvemos err.message al cliente: los errores de Postgres traen nombres
-  // de tablas, columnas y a veces valores. Los controllers ya responden sus
-  // propios mensajes en español; esto solo cubre lo inesperado.
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(err.stack || err);
+  } else {
+    console.error(err.message || 'Error inesperado');
+  }
+
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({ error: err.message });
+  }
+
+  if (err.status && err.message && !err.message.includes('CORS')) {
+    return res.status(err.status).json({ error: err.message });
+  }
+
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 

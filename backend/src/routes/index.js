@@ -1,9 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const db = require('../db/database');
 
 const { authenticate, requireAdmin, optionalAuth } = require('../middleware/auth');
 const { sendContactEmail } = require('../utils/email');
+const validate = require('../middleware/validate');
+const { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } = require('../validations/auth');
+const { contactSchema } = require('../validations/contact');
 
 const authCtrl = require('../controllers/authController');
 const productsCtrl = require('../controllers/productsController');
@@ -31,11 +35,11 @@ const upload = multer({
 });
 
 // ========== AUTH ==========
-router.post('/auth/register', authCtrl.register);
-router.post('/auth/login', authCtrl.login);
+router.post('/auth/register', validate(registerSchema), authCtrl.register);
+router.post('/auth/login', validate(loginSchema), authCtrl.login);
 router.get('/auth/me', authenticate, authCtrl.me);
-router.post('/auth/forgot-password', authCtrl.forgotPassword);
-router.post('/auth/reset-password', authCtrl.resetPassword);
+router.post('/auth/forgot-password', validate(forgotPasswordSchema), authCtrl.forgotPassword);
+router.post('/auth/reset-password', validate(resetPasswordSchema), authCtrl.resetPassword);
 
 // ========== CATEGORIES ==========
 router.get('/categories', categoriesCtrl.getAll);
@@ -45,17 +49,17 @@ router.delete('/categories/:id', authenticate, requireAdmin, categoriesCtrl.remo
 
 // ========== PRODUCTS ==========
 router.get('/products', productsCtrl.getAll);
-router.get('/products/:id', productsCtrl.getOne);
 router.post('/products/update-prices', authenticate, requireAdmin, productsCtrl.updatePricesByCost);
 router.post('/products/import', authenticate, requireAdmin, upload.single('file'), productsCtrl.importProducts);
 router.post('/products', authenticate, requireAdmin, productsCtrl.create);
+router.get('/products/:id', productsCtrl.getOne);
 router.put('/products/:id', authenticate, requireAdmin, productsCtrl.update);
 router.delete('/products/:id', authenticate, requireAdmin, productsCtrl.remove);
 
 // ========== SERVICES ==========
 router.get('/services', servicesCtrl.getAll);
-router.get('/services/:id', servicesCtrl.getOne);
 router.post('/services', authenticate, requireAdmin, servicesCtrl.create);
+router.get('/services/:id', servicesCtrl.getOne);
 router.put('/services/:id', authenticate, requireAdmin, servicesCtrl.update);
 router.delete('/services/:id', authenticate, requireAdmin, servicesCtrl.remove);
 
@@ -71,7 +75,7 @@ router.put('/users/:id', authenticate, requireAdmin, usersCtrl.update);
 router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
 
 // ========== CONTACT ==========
-router.post('/contact', contactCtrl.sendMessage);
+router.post('/contact', validate(contactSchema), contactCtrl.sendMessage);
 router.get('/contact', authenticate, requireAdmin, contactCtrl.getMessages);
 router.put('/contact/:id/read', authenticate, requireAdmin, contactCtrl.markAsRead);
 
@@ -81,5 +85,16 @@ router.put('/settings', authenticate, requireAdmin, settingsCtrl.update);
 
 // ========== DASHBOARD ==========
 router.get('/dashboard/stats', authenticate, requireAdmin, dashboardCtrl.getStats);
+
+// ========== HEALTH ==========
+router.get('/health', async (req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (error) {
+    console.error(error);
+    res.status(503).json({ status: 'error', db: 'disconnected' });
+  }
+});
 
 module.exports = router;
