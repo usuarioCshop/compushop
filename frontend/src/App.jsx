@@ -1,10 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { Box } from '@chakra-ui/react';
+import { Box, Flex } from '@chakra-ui/react';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Home from './pages/Home';
 import Products from './pages/Products';
 import ProductDetail from './pages/ProductDetail';
 import Services from './pages/Services';
+import ServiceDetail from './pages/ServiceDetail';
 import Cart from './pages/Cart';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -30,13 +32,15 @@ function PrivateAdmin({ children }) {
 
 export default function App() {
   return (
-    <Box minH="100vh">
+    <Flex direction="column" minH="100vh">
       <Navbar />
-      <Routes>
+      <Box flex="1" pt="72px">
+        <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/productos" element={<Products />} />
         <Route path="/producto/:id" element={<ProductDetail />} />
         <Route path="/servicios" element={<Services />} />
+        <Route path="/servicio/:id" element={<ServiceDetail />} />
         <Route path="/carrito" element={<Cart />} />
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Register />} />
@@ -54,6 +58,8 @@ export default function App() {
           <Route path="configuracion" element={<AdminSettings />} />
         </Route>
       </Routes>
-    </Box>
+      </Box>
+      <Footer />
+    </Flex>
   );
 }

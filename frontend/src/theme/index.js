@@ -5,26 +5,24 @@ const config = {
   useSystemColorMode: false,
 };
 
-// ─── Paleta Compushop ────────────────────────────────────────────────────────
-// Modo claro → marca #001BE6 (Azul Compushop)  / acción #FF6B00 (Naranja Eléctrico)
-// Modo oscuro → marca #3B82F6 (Azul Neón)      / acción #FF8A00 (Naranja Neón)
-// Las rampas 50..900 se derivan del color base para que los componentes de
-// Chakra (que consumen .500/.600/.50/.200...) funcionen en ambos modos.
+// ─── Paleta Compushop (basada en mockup moderno) ────────────────────────────
+// Modo claro: bg #f1f5f9, surface #ffffff, brand #1e3a8a / accent #0ea5e9
+// Modo oscuro: bg #070b14, surface #111827, brand #3b82f6 / accent #38bdf8
 const brandLight = {
-  50: '#F1F2FE', 100: '#D8DDFD', 200: '#AFB9FD', 300: '#7081FF', 400: '#334BFF',
-  500: '#001BE6', 600: '#0016B8', 700: '#00108A', 800: '#000B61', 900: '#000739',
+  50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+  500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
 };
 const brandDark = {
-  50: '#F1F6FE', 100: '#D8E6FD', 200: '#B1CDFB', 300: '#76A8F9', 400: '#3C83F6',
-  500: '#3B82F6', 600: '#0F66F4', 700: '#0953CC', 800: '#0843A5', 900: '#06337E',
+  50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+  500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#172554',
 };
 const accentLight = {
-  50: '#FEF6F1', 100: '#FDE8D8', 200: '#FDD0AF', 300: '#FFAC70', 400: '#FF8933',
-  500: '#FF6B00', 600: '#D15800', 700: '#A34400', 800: '#7A3300', 900: '#522200',
+  50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8',
+  500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e',
 };
 const accentDark = {
-  50: '#FEF8F1', 100: '#FDECD8', 200: '#FDD9AF', 300: '#FFBD70', 400: '#FFA133',
-  500: '#FF8A00', 600: '#D17100', 700: '#A35800', 800: '#7A4200', 900: '#522C00',
+  50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8',
+  500: '#38bdf8', 600: '#0ea5e9', 700: '#0284c7', 800: '#0369a1', 900: '#075985',
 };
 
 // Combina las dos rampas en una escala semántica que cambia según el modo.
@@ -34,10 +32,6 @@ function modeScale(light, dark) {
   );
 }
 
-// Chakra ya declara sus tokens internos (chakra-body-bg, chakra-subtle-bg, ...)
-// usando las claves `_light`/`_dark`. Si los pisamos solo con `default`, ese valor
-// cae en `:root` y la regla `[data-theme="light"]` del tema base lo gana en modo
-// claro (bug real, verificado en el CSS emitido). Hay que usar las MISMAS claves.
 function chakraToken(light, dark) {
   return { default: light, _light: light, _dark: dark };
 }
@@ -49,28 +43,28 @@ const semanticTokens = {
 
     // Roles neutros de la paleta
     bg: {
-      canvas: { default: '#F8FAFC', _dark: '#0B0F19' },   // Fondo principal
-      surface: { default: '#FFFFFF', _dark: '#1E293B' },  // Tarjetas / paneles
-      subtle: { default: '#E2E8F0', _dark: '#1E293B' },   // Fondo secundario
-      inverted: { default: '#0F172A', _dark: '#1E293B' }, // Bloques oscuros fijos
+      canvas: { default: '#f1f5f9', _dark: '#070b14' },   // Fondo principal
+      surface: { default: '#ffffff', _dark: '#111827' },  // Tarjetas / paneles
+      subtle: { default: '#f8fafc', _dark: '#1a2332' },   // Fondo secundario
+      elevated: { default: '#ffffff', _dark: '#0c1220' }, // Elevado
+      inverted: { default: '#0f172a', _dark: '#0f172a' }, // Bloques oscuros fijos
     },
     fg: {
-      default: { default: '#0F172A', _dark: '#E2E8F0' },  // Texto principal
-      muted: { default: '#475569', _dark: '#94A3B8' },    // Texto secundario
+      default: { default: '#0f172a', _dark: '#f1f5f9' },  // Texto principal
+      muted: { default: '#475569', _dark: '#94a3b8' },    // Texto secundario
     },
     border: {
-      subtle: { default: '#E2E8F0', _dark: '#334155' },
-      strong: { default: '#CBD5E1', _dark: '#475569' },
+      subtle: { default: '#e2e8f0', _dark: '#1e293b' },
+      strong: { default: '#cbd5e1', _dark: '#334155' },
     },
 
-    // Tokens internos de Chakra: al pisarlos, la paleta se propaga a TODOS los
-    // componentes (Menu, Drawer, Table, Modal, Input, etc.) sin tocar cada uno.
-    'chakra-body-bg': chakraToken('#F8FAFC', '#0B0F19'),
-    'chakra-body-text': chakraToken('#0F172A', '#E2E8F0'),
-    'chakra-subtle-bg': chakraToken('#E2E8F0', '#1E293B'),
-    'chakra-subtle-text': chakraToken('#475569', '#94A3B8'),
-    'chakra-border-color': chakraToken('#E2E8F0', '#334155'),
-    'chakra-placeholder-color': chakraToken('#64748B', '#94A3B8'),
+    // Tokens internos de Chakra
+    'chakra-body-bg': chakraToken('#f1f5f9', '#070b14'),
+    'chakra-body-text': chakraToken('#0f172a', '#f1f5f9'),
+    'chakra-subtle-bg': chakraToken('#f8fafc', '#1a2332'),
+    'chakra-subtle-text': chakraToken('#475569', '#94a3b8'),
+    'chakra-border-color': chakraToken('#e2e8f0', '#1e293b'),
+    'chakra-placeholder-color': chakraToken('#64748b', '#94a3b8'),
   },
 };
 

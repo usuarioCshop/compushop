@@ -1,13 +1,13 @@
 import {
-  Box, Flex, HStack, IconButton, Button, useColorMode, useColorModeValue,
+  Box, Flex, HStack, IconButton, Button, useColorMode,
   Container, Image, Badge, Menu, MenuButton, MenuList, MenuItem,
-  useDisclosure, Drawer, DrawerBody, DrawerHeader, DrawerOverlay, DrawerContent, DrawerCloseButton, VStack,
+  useDisclosure, Drawer, DrawerBody, DrawerHeader, DrawerOverlay, DrawerContent, DrawerCloseButton, VStack, Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import portada from '../assets/portada.jpg';
+import logo from '../assets/logo-header.png';
 
 export default function Navbar() {
   const { colorMode, toggleColorMode } = useColorMode();
@@ -17,11 +17,10 @@ export default function Navbar() {
   const location = useLocation();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const isHome = location.pathname === '/';
-  // En home la navbar flota sobre el hero (estilo plantilla)
-  const barBg = useColorModeValue('whiteAlpha.900', 'blackAlpha.700');
-  const barBgSolid = 'bg.surface';
-  const muted = 'fg.muted';
+  const barBg = { base: 'rgba(255,255,255,0.85)', _dark: 'rgba(12,18,32,0.85)' };
+  const borderColor = { base: 'border.subtle', _dark: 'border.subtle' };
+  const muted = { base: 'fg.muted', _dark: 'fg.muted' };
+  const textColor = { base: 'fg.default', _dark: 'fg.default' };
 
   const links = [
     { to: '/', label: 'Inicio' },
@@ -33,29 +32,18 @@ export default function Navbar() {
   return (
     <Box
       as="nav"
-      position="sticky"
+      position="fixed"
       top={0}
-      zIndex={100}
-      pt={{ base: 3, md: 4 }}
-      pb={{ base: 2, md: 3 }}
-      px={{ base: 3, md: 6 }}
-      bg="transparent"
-      pointerEvents="none"
+      left={0}
+      right={0}
+      zIndex={1000}
+      bg={barBg}
+      sx={{ backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}
+      borderBottom="1px solid"
+      borderColor={borderColor}
     >
-      <Container maxW="6xl" pointerEvents="auto">
-        {/* Barra tipo "pill" flotante (como la plantilla Mobirise) */}
-        <Flex
-          h={{ base: 14, md: 16 }}
-          align="center"
-          justify="space-between"
-          px={{ base: 3, md: 5 }}
-          bg={isHome ? barBg : barBgSolid}
-          backdropFilter="blur(12px)"
-          borderRadius="full"
-          border="1px solid"
-          borderColor={useColorModeValue('blackAlpha.100', 'whiteAlpha.200')}
-          shadow="lg"
-        >
+      <Container maxW="7xl" h="72px" display="flex" alignItems="center">
+        <Flex w="100%" align="center" justify="space-between">
           <HStack spacing={3}>
             <IconButton
               display={{ base: 'flex', md: 'none' }}
@@ -71,21 +59,30 @@ export default function Navbar() {
               to="/"
               display="flex"
               alignItems="center"
-              _hover={{ opacity: 0.9 }}
+              gap={3}
+              sx={{ transition: 'opacity 200ms', _hover: { opacity: 0.9 } }}
             >
               <Image
-                src={portada}
+                src={logo}
                 alt="Compushop"
-                h={{ base: 8, md: 9 }}
+                h="32px"
                 w="auto"
-                objectFit="contain"
-                borderRadius="md"
+                borderRadius="4px"
                 flexShrink={0}
               />
+              <Text
+                display={{ base: 'none', sm: 'block' }}
+                fontSize="xl"
+                fontWeight="700"
+                letterSpacing="-0.02em"
+                sx={{ backgroundImage: 'linear-gradient(135deg, var(--chakra-colors-brand-400), var(--chakra-colors-accent-400))', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}
+              >
+                Compushop
+              </Text>
             </Box>
           </HStack>
 
-          <HStack spacing={1} display={{ base: 'none', md: 'flex' }}>
+          <HStack spacing={1} display={{ base: 'none', md: 'flex' }} bg={{ base: 'blackAlpha.50', _dark: 'whiteAlpha.50' }} borderRadius="full" px={2} py={1}>
             {links.map((l) => {
               const active = location.pathname === l.to;
               return (
@@ -96,9 +93,10 @@ export default function Navbar() {
                   variant="ghost"
                   size="sm"
                   borderRadius="full"
-                  fontWeight={active ? '700' : '500'}
-                  color={active ? 'brand.600' : muted}
-                  _hover={{ color: 'brand.500', bg: useColorModeValue('blackAlpha.50', 'whiteAlpha.100') }}
+                  fontWeight={active ? '600' : '500'}
+                  color={active ? textColor : muted}
+                  bg={active ? { base: 'white', _dark: 'whiteAlpha.100' } : 'transparent'}
+                  _hover={{ bg: active ? { base: 'white', _dark: 'whiteAlpha.100' } : { base: 'blackAlpha.100', _dark: 'whiteAlpha.50' } }}
                 >
                   {l.label}
                 </Button>
@@ -130,7 +128,7 @@ export default function Navbar() {
                   position="absolute"
                   top="-1"
                   right="-1"
-                  colorScheme="accent"
+                  colorScheme="brand"
                   borderRadius="full"
                   fontSize="xs"
                   minW="18px"
@@ -176,13 +174,13 @@ export default function Navbar() {
                 </Button>
                 <Button
                   as={RouterLink}
-                  to="/contacto"
+                  to="/registro"
                   colorScheme="brand"
                   size="sm"
                   borderRadius="full"
                   px={5}
                 >
-                  Contáctanos
+                  Registrarse
                 </Button>
               </HStack>
             )}
@@ -212,7 +210,7 @@ export default function Navbar() {
               ))}
               {!user && (
                 <>
-                  <Button as={RouterLink} to="/login" variant="outline" borderRadius="full" onClick={onClose}>
+                  <Button as={RouterLink} to="/login" variant="ghost" borderRadius="full" onClick={onClose}>
                     Ingresar
                   </Button>
                   <Button as={RouterLink} to="/registro" colorScheme="brand" borderRadius="full" onClick={onClose}>
