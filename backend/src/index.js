@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 const db = require('./db/database');
 const AppError = require('./utils/AppError');
+const logger = require('./utils/logger');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -86,12 +87,7 @@ app.get('/', (req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.error(err.stack || err);
-  } else {
-    console.error(err.message || 'Error inesperado');
-  }
-
+  logger.error('request_error', { message: err.message, stack: err.stack });
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({ error: err.message });
   }
