@@ -3,6 +3,7 @@ import {
   Container, Heading, Select, Input, HStack, Spinner, Center, Text, Button, Flex, Grid, GridItem,
 } from '@chakra-ui/react';
 import { useSearchParams } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import api from '../api/client';
 import ProductCard from '../components/ProductCard';
 import ProductCardSkeleton from '../components/ProductCardSkeleton';
@@ -96,7 +97,12 @@ export default function Products() {
   }, [loading, visibleCount, products.length]);
 
   return (
-    <Container maxW="7xl" py={10}>
+    <>
+      <Helmet>
+        <title>Productos | Compushop</title>
+        <meta name="description" content="Catálogo de productos de computación, hardware y accesorios en Compushop." />
+      </Helmet>
+      <Container maxW="7xl" py={10}>
       <Heading mb={6}>Productos</Heading>
       <HStack mb={8} spacing={4} flexWrap="wrap">
         <Select
@@ -172,6 +178,7 @@ export default function Products() {
           </Flex>
         </>
       )}
-    </Container>
+      </Container>
+    </>
   );
 }

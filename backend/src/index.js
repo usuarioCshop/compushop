@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
 const routes = require('./routes');
 const db = require('./db/database');
 const AppError = require('./utils/AppError');
@@ -10,6 +11,8 @@ const logger = require('./utils/logger');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.use(helmet());
 

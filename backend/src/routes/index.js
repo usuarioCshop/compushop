@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const db = require('../db/database');
 
 const { authenticate, requireAdmin, optionalAuth } = require('../middleware/auth');
@@ -19,6 +21,28 @@ const contactCtrl = require('../controllers/contactController');
 const settingsCtrl = require('../controllers/settingsController');
 const dashboardCtrl = require('../controllers/dashboardController');
 const wishlistCtrl = require('../controllers/wishlistController');
+
+const uploadDir = path.join(__dirname, '..', '..', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      cb(null, name);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /image\/(jpeg|jpg|png|webp|gif)/.test(file.mimetype);
+    if (!ok) return cb(new Error('Solo se permiten imágenes (jpg, png, webp, gif)'));
+    cb(null, true);
+  },
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -91,6 +115,15 @@ router.get('/dashboard/stats', authenticate, requireAdmin, dashboardCtrl.getStat
 router.get('/wishlist', authenticate, wishlistCtrl.getAll);
 router.post('/wishlist', authenticate, wishlistCtrl.add);
 router.delete('/wishlist/:product_id', authenticate, wishlistCtrl.remove);
+
+// ========== UPLOAD ==========
+router.post('/upload', authenticate, requireAdmin, imageUpload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se envió ninguna imagen' });
+  }
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url });
+});
 
 // ========== HEALTH ==========
 router.get('/health', async (req, res) => {

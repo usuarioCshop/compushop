@@ -23,22 +23,17 @@ export default function Login() {
   const muted = 'fg.muted';
   const pageBg = 'bg.canvas';
 
-  const handle = async (e) => {
-    e.preventDefault();
-    if (!email || !password) {
-      toast({ title: 'Completá email y contraseña', status: 'warning', duration: 2500 });
-      return;
-    }
+  const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const data = await login(email.trim(), password);
+      const res = await login(data.email.trim(), data.password);
       toast({
-        title: `Bienvenido, ${data.user.name.split(' ')[0]}`,
+        title: `Bienvenido, ${res.user.name.split(' ')[0]}`,
         status: 'success',
         duration: 2000,
         isClosable: true,
       });
-      const dest = data.user.role === 'admin' ? '/admin' : from;
+      const dest = res.user.role === 'admin' ? '/admin' : from;
       navigate(dest, { replace: true });
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Credenciales inválidas';
@@ -66,7 +61,7 @@ export default function Login() {
             </Text>
           </VStack>
 
-          <form onSubmit={handle}>
+          <form onSubmit={handleSubmit(onSubmit)}>
             <VStack spacing={4}>
               <FormControl isRequired>
                 <FormLabel>Email</FormLabel>
@@ -80,13 +75,12 @@ export default function Login() {
                 />
               </FormControl>
 
-              <FormControl isRequired>
+              <FormControl isInvalid={!!errors.password}>
                 <FormLabel>Contraseña</FormLabel>
                 <InputGroup size="lg">
                   <Input
                     type={showPass ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    {...register('password', { required: 'La contraseña es obligatoria' })}
                     placeholder="••••••••"
                     autoComplete="current-password"
                   />
@@ -100,6 +94,7 @@ export default function Login() {
                     />
                   </InputRightElement>
                 </InputGroup>
+                <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
               </FormControl>
 
               <Button

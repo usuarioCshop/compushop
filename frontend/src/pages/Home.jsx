@@ -4,6 +4,7 @@ import {
   Spinner, Center, Image, Flex, useColorModeValue,
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { FiArrowRight, FiZap } from 'react-icons/fi';
 import api from '../api/client';
 import ProductCard from '../components/ProductCard';
@@ -46,7 +47,12 @@ export default function Home() {
   }, []);
 
   return (
-    <Box>
+    <>
+      <Helmet>
+        <title>Compushop | Casa de computación</title>
+        <meta name="description" content="Compushop - Venta de PC, hardware, insumos y servicios técnicos. +20 años de experiencia." />
+      </Helmet>
+      <Box>
       {/* ===== HERO ===== */}
       <Box
         position="relative"
@@ -336,6 +342,7 @@ export default function Home() {
           </Box>
         </Container>
       </Box>
-    </Box>
+      </Box>
+    </>
   );
 }
