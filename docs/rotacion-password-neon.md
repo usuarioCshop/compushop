@@ -9,6 +9,15 @@ lo tanto, debe considerarse comprometido.
 Purgar el historial **no** vuelve secreta una credencial ya expuesta: sólo rotar
 la cierra. Este documento describe la rotación; el historial se limpia después.
 
+## Estado (2026-11-03)
+
+- Password de `production` rotada y verificada: la vieja ya **no autentica** y la
+  nueva conecta por unpooled y pooled.
+- Password de `test` rotada y verificada: la suite paso 24/24.
+- `backend/.env` actualizado con ambas.
+- **Pendiente:** variables de entorno en Vercel + redeploy.
+- **Pendiente:** purgar el historial de Git.
+
 ## Paso 1 — Rotar en Neon (manual, requiere tu login)
 
 1. Entrar a <https://console.neon.tech> → proyecto `rapid-brook-52346436`
@@ -20,6 +29,12 @@ Anotar también, para cada branch que usemos, la cadena de conexión:
 
 - `production` → endpoint `ep-long-leaf-b6myr4fz` (pooled y unpooled)
 - `test` → endpoint `ep-odd-tree-b6vi1fsh`
+
+**Trampa encontrada en la primera rotacion:** se reseteo la password estando
+parado en el branch `test`, y `production` siguio aceptando la credencial vieja.
+Hay que seleccionar explicitamente el branch `production` en el dashboard antes
+de tocar el rol. La unica prueba valida es intentar conectar con la password
+vieja contra `production`: tiene que ser rechazada.
 
 ## Paso 2 — Actualizar las variables locales (`backend/.env`, no versionado)
 
@@ -50,9 +65,13 @@ actualizar.
 
 ## Paso 5 — Limpiar el historial (después de rotar)
 
-Una vez que la credencial vieja ya no sirve para nada, reescribir el historial
-deja de ser urgente y pasa a ser higiene. Se hace con `git filter-repo` sobre
-`backend/.env.example` y requiere force-push coordinado en `main` y `dev2`.
+La credencial vieja ya no autentica, asi que esto pasa de urgente a higiene: que
+el historial no le siga ensenando credenciales a quien clone el repo. Se hace con
+`git filter-repo` sobre `backend/.env.example` y requiere force-push coordinado
+en `main` y `dev2`.
+
+Contexto: el repo es **publico**, y la credencial estuvo expuesta desde `1b54985`
+hasta `d22e6a7`. Debe asumirse que fue copiada.
 
 ## Notas
 
