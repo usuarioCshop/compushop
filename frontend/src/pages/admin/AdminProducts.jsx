@@ -3,7 +3,7 @@ import {
   Box, Heading, Button, Table, Thead, Tbody, Tr, Th, Td, IconButton, useToast, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel,
   Input, Textarea, NumberInput, NumberInputField, Select, Switch, HStack, Spinner, Center, Badge,
-  VStack, Text, List, ListItem,
+  VStack, Text, List, ListItem, Image,
 } from '@chakra-ui/react';
 import { FiPlus, FiEdit, FiTrash2, FiUpload, FiSearch } from 'react-icons/fi';
 import api from '../../api/client';
@@ -22,6 +22,8 @@ export default function AdminProducts() {
   const [importing, setImporting] = useState(false);
   const [reporte, setReporte] = useState(null);
   const fileRef = useRef(null);
+  const imgRef = useRef(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
   const [filterCat, setFilterCat] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,6 +143,24 @@ export default function AdminProducts() {
     }
   };
 
+  const uploadImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    setUploadingImg(true);
+    try {
+      const res = await api.post('/upload', formData, { headers: { 'Content-Type': undefined } });
+      setForm((f) => ({ ...f, image: res.data.url }));
+      toast({ title: 'Imagen subida', status: 'success' });
+    } catch (err) {
+      toast({ title: 'Error al subir imagen', description: err.response?.data?.error || err.message, status: 'error' });
+    } finally {
+      setUploadingImg(false);
+      if (imgRef.current) imgRef.current.value = '';
+    }
+  };
+
   const brands = useMemo(() => {
     const set = new Set();
     products.forEach((p) => { if (p.brand) set.add(String(p.brand).trim()); });
@@ -229,7 +249,21 @@ export default function AdminProducts() {
                 )}
               </Select>
             </FormControl>
-            <FormControl mb={3}><FormLabel>URL imagen</FormLabel><Input value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} /></FormControl>
+            <FormControl mb={3}>
+              <FormLabel>Imagen</FormLabel>
+              <HStack>
+                <Input value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} placeholder="/uploads/imagen.jpg" />
+                <input ref={imgRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadImage} />
+                <Button leftIcon={<FiUpload />} onClick={() => imgRef.current?.click()} isLoading={uploadingImg} loadingText="Subiendo" flexShrink={0}>
+                  Subir imagen
+                </Button>
+              </HStack>
+              {form.image && (
+                <Box mt={3} borderWidth="1px" borderRadius="lg" overflow="hidden" w="fit-content">
+                  <Image src={form.image} alt="Vista previa" maxH="160px" />
+                </Box>
+              )}
+            </FormControl>
             <HStack mb={2}>
               <FormControl flex="1"><FormLabel>Compra USD</FormLabel><NumberInput value={form.purchase_price} onChange={v => setForm({ ...form, purchase_price: v })}><NumberInputField /></NumberInput></FormControl>
               <FormControl flex="1"><FormLabel>IVA (%)</FormLabel><NumberInput value={form.vat_rate} onChange={v => setForm({ ...form, vat_rate: v })}><NumberInputField /></NumberInput></FormControl>

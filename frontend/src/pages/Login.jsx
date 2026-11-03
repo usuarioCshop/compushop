@@ -1,15 +1,14 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import {
   Box, Container, Heading, VStack, FormControl, FormLabel, Input, Button, Text, Link,
-  useToast, useColorModeValue, InputGroup, InputRightElement, IconButton,
+  useToast, useColorModeValue, InputGroup, InputRightElement, IconButton, FormErrorMessage,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -17,6 +16,7 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from || '/';
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const bg = 'bg.surface';
   const border = 'border.subtle';
@@ -63,16 +63,19 @@ export default function Login() {
 
           <form onSubmit={handleSubmit(onSubmit)}>
             <VStack spacing={4}>
-              <FormControl isRequired>
+              <FormControl isInvalid={!!errors.email}>
                 <FormLabel>Email</FormLabel>
                 <Input
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  {...register('email', {
+                    required: 'El email es obligatorio',
+                    pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' },
+                  })}
                   placeholder="tu@email.com"
                   autoComplete="email"
                   size="lg"
                 />
+                <FormErrorMessage>{errors.email?.message}</FormErrorMessage>
               </FormControl>
 
               <FormControl isInvalid={!!errors.password}>
@@ -88,7 +91,7 @@ export default function Login() {
                     <IconButton
                       variant="ghost"
                       size="sm"
-                      aria-label={showPass ? 'Ocultar' : 'Mostrar'}
+                      aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                       icon={showPass ? <FiEyeOff /> : <FiEye />}
                       onClick={() => setShowPass((v) => !v)}
                     />
