@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Box, Heading, Button, Table, Thead, Tbody, Tr, Th, Td, IconButton, useToast, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel,
-  Input, Textarea, NumberInput, NumberInputField, Switch, HStack, Spinner, Center,
+  Input, Textarea, NumberInput, NumberInputField, Switch, HStack, Spinner, Center, Image,
 } from '@chakra-ui/react';
-import { FiPlus, FiEdit, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiUpload } from 'react-icons/fi';
 import api from '../../api/client';
 
 const formatPrice = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
@@ -18,6 +18,8 @@ export default function AdminServices() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const bg = 'bg.surface';
+  const imgRef = useRef(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -45,6 +47,24 @@ export default function AdminServices() {
     await api.delete(`/services/${id}`);
     toast({ title: 'Eliminado', status: 'info' });
     load();
+  };
+
+  const uploadImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    setUploadingImg(true);
+    try {
+      const res = await api.post('/upload', formData, { headers: { 'Content-Type': undefined } });
+      setForm((f) => ({ ...f, image: res.data.url }));
+      toast({ title: 'Imagen subida', status: 'success' });
+    } catch (err) {
+      toast({ title: 'Error al subir imagen', description: err.response?.data?.error || err.message, status: 'error' });
+    } finally {
+      setUploadingImg(false);
+      if (imgRef.current) imgRef.current.value = '';
+    }
   };
 
   if (loading) return <Center py={10}><Spinner /></Center>;
@@ -84,7 +104,21 @@ export default function AdminServices() {
             <FormControl mb={3}><FormLabel>Descripción</FormLabel><Textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></FormControl>
             <FormControl mb={3} isRequired><FormLabel>Precio</FormLabel><NumberInput value={form.price} onChange={v => setForm({ ...form, price: v })}><NumberInputField /></NumberInput></FormControl>
             <FormControl mb={3}><FormLabel>Duración</FormLabel><Input value={form.duration} onChange={e => setForm({ ...form, duration: e.target.value })} /></FormControl>
-            <FormControl mb={3}><FormLabel>URL imagen</FormLabel><Input value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} /></FormControl>
+            <FormControl mb={3}>
+              <FormLabel>Imagen</FormLabel>
+              <HStack>
+                <Input value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} placeholder="/uploads/imagen.jpg" />
+                <input ref={imgRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadImage} />
+                <Button leftIcon={<FiUpload />} onClick={() => imgRef.current?.click()} isLoading={uploadingImg} loadingText="Subiendo" flexShrink={0}>
+                  Subir imagen
+                </Button>
+              </HStack>
+              {form.image && (
+                <Box mt={3} borderWidth="1px" borderRadius="lg" overflow="hidden" w="fit-content">
+                  <Image src={form.image} alt="Vista previa" maxH="160px" />
+                </Box>
+              )}
+            </FormControl>
             <FormControl display="flex" alignItems="center"><FormLabel mb={0}>Activo</FormLabel><Switch isChecked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} /></FormControl>
           </ModalBody>
           <ModalFooter>
