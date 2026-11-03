@@ -1,34 +1,28 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import {
   Box, Container, Heading, VStack, FormControl, FormLabel, Input, Button, Text, Link,
-  useToast, SimpleGrid,
+  useToast, SimpleGrid, FormErrorMessage,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Register() {
-  const [form, setForm] = useState({ name: '', email: '', password: '', dni: '', phone: '', address: '' });
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
+  const { register: registerUser } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const bg = 'bg.surface';
   const border = 'border.subtle';
   const muted = 'fg.muted';
   const pageBg = 'bg.canvas';
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  const handle = async (e) => {
-    e.preventDefault();
-    if (form.password.length < 6) {
-      toast({ title: 'La contraseña debe tener al menos 6 caracteres', status: 'warning' });
-      return;
-    }
+  const onSubmit = async (data) => {
     setLoading(true);
     try {
-      await register(form);
+      await registerUser(data);
       toast({ title: 'Cuenta creada', status: 'success' });
       navigate('/');
     } catch (err) {
@@ -50,33 +44,36 @@ export default function Register() {
             <Heading size="lg">Crear cuenta</Heading>
             <Text fontSize="sm" color={muted}>Registrate para comprar y seguir tus pedidos</Text>
           </VStack>
-          <form onSubmit={handle}>
+          <form onSubmit={handleSubmit(onSubmit)}>
             <VStack spacing={4}>
-              <FormControl isRequired>
+              <FormControl isRequired isInvalid={!!errors.name}>
                 <FormLabel>Nombre completo</FormLabel>
-                <Input value={form.name} onChange={set('name')} size="lg" />
+                <Input {...register('name', { required: 'El nombre es obligatorio' })} size="lg" />
+                <FormErrorMessage>{errors.name?.message}</FormErrorMessage>
               </FormControl>
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="100%">
-                <FormControl isRequired>
+                <FormControl isRequired isInvalid={!!errors.email}>
                   <FormLabel>Email</FormLabel>
-                  <Input type="email" value={form.email} onChange={set('email')} size="lg" />
+                  <Input type="email" {...register('email', { required: 'El email es obligatorio', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' } })} size="lg" />
+                  <FormErrorMessage>{errors.email?.message}</FormErrorMessage>
                 </FormControl>
                 <FormControl>
                   <FormLabel>DNI</FormLabel>
-                  <Input value={form.dni} onChange={set('dni')} size="lg" placeholder="Para recuperar clave" />
+                  <Input {...register('dni')} size="lg" placeholder="Para recuperar clave" />
                 </FormControl>
               </SimpleGrid>
-              <FormControl isRequired>
+              <FormControl isRequired isInvalid={!!errors.password}>
                 <FormLabel>Contraseña</FormLabel>
-                <Input type="password" value={form.password} onChange={set('password')} size="lg" minLength={6} />
+                <Input type="password" {...register('password', { required: 'La contraseña es obligatoria', minLength: { value: 6, message: 'Debe tener al menos 6 caracteres' } })} size="lg" />
+                <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
               </FormControl>
               <FormControl>
                 <FormLabel>Teléfono</FormLabel>
-                <Input value={form.phone} onChange={set('phone')} size="lg" />
+                <Input {...register('phone')} size="lg" />
               </FormControl>
               <FormControl>
                 <FormLabel>Dirección</FormLabel>
-                <Input value={form.address} onChange={set('address')} size="lg" />
+                <Input {...register('address')} size="lg" />
               </FormControl>
               <Button type="submit" colorScheme="brand" w="100%" size="lg" isLoading={loading}>
                 Registrarse
