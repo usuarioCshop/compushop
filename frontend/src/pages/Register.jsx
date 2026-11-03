@@ -67,9 +67,15 @@ export default function Register() {
                 <Input type="password" {...register('password', { required: 'La contraseña es obligatoria', minLength: { value: 6, message: 'Debe tener al menos 6 caracteres' } })} size="lg" />
                 <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
               </FormControl>
-              <FormControl>
+              <FormControl isInvalid={!!errors.phone}>
                 <FormLabel>Teléfono</FormLabel>
-                <Input {...register('phone')} size="lg" />
+                <Input {...register('phone', {
+                  pattern: {
+                    value: /^[0-9+\-\s()]{7,20}$/,
+                    message: 'Ingresá un teléfono válido'
+                  }
+                })} size="lg" />
+                <FormErrorMessage>{errors.phone?.message}</FormErrorMessage>
               </FormControl>
               <FormControl>
                 <FormLabel>Dirección</FormLabel>

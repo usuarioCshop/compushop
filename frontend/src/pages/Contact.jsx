@@ -45,9 +45,15 @@ export default function Contact() {
               </FormControl>
             </SimpleGrid>
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} w="100%">
-              <FormControl>
+              <FormControl isInvalid={!!errors.phone}>
                 <FormLabel>Teléfono</FormLabel>
-                <Input {...register('phone')} />
+                <Input {...register('phone', {
+                  pattern: {
+                    value: /^[0-9+\-\s()]{7,20}$/,
+                    message: 'Ingresá un teléfono válido'
+                  }
+                })} />
+                <FormErrorMessage>{errors.phone?.message}</FormErrorMessage>
               </FormControl>
               <FormControl>
                 <FormLabel>Asunto</FormLabel>
