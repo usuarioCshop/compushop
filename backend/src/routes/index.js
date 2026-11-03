@@ -1,9 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const db = require('../db/database');
 
 const { authenticate, requireAdmin, optionalAuth } = require('../middleware/auth');
 const { sendContactEmail } = require('../utils/email');
+const validate = require('../middleware/validate');
+const { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } = require('../validations/auth');
+const { contactSchema } = require('../validations/contact');
 
 const authCtrl = require('../controllers/authController');
 const productsCtrl = require('../controllers/productsController');
@@ -14,6 +20,29 @@ const usersCtrl = require('../controllers/usersController');
 const contactCtrl = require('../controllers/contactController');
 const settingsCtrl = require('../controllers/settingsController');
 const dashboardCtrl = require('../controllers/dashboardController');
+const wishlistCtrl = require('../controllers/wishlistController');
+
+const uploadDir = path.join(__dirname, '..', '..', 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const imageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadDir),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      cb(null, name);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /image\/(jpeg|jpg|png|webp|gif)/.test(file.mimetype);
+    if (!ok) return cb(new Error('Solo se permiten imágenes (jpg, png, webp, gif)'));
+    cb(null, true);
+  },
+});
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -31,11 +60,11 @@ const upload = multer({
 });
 
 // ========== AUTH ==========
-router.post('/auth/register', authCtrl.register);
-router.post('/auth/login', authCtrl.login);
+router.post('/auth/register', validate(registerSchema), authCtrl.register);
+router.post('/auth/login', validate(loginSchema), authCtrl.login);
 router.get('/auth/me', authenticate, authCtrl.me);
-router.post('/auth/forgot-password', authCtrl.forgotPassword);
-router.post('/auth/reset-password', authCtrl.resetPassword);
+router.post('/auth/forgot-password', validate(forgotPasswordSchema), authCtrl.forgotPassword);
+router.post('/auth/reset-password', validate(resetPasswordSchema), authCtrl.resetPassword);
 
 // ========== CATEGORIES ==========
 router.get('/categories', categoriesCtrl.getAll);
@@ -45,17 +74,17 @@ router.delete('/categories/:id', authenticate, requireAdmin, categoriesCtrl.remo
 
 // ========== PRODUCTS ==========
 router.get('/products', productsCtrl.getAll);
-router.get('/products/:id', productsCtrl.getOne);
 router.post('/products/update-prices', authenticate, requireAdmin, productsCtrl.updatePricesByCost);
 router.post('/products/import', authenticate, requireAdmin, upload.single('file'), productsCtrl.importProducts);
 router.post('/products', authenticate, requireAdmin, productsCtrl.create);
+router.get('/products/:id', productsCtrl.getOne);
 router.put('/products/:id', authenticate, requireAdmin, productsCtrl.update);
 router.delete('/products/:id', authenticate, requireAdmin, productsCtrl.remove);
 
 // ========== SERVICES ==========
 router.get('/services', servicesCtrl.getAll);
-router.get('/services/:id', servicesCtrl.getOne);
 router.post('/services', authenticate, requireAdmin, servicesCtrl.create);
+router.get('/services/:id', servicesCtrl.getOne);
 router.put('/services/:id', authenticate, requireAdmin, servicesCtrl.update);
 router.delete('/services/:id', authenticate, requireAdmin, servicesCtrl.remove);
 
@@ -71,7 +100,7 @@ router.put('/users/:id', authenticate, requireAdmin, usersCtrl.update);
 router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
 
 // ========== CONTACT ==========
-router.post('/contact', contactCtrl.sendMessage);
+router.post('/contact', validate(contactSchema), contactCtrl.sendMessage);
 router.get('/contact', authenticate, requireAdmin, contactCtrl.getMessages);
 router.put('/contact/:id/read', authenticate, requireAdmin, contactCtrl.markAsRead);
 
@@ -81,5 +110,30 @@ router.put('/settings', authenticate, requireAdmin, settingsCtrl.update);
 
 // ========== DASHBOARD ==========
 router.get('/dashboard/stats', authenticate, requireAdmin, dashboardCtrl.getStats);
+
+// ========== WISHLIST ==========
+router.get('/wishlist', authenticate, wishlistCtrl.getAll);
+router.post('/wishlist', authenticate, wishlistCtrl.add);
+router.delete('/wishlist/:product_id', authenticate, wishlistCtrl.remove);
+
+// ========== UPLOAD ==========
+router.post('/upload', authenticate, requireAdmin, imageUpload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se envió ninguna imagen' });
+  }
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ url });
+});
+
+// ========== HEALTH ==========
+router.get('/health', async (req, res) => {
+  try {
+    await db.query('SELECT 1');
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (error) {
+    console.error(error);
+    res.status(503).json({ status: 'error', db: 'disconnected' });
+  }
+});
 
 module.exports = router;

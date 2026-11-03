@@ -29,7 +29,12 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+.env.backup-*
+.env.bak
 
 # Base de datos SQLite generada
 *.db
 .neon
+
+# Archivos subidos por el admin en desarrollo (efimeros: se regeneran)
+backend/uploads/

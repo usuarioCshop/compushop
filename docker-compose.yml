@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16
+    container_name: compushop-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: compushop
+      POSTGRES_PASSWORD: compushop
+      POSTGRES_DB: compushop
+    ports:
+      - "5432:5432"
+    volumes:
+      - compushop_pgdata:/var/lib/postgresql/data
+
+  adminer:
+    image: adminer
+    container_name: compushop-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+
+volumes:
+  compushop_pgdata:

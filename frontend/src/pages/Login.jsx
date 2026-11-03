@@ -1,15 +1,14 @@
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import {
   Box, Container, Heading, VStack, FormControl, FormLabel, Input, Button, Text, Link,
-  useToast, useColorModeValue, InputGroup, InputRightElement, IconButton,
+  useToast, useColorModeValue, InputGroup, InputRightElement, IconButton, FormErrorMessage,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
 import { FiEye, FiEyeOff } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -17,28 +16,24 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from || '/';
+  const { register, handleSubmit, formState: { errors } } = useForm();
 
   const bg = 'bg.surface';
   const border = 'border.subtle';
   const muted = 'fg.muted';
   const pageBg = 'bg.canvas';
 
-  const handle = async (e) => {
-    e.preventDefault();
-    if (!email || !password) {
-      toast({ title: 'Completá email y contraseña', status: 'warning', duration: 2500 });
-      return;
-    }
+  const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const data = await login(email.trim(), password);
+      const res = await login(data.email.trim(), data.password);
       toast({
-        title: `Bienvenido, ${data.user.name.split(' ')[0]}`,
+        title: `Bienvenido, ${res.user.name.split(' ')[0]}`,
         status: 'success',
         duration: 2000,
         isClosable: true,
       });
-      const dest = data.user.role === 'admin' ? '/admin' : from;
+      const dest = res.user.role === 'admin' ? '/admin' : from;
       navigate(dest, { replace: true });
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Credenciales inválidas';
@@ -66,27 +61,29 @@ export default function Login() {
             </Text>
           </VStack>
 
-          <form onSubmit={handle}>
+          <form onSubmit={handleSubmit(onSubmit)}>
             <VStack spacing={4}>
-              <FormControl isRequired>
+              <FormControl isInvalid={!!errors.email}>
                 <FormLabel>Email</FormLabel>
                 <Input
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  {...register('email', {
+                    required: 'El email es obligatorio',
+                    pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email inválido' },
+                  })}
                   placeholder="tu@email.com"
                   autoComplete="email"
                   size="lg"
                 />
+                <FormErrorMessage>{errors.email?.message}</FormErrorMessage>
               </FormControl>
 
-              <FormControl isRequired>
+              <FormControl isInvalid={!!errors.password}>
                 <FormLabel>Contraseña</FormLabel>
                 <InputGroup size="lg">
                   <Input
                     type={showPass ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    {...register('password', { required: 'La contraseña es obligatoria' })}
                     placeholder="••••••••"
                     autoComplete="current-password"
                   />
@@ -94,12 +91,13 @@ export default function Login() {
                     <IconButton
                       variant="ghost"
                       size="sm"
-                      aria-label={showPass ? 'Ocultar' : 'Mostrar'}
+                      aria-label={showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                       icon={showPass ? <FiEyeOff /> : <FiEye />}
                       onClick={() => setShowPass((v) => !v)}
                     />
                   </InputRightElement>
                 </InputGroup>
+                <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
               </FormControl>
 
               <Button
