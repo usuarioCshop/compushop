@@ -1,0 +1,32 @@
+# Normalización de line endings.
+# Todo el repo se guarda en LF dentro de Git. En el working tree cada plataforma
+# recibe lo que corresponde (en Windows, los .bat/.cmd/.ps1 en CRLF, el resto LF).
+# Sin esto, un editor de Windows reescribe el archivo entero con CRLF y el diff
+# aparece como si se hubiera reescrito todo el proyecto.
+
+* text=auto eol=lf
+
+# Binarios: nunca tocar ni convertir.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.svg text eol=lf
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.zip binary
+
+# Scripts de Windows: se guardan con CRLF para que los interpreten bien.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Lockfiles: generados por npm, no se revisan a mano y conviene que no cambien
+# de diff por line endings.
+package-lock.json -diff linguist-generated
