@@ -22,10 +22,19 @@ const settingsCtrl = require('../controllers/settingsController');
 const dashboardCtrl = require('../controllers/dashboardController');
 const wishlistCtrl = require('../controllers/wishlistController');
 
-const uploadDir = path.join(__dirname, '..', '..', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+const IS_VERCEL = !!process.env.VERCEL;
+const { uploadsDir: uploadDir } = require('../utils/uploads');
+
+function ensureUploadsDir() {
+  try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  } catch (err) {
+    // Nunca dejar que esto tumbe el proceso. El endpoint de upload devolvera
+    // error por archivo, pero el resto de la API sigue funcionando.
+    console.warn(`No se pudo crear ${uploadDir}: ${err.message}`);
+  }
 }
+ensureUploadsDir();
 
 const imageUpload = multer({
   storage: multer.diskStorage({

@@ -12,7 +12,8 @@ const logger = require('./utils/logger');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
+const { uploadsDir } = require('./utils/uploads');
+app.use('/uploads', express.static(uploadsDir));
 
 app.use(helmet());
 
