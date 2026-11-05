@@ -107,7 +107,8 @@ async function getAll(req, res) {
     let sql = 'SELECT * FROM orders WHERE 1=1';
     const params = [];
 
-    if (req.user.role !== 'admin') {
+    if (!['admin', 'superadmin'].includes(req.user.role)) {
+
       params.push(req.user.id);
       sql += ` AND user_id = $${params.length}`;
     }
@@ -151,7 +152,7 @@ async function getOne(req, res) {
     }
 
     // Solo admin o el dueño
-    if (req.user.role !== 'admin' && order.user_id !== req.user.id) {
+    if (!['admin', 'superadmin'].includes(req.user.role) && order.user_id !== req.user.id) {
       return res.status(403).json({ error: 'No autorizado' });
     }
 

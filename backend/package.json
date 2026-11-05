@@ -10,7 +10,8 @@
     "migrate:status": "node src/db/migrate.js --status",
     "seed": "node src/db/seed.js",
     "test": "node --test --test-concurrency=1 test/persistencia.smoke.test.js test/http.smoke.test.js test/transaccion.test.js",
-    "test:ci": "node --test --test-concurrency=1 test/persistencia.smoke.test.js test/http.smoke.test.js test/transaccion.test.js"
+    "test:ci": "node --test --test-concurrency=1 test/persistencia.smoke.test.js test/http.smoke.test.js test/transaccion.test.js",
+    "create-superadmin": "node scripts/create-superadmin.js"
   },
   "keywords": [
     "ecommerce",
