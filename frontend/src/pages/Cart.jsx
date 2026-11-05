@@ -8,6 +8,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import { useNavigate } from 'react-router-dom';
+import { resolveUploadUrl } from '../api/uploads';
 
 const formatPrice = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
@@ -65,7 +66,7 @@ export default function Cart() {
           {items.map(item => (
             <Box key={`${item.type}-${item.id}`} bg={bg} p={4} borderRadius="lg" borderWidth="1px" w="100%">
               <HStack spacing={4}>
-                <Image src={item.image} boxSize="80px" objectFit="cover" borderRadius="md" fallbackSrc="https://via.placeholder.com/80" />
+                <Image src={resolveUploadUrl(item.image)} boxSize="80px" objectFit="cover" borderRadius="md" fallbackSrc="https://via.placeholder.com/80" />
                 <VStack align="start" flex="1" spacing={1}>
                   <Text fontWeight="semibold">{item.name}</Text>
                   <Text fontSize="sm" color="fg.muted">{item.type === 'service' ? 'Servicio' : 'Producto'}</Text>
