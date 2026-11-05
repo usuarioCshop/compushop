@@ -7,6 +7,7 @@ import {
 import { FiShoppingCart } from 'react-icons/fi';
 import api from '../api/client';
 import { useCart } from '../context/CartContext';
+import { resolveUploadUrl } from '../api/uploads';
 
 const formatPrice = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
@@ -36,7 +37,7 @@ export default function ProductDetail() {
     <Container maxW="6xl" py={10}>
       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={10}>
         <Box bg={bg} borderRadius="xl" overflow="hidden" borderWidth="1px">
-          <Image src={product.image} alt={product.name} w="100%" maxH="420px" objectFit="cover"
+          <Image src={resolveUploadUrl(product.image)} alt={product.name} w="100%" maxH="420px" objectFit="cover"
             fallbackSrc="https://via.placeholder.com/600x400?text=Compushop" />
         </Box>
         <VStack align="start" spacing={4}>

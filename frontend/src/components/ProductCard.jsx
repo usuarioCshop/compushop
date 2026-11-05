@@ -7,6 +7,7 @@ import { FaHeart } from 'react-icons/fa';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
+import { resolveUploadUrl } from '../api/uploads';
 
 const formatPrice = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
@@ -101,7 +102,7 @@ export default function ProductCard({ product, type = 'product' }) {
           />
         )}
         <Image
-          src={product.image || 'https://via.placeholder.com/400x400?text=Compushop'}
+          src={resolveUploadUrl(product.image) || 'https://via.placeholder.com/400x400?text=Compushop'}
           alt={product.name}
           sx={{
             objectFit: 'contain',

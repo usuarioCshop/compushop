@@ -6,6 +6,7 @@ import {
 } from '@chakra-ui/react';
 import { FiPlus, FiEdit, FiTrash2, FiUpload } from 'react-icons/fi';
 import api from '../../api/client';
+import { resolveUploadUrl } from '../../api/uploads';
 
 const formatPrice = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
 const empty = { name: '', description: '', price: 0, duration: '', image: '', is_active: true };
@@ -115,7 +116,7 @@ export default function AdminServices() {
               </HStack>
               {form.image && (
                 <Box mt={3} borderWidth="1px" borderRadius="lg" overflow="hidden" w="fit-content">
-                  <Image src={form.image} alt="Vista previa" maxH="160px" />
+                  <Image src={resolveUploadUrl(form.image)} alt="Vista previa" maxH="160px" />
                 </Box>
               )}
             </FormControl>
