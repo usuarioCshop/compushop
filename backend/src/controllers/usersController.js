@@ -1,5 +1,40 @@
 const bcrypt = require('bcryptjs');
 const db = require('../db/database');
+const { isAdminRole } = require('../middleware/auth');
+
+// POST /api/users (solo SuperAdmin): crea una cuenta admin o customer.
+// No se puede crear un superadmin por API: esa via queda reservada al script
+// de bootstrap (npm run create-superadmin) para que siempre haya log forense.
+async function createUser(req, res) {
+  try {
+    const { name, email, password, role, dni, phone, address } = req.body;
+
+    if (!name || !email || !password || !role) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios: name, email, password, role' });
+    }
+    if (!['admin', 'customer'].includes(role)) {
+      return res.status(400).json({ error: 'El rol debe ser admin o customer' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
+    const hashed = bcrypt.hashSync(password, 10);
+    const result = await db.prepare(`
+      INSERT INTO users (name, email, password, role, dni, phone, address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, name, email, dni, role, phone, address, created_at
+    `).run(name, email, hashed, role, dni || null, phone || null, address || null);
+
+    res.status(201).json({ message: 'Usuario creado', user: result.rows[0] });
+  } catch (error) {
+    if (db.isUniqueViolation(error)) {
+      return res.status(409).json({ error: 'Email o DNI ya existe' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Error al crear usuario' });
+  }
+}
 
 // GET /api/users (admin)
 async function getAll(req, res) {
@@ -55,8 +90,22 @@ async function update(req, res) {
       password,
     } = req.body;
 
-    if (role && !['admin', 'customer'].includes(role)) {
+    const requesterIsSuper = req.user.role === 'superadmin';
+    const targetIsAdmin = isAdminRole(existing.role);
+
+    // Las cuentas admin solo las toca el superadmin.
+    if (targetIsAdmin && !requesterIsSuper) {
+      return res.status(403).json({ error: 'Solo el super administrador puede modificar cuentas admin.' });
+    }
+    // Cambiar el rol (ascender/degradar) lo hace solo el superadmin.
+    if (role !== undefined && role !== existing.role && !requesterIsSuper) {
+      return res.status(403).json({ error: 'Solo el super administrador puede cambiar roles.' });
+    }
+    if (role && !['admin', 'customer', 'superadmin'].includes(role)) {
       return res.status(400).json({ error: 'Rol inválido' });
+    }
+    if (parseInt(id) === req.user.id && role && role !== existing.role) {
+      return res.status(400).json({ error: 'No podés cambiar tu propio rol.' });
     }
 
     if (password) {
@@ -90,8 +139,12 @@ async function remove(req, res) {
     if (parseInt(id) === req.user.id) {
       return res.status(400).json({ error: 'No podés eliminarte a vos mismo' });
     }
-    const existing = await db.prepare('SELECT id FROM users WHERE id = $1').get(id);
+    const existing = await db.prepare('SELECT id, role FROM users WHERE id = $1').get(id);
     if (!existing) return res.status(404).json({ error: 'Usuario no encontrado' });
+    // Las cuentas admin solo las elimina el superadmin.
+    if (isAdminRole(existing.role) && req.user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Solo el super administrador puede eliminar cuentas admin.' });
+    }
 
     await db.prepare('DELETE FROM users WHERE id = $1').run(id);
     res.json({ message: 'Usuario eliminado' });
@@ -101,4 +154,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { getAll, update, remove };
+module.exports = { getAll, createUser, update, remove };

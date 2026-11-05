@@ -75,8 +75,16 @@ hasta `d22e6a7`. Debe asumirse que fue copiada.
 
 ## Notas
 
-- El branch de `test` comparte rol con `production`: mientras siga así, la
-  password del branch de test abre también producción. Evaluar un rol separado
-  para `test` cuando se pueda.
+- **Los roles de Neon son por branch, no por proyecto.** La rotación lo probó en
+  los dos sentidos: el reset hecho parado en el branch `test` no cambió la
+  password de `production` (la vieja seguía autenticando hasta que se rotó ahí
+  también), y la password nueva de `test` es rechazada contra `production`.
+  Cada branch tiene su propio `neondb_owner` con password propia. Por lo tanto,
+  un `TRUNCATE` ejecutado contra el branch de test no alcanza los datos de
+  producción: el aislamiento ya lo da la arquitectura de Neon, no hace falta un
+  rol "dedicado" adicional. Lo que sí importa: (1) el branch de test debe
+  haberse creado de forma limpia (sin copia de datos reales de producción);
+  (2) al rotar, hay que estar parado en el branch correcto y verificarlo
+  conectando, no confiando en el cartel del dashboard.
 - El CI (`.github/workflows/ci.yml`) usa un Postgres efímero en `localhost`, no
   Neon: la rotación no lo afecta.

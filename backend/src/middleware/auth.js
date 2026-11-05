@@ -16,9 +16,23 @@ function authenticate(req, res, next) {
   }
 }
 
+const ADMIN_ROLES = ['admin', 'superadmin'];
+const isAdminRole = (role) => ADMIN_ROLES.includes(role);
+
+// requireAdmin: cualquier usuario con permisos de administracion.
+// El superadmin hereda todo lo que puede hacer un admin.
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') {
+  if (!req.user || !isAdminRole(req.user.role)) {
     return res.status(403).json({ error: 'Acceso denegado. Se requiere rol de administrador.' });
+  }
+  next();
+}
+
+// requireSuperAdmin: solo el superadmin. Ademas de los permisos de admin,
+// puede crear, ascender o eliminar cuentas admin.
+function requireSuperAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Acceso denegado. Se requiere rol de super administrador.' });
   }
   next();
 }
@@ -36,4 +50,4 @@ function optionalAuth(req, res, next) {
   next();
 }
 
-module.exports = { authenticate, requireAdmin, optionalAuth };
+module.exports = { authenticate, requireAdmin, requireSuperAdmin, optionalAuth, isAdminRole };

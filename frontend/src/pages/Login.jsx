@@ -33,7 +33,7 @@ export default function Login() {
         duration: 2000,
         isClosable: true,
       });
-      const dest = res.user.role === 'admin' ? '/admin' : from;
+      const dest = ['admin', 'superadmin'].includes(res.user.role) ? '/admin' : from;
       navigate(dest, { replace: true });
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'Credenciales inválidas';

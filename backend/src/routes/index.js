@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db/database');
 
-const { authenticate, requireAdmin, optionalAuth } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireSuperAdmin, optionalAuth } = require('../middleware/auth');
 const { sendContactEmail } = require('../utils/email');
 const validate = require('../middleware/validate');
 const { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } = require('../validations/auth');
@@ -100,6 +100,7 @@ router.put('/orders/:id/status', authenticate, requireAdmin, ordersCtrl.updateSt
 
 // ========== USERS ==========
 router.get('/users', authenticate, requireAdmin, usersCtrl.getAll);
+router.post('/users', authenticate, requireSuperAdmin, usersCtrl.createUser);
 router.put('/users/:id', authenticate, requireAdmin, usersCtrl.update);
 router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
 
