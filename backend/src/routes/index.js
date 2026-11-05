@@ -36,16 +36,11 @@ function ensureUploadsDir() {
 }
 ensureUploadsDir();
 
+const UPLOADS_ON_BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
+
 const imageUpload = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, uploadDir),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-      cb(null, name);
-    },
-  }),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  storage: multer.memoryStorage(), // el archivo va a Vercel Blob o a disco; nunca queda a medias en el build
+  limits: { fileSize: 4 * 1024 * 1024 }, // el body de una funcion de Vercel tope 4.5MB; un exceso aca cae en el error handler y no en un 413 silencioso de Vercel
   fileFilter: (req, file, cb) => {
     const ok = /image\/(jpeg|jpg|png|webp|gif)/.test(file.mimetype);
     if (!ok) return cb(new Error('Solo se permiten imágenes (jpg, png, webp, gif)'));
@@ -126,12 +121,29 @@ router.post('/wishlist', authenticate, wishlistCtrl.add);
 router.delete('/wishlist/:product_id', authenticate, wishlistCtrl.remove);
 
 // ========== UPLOAD ==========
-router.post('/upload', authenticate, requireAdmin, imageUpload.single('image'), (req, res) => {
+router.post('/upload', authenticate, requireAdmin, imageUpload.single('image'), async (req, res, next) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No se envió ninguna imagen' });
   }
-  const url = `/uploads/${req.file.filename}`;
-  res.json({ url });
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+  try {
+    if (UPLOADS_ON_BLOB) {
+      const { put } = require('@vercel/blob');
+      const blob = await put(`images/${name}`, req.file.buffer, {
+        access: 'public',
+        contentType: req.file.mimetype,
+        addRandomSuffix: true,
+      });
+      return res.json({ url: blob.url });
+    }
+    // Fallback local: disco (en Vercel /tmp, efimero pero no tumba la app).
+    ensureUploadsDir();
+    await fs.promises.writeFile(path.join(uploadDir, name), req.file.buffer);
+    res.json({ url: `/uploads/${name}` });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // ========== HEALTH ==========
