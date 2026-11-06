@@ -18,7 +18,7 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 
 ## Tasks
 
-- [ ] T1 | S1 | Auditoría del frontend actual: páginas, theme, componentes, colores hardcodeados, responsive y modo oscuro | inline | pendiente
+- [x] T1 | S1 | Auditoría del frontend actual: páginas, theme, componentes, colores hardcodeados, responsive y modo oscuro | inline | completado (2026-11-06)
 - [ ] T2 | S2 | Mini-brief de marca con el usuario: tono, colores, tipografía, radio, densidad | inline | pendiente
 - [ ] T3 | S3 | Consolidar design system en theme/index.js (tokens, variantes, componentes comunes) sin romper lo existente | inline | pendiente
 - [ ] T4 | S4 | Reemplazar/ajustar Home | inline | pendiente
@@ -28,8 +28,40 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 - [ ] T8 | S4 | Reemplazar/ajustar Admin (Usuarios, Productos, Dashboard) | inline | pendiente
 - [ ] T9 | S5 | Checklist de calidad completo por cada cambio entregado (contraste, vacío, error, loading, 360px, oscuro); backup en commits separados | inline | pendiente
 
+
+## Auditoría del frontend actual (2026-11-06, T1)
+
+### Fortalezas
+- `theme/index.js` es serio: tokens semánticos completos (`bg.canvas/surface/subtle/elevated/inverted`, `fg.default/muted`, `border.subtle/strong`), ramas `brand` y `accent` con `colorModeValue`, componentes comunes estilizados (Button/Input/Select/Textarea/Table/Modal/Drawer) y modo oscuro completo.
+- `index.html`: `lang="es"`, meta description, viewport, theme-color light/dark.
+- Responsive por props de Chakra (`base/md/lg`); no hay `useBreakpointValue` pero tampoco necesidad.
+- Sin emojis en la UI (bien). `aria-label` en 12 lugares (usa iconos solo).
+
+### Problemas observados
+1. **Colores hardcodeados fuera del design system.** Home (12 hex + 19 rgba: banner gradients `#2563eb→#1d4ed8`, hero `rgba(2,6,23,0.4/0.9)`, sección `#f8fafc` y `#a78bfa/#22d3ee`), ServiceDetail (8), Services (4), ProductCard (~6 en card sombra/badge), Navbar (2). El hero y los banners deberían salir de tokens, no de valores sueltos.
+2. **Gradients de promoción e iconos inline** en Home/ServiceDetail/Services en vez de variantes del tema.
+3. **Escala de espaciado inconsistente**: `spacing` sueltos entre 3 y 12 sin patrón por sección; radii mezcla (`lg`, `xl`, `2xl`) sin criterio por tipo de elemento.
+4. **Sombras y bordes inline** en ProductCard/Navbar (rgba específicos) en lugar de tokens de elevación.
+5. **Imagen sin `alt`** en Cart.jsx (una Image).
+6. **Estilos inline menores**: `style={{ display: 'none' }}` en input file de AdminProducts/AdminServices — mejor con `sx`/`display='none'` de Chakra.
+7. **Skeletons/loadings y estados vacíos** no son uniformes entre páginas (algunos `Spinner`, `Center`, `Empty` sueltos; sin componente reutilizable `EmptyState`).
+8. **Admin**: componentes de tabla/página con estilos repetidos; spacing irregular (`AdminUsers` y `Dashboard` con patrones distintos).
+9. **Pérdida de cohesión entre hero y resto del catálogo** en Home: hero con estética distinta al resto (gradientes pesados), debería respirar el mismo lenguaje visual.
+10. **`theme-color` del index.html no coincide exactamente con los tokens** (light `#F8FAFC` vs `#f1f5f9`; dark `#0B0F19` vs `#070b14`).
+
+### Lo que funciona y no tocar
+- El esqueleto Chakra + `bg.canvas` + `bg.surface`, el patrón de navegación, el formulario de login, la resolución `/uploads` (ya arreglada).
+
+## Plan de saneo (input para T2–T9)
+1. Mover todos los hex/rgba hardcodeados a `theme/index.js` como tokens semánticos (banner, hero, card-shadow, empty-state...).
+2. Unificar escala de espaciado por sección y radii por jerarquía de elemento.
+3. Componente `EmptyState` reutilizable con icono + mensaje + CTA.
+4. Alinear `theme-color` con tokens reales.
+5. De ahí, T2 (marca) y T3 (consolidar tema) y después página por página.
+
 ## Log
 
+- L5 (2026-11-06): T1 completada. Auditoría escrita: theme sólido pero hardcodeados en Home/ServiceDetail/Services/ProductCard/Navbar; falta componente EmptyState; espaciado/radii sin escala; theme-color del index.html no alinea con tokens. Ver sección Auditoría arriba.
 - L1: Pedido original (2026-11-06): "como crees que deberia seguir para entrar a trabajar con la estetica y diseño del frontend"
 - L2: Se propuso secuencia de 5 etapas (auditar → marca → design system → reemplazar → checklist); el usuario está completamente de acuerdo.
 - L3: Solicitud de seguimiento: lista de tareas con esos puntos para ir avanzando de a uno, consultable en cualquier momento. Este archivo es la fuente de verdad del estado; mirror en Engram (`odd/frontend-rediseno/tasks`).
