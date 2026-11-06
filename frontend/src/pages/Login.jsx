@@ -125,11 +125,6 @@ export default function Login() {
             </VStack>
           </form>
 
-          <Box mt={6} p={3} borderRadius="lg" bg={useColorModeValue('brand.50', 'whiteAlpha.100')} fontSize="xs" color={muted}>
-            <Text fontWeight="600" mb={1}>Demo:</Text>
-            <Text>Admin: admin@compushop.com / admin123</Text>
-            <Text>Cliente: juan@email.com / cliente123</Text>
-          </Box>
         </Box>
       </Container>
     </Box>
