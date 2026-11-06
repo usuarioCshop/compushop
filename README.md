@@ -13,7 +13,7 @@ backend/     API REST (Express)
   api/       entry point serverless para Vercel
   src/
     controllers/   auth, products, services, orders, users, categories, contact, settings, dashboard
-    db/            database.js (capa única de persistencia, async), migrate.js, seed.js, migrations/001_init.sql
+    db/            database.js (capa única de persistencia, async), migrate.js, seed.js, migrations/ (001–007)
     middleware/    verificación de JWT y roles
     routes/        router principal de la API
     utils/         jwt, email (nodemailer)
@@ -56,12 +56,13 @@ npm run seed         # carga datos de ejemplo (con el servidor detenido)
 npm run dev          # http://localhost:4000
 ```
 
-Credenciales creadas por el seed:
+El seed crea cuentas de ejemplo para desarrollo (las del seed de este repo son
+públicas por diseño y por eso **deben rotarse en producción**: cambiá esas
+claves tras el primer login, o creá el superadmin y desactivá las cuentas por
+defecto). Éstas existen solo para desarrollo local; nunca expongas contraseñas
+de producción en el README ni en el repositorio.
 
-| Rol | Email | Contraseña |
-| --- | --- | --- |
-| Administrador | `admin@compushop.com` | `admin123` |
-| Cliente | `juan@email.com` | `cliente123` |
+Para crear el superadmin (bootstrap y recuperación), ver `docs/superadmin.md`.
 
 > **Importante:** Las migraciones se aplican explícitamente con `npm run migrate`. La app no crea el esquema al arrancar. Para sembrar, hacelo con el servidor **detenido**.
 
@@ -151,3 +152,82 @@ Base: `/api`. Las rutas marcadas con 🔒 requieren `Authorization: Bearer <toke
 ## Deploy
 
 Hay configuración de Vercel tanto en `backend/` (función serverless, entrada en `api/index.js`) como en `frontend/` (reescritura de SPA). El frontend apunta al backend mediante `VITE_API_URL`. La persistencia vive en **Postgres (Neon)**, por lo que el filesystem efímero de las funciones serverless no es un problema. Para que el backend arranque en Vercel es obligatorio tener `DATABASE_URL` configurada en las variables de entorno del proyecto.
+
+## Otra máquina con OpenCode + gentle-ai
+
+Esta sección asume una máquina nueva con **Node.js**, **git**, **OpenCode** (CLI o desktop) y **gentle-ai** instalados y con Engram funcionando.
+
+### 1. Clonar
+
+```bash
+git clone https://github.com/usuarioCshop/compushop.git
+cd compushop
+git branch --show-current   # main (producción) — el desarrollo va en dev2
+```
+
+### 2. Instalar dependencias (nunca copies `node_modules`)
+
+`backend/node_modules` y `frontend/node_modules` **no son portables entre sistemas operativos**: los binarios nativos (rollup, esbuild) son específicos de cada plataforma. En la máquina nueva, siempre:
+
+```bash
+cd backend && npm install
+cd ../frontend && npm install
+```
+
+Si el frontend falla con `Cannot find module @rollup/rollup-linux-x64-gnu` (o el equivalente de tu plataforma), el mensaje indica el paquete que falta; instalalo con `npm install <paquete> --no-save`.
+
+### 3. Configurar el entorno
+
+```bash
+cd backend
+cp .env.example .env     # Windows: copy .env.example .env
+```
+
+Completá en `backend/.env` (son secretos, **nunca se commitean**):
+
+- `DATABASE_URL` → cadena **pooled** del branch que vayas a usar (Neon).
+- `DATABASE_URL_UNPOOLED` → cadena directa (requerida por `migrate` y `seed`).
+- `JWT_SECRET` → uno largo y propio (no el de `.env.example`).
+- `TEST_DATABASE_URL` → cadena de un branch Neon **dedicado a tests**, nunca el de producción. La suite migra, trunca y re-siembra ahí.
+- `NODE_ENV=development` para trabajo local.
+
+```bash
+npm run migrate
+npm run seed        # deja el servidor detenido mientras se siembra
+npm test            # 24/24 esperado
+```
+
+### 4. Arrancar la sesión de OpenCode
+
+Abrí OpenCode en la raíz del repo. El archivo `AGENTS.md` es el contrato de trabajo del proyecto: estructura, convenciones (español en UI/comentarios, CommonJS backend, commits sin atribución de IA), reglas de persistencia y de tests. Un agente bien configurado lo lee al iniciar.
+
+El `README` que estás leyendo y `AGENTS.md` describen el estado real del repo: **Postgres (Neon), no SQLite**. El archivo `odd/tasks/persistencia-unificada.md` es un documento histórico de una migración anterior — no refleja el estado del proyecto.
+
+### 5. Primer mensaje para el agente en la máquina nueva
+
+Al abrir la sesión, decile algo como:
+
+> Continuá el proyecto Compushop en este repo. Antes de tocar nada: leé `AGENTS.md`, `README.md` y el branch actual (`dev2`), y buscá en memoria (Engram, topic `architecture/compushop-deploy`) el estado de la última sesión. NO pongas `TEST_DATABASE_URL` apuntando a producción; los tests son destructivos. El push a GitHub lo hago yo.
+
+Eso alcanza para que el agente retome el contexto sin que le tengas que explicar toda la historia.
+
+### 6. Reglas de seguridad (no negociables)
+
+- **Nunca** pongas contraseñas, cadenas de conexión ni tokens en archivos versionados, issues, PRs o mensajes. Los secretos viven en `backend/.env` o en los Environment Variables de Vercel.
+- `TEST_DATABASE_URL` jamás apunta a producción (los tests hacen `TRUNCATE`).
+- `npm run seed` **borra y re-siembra** la base apuntada; con `NODE_ENV=production` requiere `SEED_FORCE=true` a propósito.
+- El historial del repo fue purgado de una credencial de Neon que estuvo expuesta en `backend/.env.example`; la contraseña ya fue rotada. Si algo vuelve a aparecer en texto plano, avisa al responsable del repo y rotar/purgar antes de seguir.
+- `docs/rotacion-password-neon.md` y `docs/superadmin.md` documentan el incidente y el procedimiento de bootstrap del superadmin.
+
+### 7. Flujo de entrega habitual
+
+```bash
+git checkout -b dev2          # o partir de dev2
+# ... trabajo ...
+npm test                      # en backend/
+git add ... && git commit -m "..."
+git push origin dev2          # el merge a main se hace desde GitHub (web)
+```
+
+Vercel despliega `main`: tras el merge hay que **redeployar** para que tome los nuevos commits y las variables de entorno.
+
