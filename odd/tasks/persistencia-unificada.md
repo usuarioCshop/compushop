@@ -1,5 +1,17 @@
 # Feature: Unificación de persistencia backend
 
+> **NOTA DE ESTADO (2026-11-06): este documento es HISTÓRICO.** El proyecto ya
+> no usa sql.js/SQLite: la persistencia actual es **PostgreSQL (Neon) vía `pg`**,
+> con migraciones explícitas en `backend/src/db/migrations/` y la suite de tests
+> de `backend/test/`. Todo lo que sigue (incluida la decisión por sql.js y las
+> verificaciones E2E de 2026-10-15) describe el camino hasta ese punto y se
+> conserva por trazabilidad. Para el estado real del proyecto leer
+> `README.md` y `AGENTS.md`. Decisiones posteriores a esta feature:
+> imágenes persistentes en Vercel Blob (`/api/upload`), rol `superadmin`
+> (`docs/superadmin.md`), `JWT_SECRET` obligatorio en producción, CORS
+> restringido al frontend de producción.
+>
+
 Objetivo: dejar una sola capa de persistencia para el backend, eliminando la coexistencia de `store.js` y `database.js` sobre el mismo `data.json` (la migración a SQLite está a medias y rompe filtros/listados admin). Incluye pruebas automatizadas mínimas.
 
 Branch: `main` (sin cambios aún). Delivery: `ask-on-risk`. Test runner: Node.js sin framework adicional (scripts con `assert`), ejecutados con `node`.
