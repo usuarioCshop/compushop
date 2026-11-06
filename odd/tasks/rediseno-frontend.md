@@ -23,7 +23,7 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 - [x] T3 | S3 | Consolidar design system en theme/index.js (tokens, variantes, componentes comunes) sin romper lo existente | inline | completado (2026-11-06)
 - [x] T4 | S4 | Reemplazar/ajustar Home | inline | completado (2026-11-06)
 - [x] T5 | S4 | Reemplazar/ajustar Catálogo (Products + filtros) | inline | completado (2026-11-06)
-- [ ] T6 | S4 | Reemplazar/ajustar Detalle de producto | inline | pendiente
+- [x] T6 | S4 | Reemplazar/ajustar Detalle de producto | inline | completado (2026-11-06)
 - [ ] T7 | S4 | Reemplazar/ajustar Carrito y flujo de pedido | inline | pendiente
 - [ ] T8 | S4 | Reemplazar/ajustar Admin (Usuarios, Productos, Dashboard) | inline | pendiente
 - [ ] T9 | S5 | Checklist de calidad completo por cada cambio entregado (contraste, vacío, error, loading, 360px, oscuro); backup en commits separados | inline | pendiente
