@@ -6,8 +6,10 @@ const config = {
 };
 
 // ─── Paleta Compushop (basada en mockup moderno) ────────────────────────────
-// Modo claro: bg #f1f5f9, surface #ffffff, brand #1e3a8a / accent #0ea5e9
-// Modo oscuro: bg #070b14, surface #111827, brand #3b82f6 / accent #38bdf8
+// Modo claro: bg #f1f5f9, surface #ffffff, brand azul / accent violeta
+// Modo oscuro: bg #070b14, surface #111827, brand azul (acentuado) / accent violeta
+// Brief: premium profesional. El violeta solo aparece como acento/promo;
+// el azul mantiene la marca. Gradiente unico brand.600 -> accent.700 para hero/banners.
 const brandLight = {
   50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
   500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
@@ -17,12 +19,12 @@ const brandDark = {
   500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#172554',
 };
 const accentLight = {
-  50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8',
-  500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e',
+  50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa',
+  500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95',
 };
 const accentDark = {
-  50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8',
-  500: '#38bdf8', 600: '#0ea5e9', 700: '#0284c7', 800: '#0369a1', 900: '#075985',
+  50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa',
+  500: '#a78bfa', 600: '#8b5cf6', 700: '#7c3aed', 800: '#6d28d9', 900: '#5b21b6',
 };
 
 // Combina las dos rampas en una escala semántica que cambia según el modo.
@@ -69,7 +71,7 @@ const semanticTokens = {
 };
 
 const fonts = {
-  heading: `'Inter', system-ui, -apple-system, sans-serif`,
+  heading: `'Sora', 'Inter', system-ui, -apple-system, sans-serif`,
   body: `'Inter', system-ui, -apple-system, sans-serif`,
 };
 
@@ -200,9 +202,31 @@ const components = {
   },
 };
 
+const semanticShadows = {
+  'shadow-card': {
+    default: '0 4px 16px rgba(15, 23, 42, 0.08)',
+    _dark: '0 4px 16px rgba(2, 6, 23, 0.55)',
+  },
+  'shadow-cardHover': {
+    default: '0 12px 32px rgba(15, 23, 42, 0.16)',
+    _dark: '0 12px 32px rgba(2, 6, 23, 0.75)',
+  },
+};
+
+const semanticGradients = {
+  'gradient-brand': {
+    default: 'linear(90deg, #2563eb 0%, #6d28d9 100%)',
+    _dark: 'linear(90deg, #1d4ed8 0%, #7c3aed 100%)',
+  },
+};
+
 export default extendTheme({
   config,
-  semanticTokens,
+  semanticTokens: {
+    colors: semanticTokens.colors,
+    shadows: semanticShadows,
+    gradients: semanticGradients,
+  },
   fonts,
   radii,
   styles,
