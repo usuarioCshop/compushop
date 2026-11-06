@@ -2,7 +2,7 @@
 
 Objetivo: mejorar la estética y el diseño del frontend de forma incremental,
 con una secuencia sana (auditar → marca → design system → reemplazar → checklist).
-Branch: `dev2`. Delivery: `ask-on-risk`. Verificación: `npm run dev` en frontend (5173) con backend 4000.
+Branch: `frontend-rediseno` (parte de `dev2`). Merge de vuelta a `dev2` cuando el rediseño esté aprobado. Delivery: `ask-on-risk`. Verificación: `npm run dev` en frontend (5173) con backend 4000.
 
 Principio de trabajo: un punto de la lista se cierra cuando está verificado y
 commiteado; el estado se puede consultar en cualquier momento en este archivo
@@ -33,6 +33,7 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 - L1: Pedido original (2026-11-06): "como crees que deberia seguir para entrar a trabajar con la estetica y diseño del frontend"
 - L2: Se propuso secuencia de 5 etapas (auditar → marca → design system → reemplazar → checklist); el usuario está completamente de acuerdo.
 - L3: Solicitud de seguimiento: lista de tareas con esos puntos para ir avanzando de a uno, consultable en cualquier momento. Este archivo es la fuente de verdad del estado; mirror en Engram (`odd/frontend-rediseno/tasks`).
+- L4 (2026-11-06): Se crea la rama `frontend-rediseno` partiendo de `dev2` para trabajar en aislamiento (Vercel puede generar preview deploys de la rama). Decisión del usuario: se mejora sobre el diseño ACTUAL, no se rediseña de cero. La auditoría (T1) debe partir de lo existente.
 
 ## Para consultar el estado (preguntar al agente)
 
