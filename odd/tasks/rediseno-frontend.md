@@ -21,7 +21,7 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 - [x] T1 | S1 | Auditoría del frontend actual: páginas, theme, componentes, colores hardcodeados, responsive y modo oscuro | inline | completado (2026-11-06)
 - [x] T2 | S2 | Mini-brief de marca con el usuario: tono, colores, tipografía, radio, densidad | inline | completado (2026-11-06)
 - [x] T3 | S3 | Consolidar design system en theme/index.js (tokens, variantes, componentes comunes) sin romper lo existente | inline | completado (2026-11-06)
-- [ ] T4 | S4 | Reemplazar/ajustar Home | inline | pendiente
+- [x] T4 | S4 | Reemplazar/ajustar Home | inline | completado (2026-11-06)
 - [ ] T5 | S4 | Reemplazar/ajustar Catálogo (Products + filtros) | inline | pendiente
 - [ ] T6 | S4 | Reemplazar/ajustar Detalle de producto | inline | pendiente
 - [ ] T7 | S4 | Reemplazar/ajustar Carrito y flujo de pedido | inline | pendiente
