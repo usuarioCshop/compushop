@@ -19,7 +19,7 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 ## Tasks
 
 - [x] T1 | S1 | Auditoría del frontend actual: páginas, theme, componentes, colores hardcodeados, responsive y modo oscuro | inline | completado (2026-11-06)
-- [ ] T2 | S2 | Mini-brief de marca con el usuario: tono, colores, tipografía, radio, densidad | inline | pendiente
+- [x] T2 | S2 | Mini-brief de marca con el usuario: tono, colores, tipografía, radio, densidad | inline | completado (2026-11-06)
 - [ ] T3 | S3 | Consolidar design system en theme/index.js (tokens, variantes, componentes comunes) sin romper lo existente | inline | pendiente
 - [ ] T4 | S4 | Reemplazar/ajustar Home | inline | pendiente
 - [ ] T5 | S4 | Reemplazar/ajustar Catálogo (Products + filtros) | inline | pendiente
@@ -58,6 +58,37 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 3. Componente `EmptyState` reutilizable con icono + mensaje + CTA.
 4. Alinear `theme-color` con tokens reales.
 5. De ahí, T2 (marca) y T3 (consolidar tema) y después página por página.
+
+## Brief de marca (2026-11-06, T2)
+
+### Personalidad: Premium profesional
+- Confiable, sobrio, tecnología seria. Nada de ruido gamer.
+- Mucho aire (whitespace), jerarquía clara, pocos acentos de color.
+- Oscuro (dark mode) como ciudadano de primera, no afterthought.
+
+### Paleta
+- **brand — azul** (ya está en el tema, se conserva): `brand.500 #2563eb`, `brand.600 #1d4ed8`, `brand.700 #1e40af`, `brand.900 #1e3a8a`. Oscuro con `#172554` al fondo. Uso: primarios, links, focus.
+- **accent — violeta** (nueva rama en el tema): `accent.500 #7c3aed`, `accent.600 #6d28d9`, `accent.700 #5b21b6`, `accent.50 #f5f3ff`. Uso: promociones, badges de oferta, highlights, gradiente de hero (brand.600 → accent.600).
+- **neutros**: conservar `bg.canvas/surface/subtle/elevated/inverted` y `fg.default/muted` (slate). Sin cambios.
+- **gradientes**: máximo efecto decorativo coherente: hero y banners = brand.600 → accent.600; cero gradientes sueltos inline.
+
+### Tipografía
+- **Cuerpo**: Inter (ya cargada y usada).
+- **Titulares**: **Sora** (600/700). Portará toda la jerarquía h1–h4/card titles.
+- Carga: Google Fonts `<link>` con `display=swap` para Sora (habitualmente desde fonts.googleapis.com); si es offline, fallback a system-ui.
+- Escala de headings: h1 text-5xl/tight, h2 text-4xl/tight, h3 text-2xl/tight, h4 text-xl/tight; body text-base.
+
+### Forma y detalle
+- Radii: `md` (0.75rem) para inputs/selects; `lg` (1.25rem) para cards; `2xl`/`3xl` solo hero/colores de sección; `full` para botones e iconos. Nada de 4/8/16 arbitrarios.
+- Sombra: suave (`0 4px 16px rgba(15,23,42,0.08)`), una sola escalera (sm/md/lg); sin glows neón.
+- Bordes: 1px `border.subtle`; más fuertes solo en hover/focus con `border.strong`.
+- Espaciado: escala de 4/8/12/16/24/32/48/64/96 pixeles (Chakra spacing mantiene); sección visible = 64–128px verticalmente.
+
+### Estados
+- Vacío: componente EmptyState con icono grande, h4 + texto muted + CTA opcional.
+- Cargando: Spinner en Center (ya está la pauta) pero uniforme.
+- Error: mensaje breve + botón Reintentar.
+- Éxito: Toast (Chakra) con title corto.
 
 ## Log
 
