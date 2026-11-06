@@ -1,6 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'compushop_secret';
+// En produccion, falta JWT_SECRET = el proceso no arranca. En desarrollo se
+// usa un fallback local para no bloquear onboarding, pero nunca publico.
+const isProd = process.env.NODE_ENV === 'production';
+if (isProd && !process.env.JWT_SECRET) {
+  throw new Error('Falta JWT_SECRET en produccion: no se pueden firmar ni verificar tokens sin un secreto. Definilo en las variables de entorno de Vercel (o en backend/.env local) y reintenta.');
+}
+const JWT_SECRET = process.env.JWT_SECRET || 'compushop_secret_DEV_ONLY';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 function generateToken(user) {

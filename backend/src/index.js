@@ -18,18 +18,20 @@ app.use('/uploads', express.static(uploadsDir));
 app.use(helmet());
 
 // Orígenes permitidos (local + producción Vercel)
+// Solo el frontend publico de produccion (compushopvo.vercel.app), el/localhost
+// en desarrollo y el FRONTEND_URL que se defina por entorno. Nada mas.
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://127.0.0.1:5173',
-  'https://compushop-dun.vercel.app',
+  'https://compushopvo.vercel.app',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
 
 app.use(cors({
   origin(origin, callback) {
-    // Permitir requests sin Origin (curl, healthchecks) y los listados
-    if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin || '')) {
+    // Requests sin Origin (curl, healthchecks) pasan; cualquier otro origen, no.
+    if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     return callback(new Error(`CORS bloqueado para origen: ${origin}`));
