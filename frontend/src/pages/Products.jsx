@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Container, Heading, Select, Input, HStack, Spinner, Center, Text, Button, Flex, Grid, GridItem,
+  Container, Heading, Select, Input, HStack, InputGroup, InputLeftElement, Icon,
+  Spinner, Center, Text, Button, Flex, Grid, GridItem, VStack,
 } from '@chakra-ui/react';
+import { FiSearch, FiX } from 'react-icons/fi';
 import { useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import api from '../api/client';
 import ProductCard from '../components/ProductCard';
 import ProductCardSkeleton from '../components/ProductCardSkeleton';
+import EmptyState from '../components/EmptyState';
 import useDebounce from '../hooks/useDebounce';
 
 const PAGE_SIZE = 40;
@@ -103,8 +106,13 @@ export default function Products() {
         <meta name="description" content="Catálogo de productos de computación, hardware y accesorios en Compushop." />
       </Helmet>
       <Container maxW="7xl" py={10}>
-      <Heading mb={6}>Productos</Heading>
-      <HStack mb={8} spacing={4} flexWrap="wrap">
+      <VStack spacing={1} align="start" mb={6}>
+        <Heading fontWeight="700" letterSpacing="-0.02em">Productos</Heading>
+        <Text color="fg.muted" fontSize="sm">
+          {pagination.total > 0 ? `Equipamiento disponible: ${pagination.total} artículos` : 'Explorá el catálogo completo'}
+        </Text>
+      </VStack>
+      <HStack mb={8} spacing={3} flexWrap="wrap">
         <Select
           maxW="240px"
           placeholder="Todas las categorías"
@@ -118,13 +126,29 @@ export default function Products() {
         >
           {categories.map(c => <option key={c.id} value={c.slug}>{c.name}</option>)}
         </Select>
-        <Input
-          maxW="320px"
-          placeholder="Buscar productos..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          bg="bg.surface"
-        />
+        <InputGroup maxW="320px">
+          <InputLeftElement pointerEvents="none">
+            <Icon as={FiSearch} color="fg.muted" />
+          </InputLeftElement>
+          <Input
+            placeholder="Buscar productos..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            bg="bg.surface"
+            borderRadius="md"
+          />
+        </InputGroup>
+        {(category || search) && (
+          <Button
+            variant="ghost"
+            leftIcon={<FiX />}
+            size="sm"
+            color="fg.muted"
+            onClick={() => { setSearchInput(''); setParams({}); }}
+          >
+            Limpiar
+          </Button>
+        )}
       </HStack>
       {loading ? (
         <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }} gap={6}>
@@ -135,15 +159,13 @@ export default function Products() {
           ))}
         </Grid>
       ) : products.length === 0 ? (
-        <Flex direction="column" align="center" gap={4} py={10}>
-          <Text color="fg.muted" textAlign="center">No se encontraron productos con los filtros aplicados.</Text>
-          <Button variant="outline" onClick={() => {
-            setSearchInput('');
-            setParams({});
-          }}>
-            Limpiar filtros
-          </Button>
-        </Flex>
+        <EmptyState
+          icon={FiSearch}
+          title="Sin resultados"
+          description="Ningún producto coincide con los filtros aplicados. Probá otra búsqueda o limpiá los filtros."
+          actionLabel="Limpiar filtros"
+          onAction={() => { setSearchInput(''); setParams({}); }}
+        />
       ) : (
         <>
           <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }} gap={6}>

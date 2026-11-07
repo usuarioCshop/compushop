@@ -19,7 +19,7 @@ export default function Navbar() {
   const location = useLocation();
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const barBg = { base: 'rgba(255,255,255,0.85)', _dark: 'rgba(12,18,32,0.85)' };
+  const barBg = { base: 'rgba(241,245,249,0.88)', _dark: 'rgba(7,11,20,0.88)' };
   const borderColor = { base: 'border.subtle', _dark: 'border.subtle' };
   const muted = { base: 'fg.muted', _dark: 'fg.muted' };
   const textColor = { base: 'fg.default', _dark: 'fg.default' };

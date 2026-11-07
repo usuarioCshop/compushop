@@ -22,24 +22,24 @@ export default function Services() {
         position="relative"
         overflow="hidden"
         py={{ base: 16, md: 24 }}
-        bgGradient="radial-gradient(120% 120% at 50% 0%, rgba(59,130,246,0.14) 0%, rgba(2,6,23,0.98) 100%)"
+        bgGradient="radial-gradient(120% 120% at 50% 0%, rgba(37,99,235,0.16) 0%, rgba(2,6,23,0.98) 100%)"
       >
         <Box
           position="absolute"
           inset={0}
           sx={{
-            backgroundImage: 'radial-gradient(circle at 20% 10%, rgba(96,165,250,0.12) 0, transparent 40%), radial-gradient(circle at 80% 0%, rgba(34,211,238,0.1) 0, transparent 35%)',
+            backgroundImage: 'radial-gradient(circle at 20% 10%, rgba(96,165,250,0.10) 0, transparent 40%), radial-gradient(circle at 80% 0%, rgba(167,139,250,0.10) 0, transparent 35%)',
           }}
         />
         <Container maxW="6xl" position="relative" zIndex={1}>
           <VStack align={{ base: 'center', md: 'start' }} textAlign={{ base: 'center', md: 'left' }} spacing={6}>
             <Heading
               fontSize={{ base: '3rem', md: '4.5rem', lg: '5.5rem' }}
-              fontWeight="900"
-              letterSpacing="-0.05em"
+              fontWeight="700"
+              letterSpacing="-0.04em"
               textTransform="uppercase"
               sx={{
-                backgroundImage: 'linear-gradient(120deg, #f8fafc 0%, #60a5fa 45%, #22d3ee 80%, #a78bfa 100%)',
+                backgroundImage: 'linear-gradient(120deg, #f8fafc 0%, var(--chakra-colors-brand-300) 38%, var(--chakra-colors-accent-300) 68%, var(--chakra-colors-accent-400) 100%)',
                 WebkitBackgroundClip: 'text',
                 backgroundClip: 'text',
                 color: 'transparent',

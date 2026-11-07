@@ -75,7 +75,7 @@ export default function ServiceDetail() {
         <Box position="absolute" inset={0} zIndex={0}>
           <Image src={portada} alt="" w="100%" h="100%" sx={{ objectFit: 'cover' }} filter="brightness(0.35) contrast(1.1) saturate(1.1)" />
         </Box>
-        <Box position="absolute" inset={0} zIndex={1} bgGradient="radial-gradient(120% 120% at 50% 0%, rgba(59,130,246,0.16) 0%, rgba(2,6,23,0.95) 100%)" />
+        <Box position="absolute" inset={0} zIndex={1} bgGradient="radial-gradient(120% 120% at 50% 0%, rgba(37,99,235,0.14) 0%, rgba(2,6,23,0.95) 100%)" />
         <Container maxW="6xl" position="relative" zIndex={2}>
           <Button as={RouterLink} to="/servicios" leftIcon={<FiArrowLeft />} variant="ghost" color="white" mb={8} borderRadius="full">
             Volver a servicios
@@ -93,11 +93,11 @@ export default function ServiceDetail() {
               </HStack>
               <Heading
                 fontSize={{ base: '3rem', md: '4.5rem', lg: '5rem' }}
-                fontWeight="900"
-                letterSpacing="-0.05em"
+                fontWeight="700"
+                letterSpacing="-0.04em"
                 lineHeight="0.98"
                 sx={{
-                  backgroundImage: 'linear-gradient(120deg, #f8fafc 0%, #60a5fa 45%, #22d3ee 80%, #a78bfa 100%)',
+                  backgroundImage: 'linear-gradient(120deg, #f8fafc 0%, var(--chakra-colors-brand-300) 38%, var(--chakra-colors-accent-300) 68%, var(--chakra-colors-accent-400) 100%)',
                   WebkitBackgroundClip: 'text',
                   backgroundClip: 'text',
                   color: 'transparent',
@@ -113,24 +113,24 @@ export default function ServiceDetail() {
                   size="lg"
                   borderRadius="full"
                   px={10}
-                  bgGradient="linear(to-r, #2563eb, #22d3ee)"
+                  bg="brand.600"
                   color="white"
-                  _hover={{ bgGradient: 'linear(to-r, #3b82f6, #38bdf8)', boxShadow: '0 20px 60px -20px rgba(59,130,246,0.9)' }}
+                  _hover={{ bg: 'brand.700', transform: 'translateY(-1px)', boxShadow: 'shadow-cardHover' }}
                   onClick={handleAdd}
                 >
                   Contratar servicio
                 </Button>
-                <Button as={RouterLink} to="/contacto" size="lg" variant="outline" borderRadius="full" px={10} borderColor="rgba(148,163,184,0.7)" color="gray.100" _hover={{ bg: 'whiteAlpha.100' }}>
+                <Button as={RouterLink} to="/contacto" size="lg" variant="outline" borderRadius="full" px={10} borderColor="whiteAlpha.500" color="whiteAlpha.900" _hover={{ bg: 'whiteAlpha.100', borderColor: 'whiteAlpha.600' }}>
                   Consultar por este servicio
                 </Button>
               </HStack>
             </VStack>
             <Box
               bg="bg.surface"
-              borderRadius="3xl"
-              border="2px solid"
-              borderColor="rgba(59,130,246,0.4)"
-              boxShadow="0 0 0 2px rgba(59,130,246,0.18), 0 80px 160px -80px rgba(59,130,246,0.8)"
+              borderRadius="2xl"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              boxShadow="shadow-cardHover"
               overflow="hidden"
               position="relative"
             >
@@ -189,7 +189,7 @@ export default function ServiceDetail() {
                 ].map((step, idx) => (
                   <Box key={step.title} p={6} borderRadius="2xl" border="1px solid" borderColor="border.subtle" bg="bg.surface">
                     <HStack spacing={4} align="start">
-                      <Box px={3} py={1} borderRadius="full" bg="rgba(59,130,246,0.16)" color="brand.400" fontWeight="700">
+                      <Box px={3} py={1} borderRadius="full" bg="brand.50" color="brand.700" fontWeight="700" _dark={{ bg: 'whiteAlpha.100', color: 'brand.300' }}>
                         {String(idx + 1).padStart(2, '0')}
                       </Box>
                       <VStack align="start" spacing={1}>
@@ -202,12 +202,12 @@ export default function ServiceDetail() {
               </SimpleGrid>
             </VStack>
             <Box
-              borderRadius="3xl"
-              border="1px solid"
+              borderRadius="2xl"
+              borderWidth="1px"
               borderColor="border.subtle"
               bg="bg.surface"
               p={{ base: 8, md: 10 }}
-              boxShadow="0 60px 120px -80px rgba(59,130,246,0.4)"
+              boxShadow="shadow-card"
             >
               <VStack align="stretch" spacing={6}>
                 <Heading size="lg">Listo para contratar</Heading>

@@ -4,10 +4,12 @@ import {
   Box, Container, Heading, Text, Image, Button, HStack, VStack, Badge, Spinner, Center,
   SimpleGrid, useToast, List, ListItem,
 } from '@chakra-ui/react';
-import { FiShoppingCart } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { FiShoppingCart, FiAlertCircle } from 'react-icons/fi';
 import api from '../api/client';
 import { useCart } from '../context/CartContext';
 import { resolveUploadUrl } from '../api/uploads';
+import EmptyState from '../components/EmptyState';
 
 const formatPrice = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
@@ -17,6 +19,7 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const { addItem } = useCart();
+  const navigate = useNavigate();
   const toast = useToast();
   const bg = 'bg.surface';
 
@@ -26,7 +29,17 @@ export default function ProductDetail() {
   }, [id]);
 
   if (loading) return <Center py={20}><Spinner size="xl" color="brand.500" /></Center>;
-  if (!product) return <Center py={20}><Text>Producto no encontrado</Text></Center>;
+  if (!product) return (
+    <Container maxW="6xl" py={16}>
+      <EmptyState
+        icon={FiAlertCircle}
+        title="Producto no encontrado"
+        description="El artículo que buscás no existe o fue retirado del catálogo."
+        actionLabel="Ver catálogo"
+        onAction={() => navigate('/productos')}
+      />
+    </Container>
+  );
 
   const handleAdd = () => {
     addItem(product, 1, 'product');
@@ -36,19 +49,19 @@ export default function ProductDetail() {
   return (
     <Container maxW="6xl" py={10}>
       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={10}>
-        <Box bg={bg} borderRadius="xl" overflow="hidden" borderWidth="1px">
+        <Box bg={bg} borderRadius="lg" overflow="hidden" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card">
           <Image src={resolveUploadUrl(product.image)} alt={product.name} w="100%" maxH="420px" objectFit="cover"
             fallbackSrc="https://via.placeholder.com/600x400?text=Compushop" />
         </Box>
         <VStack align="start" spacing={4}>
           <HStack spacing={2} flexWrap="wrap">
-            {product.is_promo && <Badge colorScheme="purple" fontSize="sm" px={3} py={1}>PROMOCIÓN</Badge>}
-            {product.brand && <Badge colorScheme="blue">{product.brand}</Badge>}
+            {product.is_promo && <Badge colorScheme="accent" fontSize="sm" px={3} py={1} borderRadius="full">PROMOCIÓN</Badge>}
+            {product.brand && <Badge colorScheme="brand" variant="subtle" px={2} borderRadius="full">{product.brand}</Badge>}
             {!product.is_promo && product.stock <= 5 && product.stock > 0 && <Badge colorScheme="accent">Últimas unidades</Badge>}
             {!product.is_promo && product.stock === 0 && <Badge colorScheme="red">Sin stock</Badge>}
           </HStack>
           <Heading size="lg">{product.name}</Heading>
-          <Text fontSize="2xl" fontWeight="bold" color="brand.500">{formatPrice(product.price)}</Text>
+          <Text fontSize="2xl" fontWeight="800" letterSpacing="-0.02em" color="brand.600" className="price">{formatPrice(product.price)}</Text>
           <Text color="fg.muted">{product.description}</Text>
           {product.stock !== undefined && (
             <Text fontSize="sm" color={product.stock > 0 ? 'green.500' : 'red.500'}>

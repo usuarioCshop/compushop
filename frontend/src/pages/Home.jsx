@@ -15,16 +15,8 @@ export default function Home() {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const sectionBg = useColorModeValue('white', 'bg.canvas');
-  const mutedBg = useColorModeValue('gray.50', 'bg.surface');
-  const gradientHero = useColorModeValue(
-    'linear(to-b, rgba(15,23,42,0.02), rgba(15,23,42,0.08))',
-    'linear(to-b, rgba(2,6,23,0.4), rgba(2,6,23,0.9))'
-  );
-  const bannerGradient = useColorModeValue(
-    'linear(90deg, #2563eb 0%, #1d4ed8 100%)',
-    'linear(90deg, #1e40af 0%, #1e3a8a 100%)'
-  );
+  const sectionBg = useColorModeValue('bg.surface', 'bg.canvas');
+  const mutedBg = useColorModeValue('bg.subtle', 'bg.surface');
 
   useEffect(() => {
     async function load() {
@@ -82,7 +74,8 @@ export default function Home() {
           inset={0}
           zIndex={1}
           sx={{
-            backgroundImage: 'radial-gradient(circle at 20% 20%, rgba(96,165,250,0.12) 0, transparent 40%), radial-gradient(circle at 80% 0%, rgba(34,211,238,0.12) 0, transparent 35%)',
+            backgroundImage:
+              'radial-gradient(circle at 15% 25%, rgba(96,165,250,0.10) 0, transparent 40%), radial-gradient(circle at 85% 0%, rgba(167,139,250,0.10) 0, transparent 35%)',
           }}
         />
         <Container maxW="6xl" position="relative" zIndex={2} px={{ base: 6, md: 8 }} py={{ base: 24, md: 32 }}>
@@ -93,10 +86,10 @@ export default function Home() {
               py={1.5}
               borderRadius="full"
               border="1px solid"
-              borderColor="rgba(96,165,250,0.5)"
-              bg="rgba(59,130,246,0.16)"
+              borderColor="whiteAlpha.300"
+              bg="whiteAlpha.100"
               backdropFilter="blur(12px)"
-              color="blue.200"
+              color="whiteAlpha.900"
               fontSize="sm"
               fontWeight="500"
               letterSpacing="0.02em"
@@ -113,11 +106,11 @@ export default function Home() {
               lineHeight="0.95"
               textTransform="uppercase"
               sx={{
-                backgroundImage: 'linear-gradient(120deg, #f8fafc 0%, #60a5fa 40%, #22d3ee 70%, #a78bfa 100%)',
+                backgroundImage: 'linear-gradient(120deg, #f8fafc 0%, var(--chakra-colors-brand-300) 38%, var(--chakra-colors-accent-300) 68%, var(--chakra-colors-accent-400) 100%)',
                 WebkitBackgroundClip: 'text',
                 backgroundClip: 'text',
                 color: 'transparent',
-                filter: 'drop-shadow(0 40px 120px rgba(59,130,246,0.28))',
+                fontFamily: "'Sora', 'Inter', system-ui, sans-serif",
               }}
             >
               Tecnología Nítida
@@ -138,9 +131,9 @@ export default function Home() {
                 size="lg"
                 borderRadius="full"
                 px={10}
-                bgGradient="linear(to-r, #2563eb, #22d3ee)"
+                bg="brand.600"
                 color="white"
-                _hover={{ bgGradient: 'linear(to-r, #3b82f6, #38bdf8)', boxShadow: '0 20px 60px -20px rgba(59,130,246,0.9)' }}
+                _hover={{ bg: 'brand.700', transform: 'translateY(-1px)', boxShadow: 'shadow-cardHover' }}
                 rightIcon={<FiArrowRight />}
               >
                 Ver productos
@@ -152,9 +145,9 @@ export default function Home() {
                 variant="outline"
                 borderRadius="full"
                 px={10}
-                borderColor="rgba(148,163,184,0.6)"
-                color="gray.100"
-                _hover={{ bg: 'whiteAlpha.100', borderColor: 'rgba(226,232,240,0.9)' }}
+                borderColor="whiteAlpha.500"
+                color="whiteAlpha.900"
+                _hover={{ bg: 'whiteAlpha.100', borderColor: 'whiteAlpha.600' }}
               >
                 Ver servicios
               </Button>
@@ -239,7 +232,7 @@ export default function Home() {
         py={{ base: 12, md: 16 }}
         position="relative"
         overflow="hidden"
-        bgGradient={bannerGradient}
+        bgGradient="gradient-brand"
       >
         <Box
           position="absolute"
@@ -322,13 +315,11 @@ export default function Home() {
           <Box
             bg="bg.surface"
             border="2px solid"
-            borderColor="rgba(59,130,246,0.35)"
+            borderColor="border.strong"
             borderRadius="2xl"
             p={{ base: 8, md: 12 }}
             textAlign="center"
-            sx={{
-              boxShadow: '0 0 0 2px rgba(59,130,246,0.18), 0 20px 60px -20px rgba(59,130,246,0.55)',
-            }}
+            boxShadow="shadow-cardHover"
           >
             <Heading size="lg" mb={3} fontWeight="700">
               ¿Necesitás asesoramiento?

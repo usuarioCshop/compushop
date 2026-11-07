@@ -3,12 +3,13 @@ import {
   Box, Container, Heading, VStack, HStack, Text, Button, Image, IconButton,
   Divider, Input, FormControl, FormLabel, useToast, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper,
 } from '@chakra-ui/react';
-import { FiTrash2 } from 'react-icons/fi';
+import { FiTrash2, FiShoppingCart } from 'react-icons/fi';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import { useNavigate } from 'react-router-dom';
 import { resolveUploadUrl } from '../api/uploads';
+import EmptyState from '../components/EmptyState';
 
 const formatPrice = (n) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
@@ -51,26 +52,36 @@ export default function Cart() {
 
   if (items.length === 0) {
     return (
-      <Container maxW="3xl" py={20} textAlign="center">
-        <Heading size="md" mb={4}>Tu carrito está vacío</Heading>
-        <Button colorScheme="brand" onClick={() => navigate('/productos')}>Ver productos</Button>
+      <Container maxW="3xl" py={16}>
+        <EmptyState
+          icon={FiShoppingCart}
+          title="Tu carrito está vacío"
+          description="Todavía no agregaste productos. Explorá el catálogo y armá tu pedido."
+          actionLabel="Ver productos"
+          onAction={() => navigate('/productos')}
+        />
       </Container>
     );
   }
 
   return (
     <Container maxW="5xl" py={10}>
-      <Heading mb={8}>Carrito de compras</Heading>
+      <VStack spacing={1} align="start" mb={8}>
+        <Heading fontWeight="700" letterSpacing="-0.02em">Carrito de compras</Heading>
+        <Text color="fg.muted" fontSize="sm">
+          {items.length} {items.length === 1 ? 'artículo' : 'artículos'} en tu pedido
+        </Text>
+      </VStack>
       <HStack align="start" spacing={8} flexDir={{ base: 'column', lg: 'row' }}>
         <VStack flex="1" spacing={4} w="100%">
           {items.map(item => (
-            <Box key={`${item.type}-${item.id}`} bg={bg} p={4} borderRadius="lg" borderWidth="1px" w="100%">
-              <HStack spacing={4}>
-                <Image src={resolveUploadUrl(item.image)} boxSize="80px" objectFit="cover" borderRadius="md" fallbackSrc="https://via.placeholder.com/80" />
+            <Box key={`${item.type}-${item.id}`} bg={bg} p={4} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" w="100%">
+              <HStack spacing={4} align="start">
+                <Image src={resolveUploadUrl(item.image)} alt={item.name} boxSize="80px" objectFit="cover" borderRadius="md" fallbackSrc="https://via.placeholder.com/80" />
                 <VStack align="start" flex="1" spacing={1}>
-                  <Text fontWeight="semibold">{item.name}</Text>
+                  <Text fontWeight="600">{item.name}</Text>
                   <Text fontSize="sm" color="fg.muted">{item.type === 'service' ? 'Servicio' : 'Producto'}</Text>
-                  <Text color="brand.500" fontWeight="bold">{formatPrice(item.price)}</Text>
+                  <Text color="brand.600" fontWeight="700" className="price">{formatPrice(item.price)}</Text>
                 </VStack>
                 <NumberInput size="sm" maxW="100px" value={item.quantity} min={1}
                   onChange={(_, v) => updateQuantity(item.id, item.type, v)}>
@@ -80,18 +91,18 @@ export default function Cart() {
                     <NumberDecrementStepper />
                   </NumberInputStepper>
                 </NumberInput>
-                <IconButton icon={<FiTrash2 />} variant="ghost" colorScheme="red" aria-label="Quitar"
+                <IconButton icon={<FiTrash2 />} variant="ghost" colorScheme="red" aria-label={`Quitar ${item.name}`}
                   onClick={() => removeItem(item.id, item.type)} />
               </HStack>
             </Box>
           ))}
         </VStack>
 
-        <Box bg={bg} p={6} borderRadius="xl" borderWidth="1px" w={{ base: '100%', lg: '360px' }} position="sticky" top="80px">
-          <Heading size="md" mb={4}>Resumen</Heading>
+        <Box bg={bg} p={6} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" w={{ base: '100%', lg: '360px' }} position="sticky" top="80px">
+          <Heading size="md" mb={4} fontWeight="700" letterSpacing="-0.01em">Resumen</Heading>
           <HStack justify="space-between" mb={2}>
-            <Text>Subtotal</Text>
-            <Text fontWeight="bold">{formatPrice(totalPrice)}</Text>
+            <Text color="fg.muted">Subtotal</Text>
+            <Text fontWeight="700" color="brand.600" className="price">{formatPrice(totalPrice)}</Text>
           </HStack>
           <Divider my={4} />
           <VStack spacing={3} mb={6}>
@@ -116,7 +127,7 @@ export default function Cart() {
               <Input size="sm" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
             </FormControl>
           </VStack>
-          <Button colorScheme="accent" size="lg" w="100%" isLoading={loading} onClick={handleConfirm}>
+          <Button colorScheme="accent" size="lg" w="100%" borderRadius="full" isLoading={loading} onClick={handleConfirm}>
             Confirmar pedido
           </Button>
         </Box>

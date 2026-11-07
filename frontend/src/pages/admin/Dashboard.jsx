@@ -52,7 +52,7 @@ export default function Dashboard() {
     }
   };
 
-  if (!data) return <Center py={20}><Spinner size="xl" color="brand.500" /></Center>;
+  if (!data) return <Center py={20}><Spinner size="xl" color="brand.500" thickness="3px" /></Center>;
 
   const cards = [
     { label: 'Productos', value: data.stats.productsCount },
@@ -66,9 +66,9 @@ export default function Dashboard() {
 
   return (
     <Box>
-      <Heading size="lg" mb={6}>Dashboard</Heading>
-      <Box bg={bg} p={5} borderRadius="xl" borderWidth="1px" mb={8} maxW="500px">
-        <Heading size="md" mb={3}>Cotización y márgenes</Heading>
+      <Heading size="lg" mb={6} fontWeight="700" letterSpacing="-0.02em">Dashboard</Heading>
+      <Box bg={bg} p={5} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" mb={8} maxW="520px">
+        <Heading size="md" mb={3} fontWeight="700" letterSpacing="-0.01em">Cotización y márgenes</Heading>
         <HStack align="end" flexWrap="wrap">
           <FormControl maxW="200px">
             <FormLabel fontSize="sm">Valor 1 USD (ARS)</FormLabel>
@@ -87,17 +87,17 @@ export default function Dashboard() {
       </Box>
       <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={10}>
         {cards.map(c => (
-          <Box key={c.label} bg={bg} p={5} borderRadius="xl" borderWidth="1px">
+          <Box key={c.label} bg={bg} p={5} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card">
             <Stat>
-              <StatLabel color="fg.muted">{c.label}</StatLabel>
-              <StatNumber fontSize="2xl">{c.value}</StatNumber>
+              <StatLabel color="fg.muted" fontSize="sm">{c.label}</StatLabel>
+              <StatNumber fontSize="2xl" fontWeight="700" letterSpacing="-0.02em">{c.value}</StatNumber>
             </Stat>
           </Box>
         ))}
       </SimpleGrid>
 
-      <Heading size="md" mb={4}>Pedidos recientes</Heading>
-      <Box bg={bg} borderRadius="xl" borderWidth="1px" overflow="hidden" mb={10}>
+      <Heading size="md" mb={4} fontWeight="700" letterSpacing="-0.01em">Pedidos recientes</Heading>
+      <Box bg={bg} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" overflow="hidden" mb={10}>
         <Table size="sm">
           <Thead>
             <Tr><Th>Nº</Th><Th>Cliente</Th><Th>Total</Th><Th>Estado</Th><Th>Fecha</Th></Tr>
@@ -105,15 +105,15 @@ export default function Dashboard() {
           <Tbody>
             {(data.recentOrders || []).map(o => (
               <Tr key={o.id}>
-                <Td>{o.order_number}</Td>
+                <Td fontWeight="500">{o.order_number}</Td>
                 <Td>{o.customer_name}</Td>
-                <Td>{formatPrice(o.total)}</Td>
-                <Td><Badge>{o.status}</Badge></Td>
-                <Td>{new Date(o.created_at).toLocaleDateString('es-AR')}</Td>
+                <Td fontWeight="600">{formatPrice(o.total)}</Td>
+                <Td><Badge variant="subtle" borderRadius="full">{o.status}</Badge></Td>
+                <Td color="fg.muted">{new Date(o.created_at).toLocaleDateString('es-AR')}</Td>
               </Tr>
             ))}
             {(!data.recentOrders || data.recentOrders.length === 0) && (
-              <Tr><Td colSpan={5}><Text color="fg.muted" textAlign="center" py={4}>Sin pedidos aún</Text></Td></Tr>
+              <Tr><Td colSpan={5}><Text color="fg.muted" textAlign="center" py={6}>Sin pedidos aún</Text></Td></Tr>
             )}
           </Tbody>
         </Table>
@@ -121,16 +121,16 @@ export default function Dashboard() {
 
       {data.lowStock?.length > 0 && (
         <>
-          <Heading size="md" mb={4}>Stock bajo</Heading>
-          <Box bg={bg} borderRadius="xl" borderWidth="1px" overflow="hidden">
+          <Heading size="md" mb={4} fontWeight="700" letterSpacing="-0.01em">Stock bajo</Heading>
+          <Box bg={bg} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" overflow="hidden">
             <Table size="sm">
               <Thead><Tr><Th>Producto</Th><Th>Stock</Th><Th>Precio</Th></Tr></Thead>
               <Tbody>
                 {data.lowStock.map(p => (
                   <Tr key={p.id}>
                     <Td>{p.name}</Td>
-                    <Td><Badge colorScheme={p.stock === 0 ? 'red' : 'orange'}>{p.stock}</Badge></Td>
-                    <Td>{formatPrice(p.price)}</Td>
+                    <Td><Badge colorScheme={p.stock === 0 ? 'red' : 'orange'} borderRadius="full">{p.stock}</Badge></Td>
+                    <Td fontWeight="600">{formatPrice(p.price)}</Td>
                   </Tr>
                 ))}
               </Tbody>
