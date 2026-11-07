@@ -42,22 +42,20 @@ export default function ProductCard({ product, type = 'product' }) {
   return (
     <Box
       bg={bg}
-      borderRadius="2xl"
+      borderRadius="lg"
       overflow="hidden"
-      sx={{
-        transition: 'all 250ms',
-        boxShadow: '0 0 0 2px rgba(59,130,246,0.18), 0 10px 40px -10px rgba(59,130,246,0.45)',
-        _hover: {
-          boxShadow: '0 0 0 2px rgba(96,165,250,0.8), 0 20px 60px -15px rgba(59,130,246,0.7)',
-          transform: 'translateY(-6px)',
-          borderColor: 'rgba(96,165,250,0.9)',
-        },
-      }}
+      borderWidth="1px"
+      borderColor="border.subtle"
+      boxShadow="shadow-card"
       h="100%"
       display="flex"
       flexDirection="column"
-      border="2px solid"
-      borderColor="rgba(59,130,246,0.35)"
+      transition="all 220ms ease"
+      _hover={{
+        boxShadow: 'shadow-cardHover',
+        transform: 'translateY(-4px)',
+        borderColor: 'border.strong',
+      }}
     >
       <Box
         as={RouterLink}
@@ -116,7 +114,7 @@ export default function ProductCard({ product, type = 'product' }) {
           fallbackSrc="https://via.placeholder.com/400x400?text=Compushop"
         />
         {type === 'product' && product.is_promo && (
-          <Badge position="absolute" top={3} left={3} colorScheme="purple" borderRadius="full" px={3} fontWeight="600" fontSize="xs">
+          <Badge position="absolute" top={3} left={3} colorScheme="accent" borderRadius="full" px={3} fontWeight="600" fontSize="xs">
             PROMOCIÓN
           </Badge>
         )}

@@ -104,7 +104,7 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 - **Contraste AA:** no verificable por render automático aquí. **Requiere QA visual/herramienta de contraste.**
 
 ### Residuales fuera del alcance de T4-T8 (preexistentes, no regresión)
-- `Navbar.jsx`, `ProductCard.jsx`, `Services.jsx`, `ServiceDetail.jsx` conservan hex/rgba/gradientes hardcodeados del diseño previo (detectados en auditoría T1; no fueron parte de Home/Catálogo/Detalle/Carrito/Admin).
+- `Navbar.jsx`, `ProductCard.jsx`, `Services.jsx`, `ServiceDetail.jsx`: **resueltos en L14** (alineados al design system; se conservan solo overlays fotográficos).
 - Overlays rgba del hero de Home son intencionales (composición fotográfica, documentado en L8).
 
 ### Conclusión
