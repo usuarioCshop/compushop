@@ -109,7 +109,7 @@ export default function AdminServices() {
               <FormLabel>Imagen</FormLabel>
               <HStack>
                 <Input value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} placeholder="/uploads/imagen.jpg" />
-                <input ref={imgRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadImage} />
+                <input ref={imgRef} type="file" accept="image/*" hidden onChange={uploadImage} />
                 <Button leftIcon={<FiUpload />} onClick={() => imgRef.current?.click()} isLoading={uploadingImg} loadingText="Subiendo" flexShrink={0}>
                   Subir imagen
                 </Button>

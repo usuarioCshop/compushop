@@ -61,29 +61,29 @@ export default function AdminUsers() {
     return u.role !== 'admin' && u.role !== 'superadmin';
   };
 
-  if (loading) return <Center py={10}><Spinner /></Center>;
+  if (loading) return <Center py={10}><Spinner color="brand.500" /></Center>;
 
   return (
     <Box>
       <HStack justify="space-between" mb={6} wrap="wrap" gap={3}>
-        <Heading size="lg">Usuarios</Heading>
+        <Heading size="lg" fontWeight="700" letterSpacing="-0.02em">Usuarios</Heading>
         {isSuperAdmin && (
-          <Button leftIcon={<FiPlus />} colorScheme="purple" onClick={onOpen}>
+          <Button leftIcon={<FiPlus />} colorScheme="accent" onClick={onOpen} borderRadius="full">
             Crear usuario
           </Button>
         )}
       </HStack>
-      <Box bg={bg} borderRadius="xl" borderWidth="1px" overflowX="auto">
+      <Box bg={bg} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" overflowX="auto">
         <Table size="sm">
           <Thead><Tr><Th>Nombre</Th><Th>Email</Th><Th>DNI</Th><Th>Rol</Th><Th></Th></Tr></Thead>
           <Tbody>
             {users.map(u => (
               <Tr key={u.id}>
-                <Td>{u.name}</Td>
-                <Td>{u.email}</Td>
+                <Td fontWeight="500">{u.name}</Td>
+                <Td color="fg.muted">{u.email}</Td>
                 <Td>{u.dni || '—'}</Td>
                 <Td>
-                  <Badge colorScheme={u.role === 'superadmin' ? 'blue' : u.role === 'admin' ? 'purple' : 'gray'}>
+                  <Badge colorScheme={u.role === 'superadmin' ? 'brand' : u.role === 'admin' ? 'accent' : 'gray'} variant="subtle" borderRadius="full">
                     {u.role}
                   </Badge>
                 </Td>
@@ -95,7 +95,7 @@ export default function AdminUsers() {
               </Tr>
             ))}
             {users.length === 0 && (
-              <Tr><Td colSpan={5}><Text color="gray.500" py={4} textAlign="center">No hay usuarios.</Text></Td></Tr>
+              <Tr><Td colSpan={5}><Text color="fg.muted" py={6} textAlign="center">No hay usuarios.</Text></Td></Tr>
             )}
           </Tbody>
         </Table>
@@ -135,7 +135,7 @@ export default function AdminUsers() {
           </ModalBody>
           <ModalFooter>
             <Button variant="ghost" mr={2} onClick={onClose}>Cancelar</Button>
-            <Button colorScheme="purple" leftIcon={<FiUser />} isLoading={saving} onClick={createUser}>Crear</Button>
+            <Button colorScheme="accent" leftIcon={<FiUser />} isLoading={saving} onClick={createUser} borderRadius="full">Crear</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>

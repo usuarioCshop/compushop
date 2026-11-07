@@ -178,16 +178,16 @@ export default function AdminProducts() {
     return matchCat && matchBrand && matchSearch;
   });
 
-  if (loading) return <Center py={10}><Spinner /></Center>;
+  if (loading) return <Center py={10}><Spinner color="brand.500" /></Center>;
 
   return (
     <Box>
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={2}>
-        <Heading size="lg">Productos</Heading>
+        <Heading size="lg" fontWeight="700" letterSpacing="-0.02em">Productos</Heading>
         <HStack>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={onSelectFile} />
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSelectFile} />
           <Button leftIcon={<FiUpload />} variant="outline" onClick={() => fileRef.current?.click()} isLoading={importing}>Importar Productos</Button>
-          <Button leftIcon={<FiPlus />} colorScheme="brand" onClick={openCreate}>Nuevo</Button>
+          <Button leftIcon={<FiPlus />} colorScheme="brand" onClick={openCreate} borderRadius="full">Nuevo</Button>
         </HStack>
       </HStack>
       <HStack mb={4} flexWrap="wrap" gap={3}>
@@ -202,17 +202,17 @@ export default function AdminProducts() {
         </Select>
         <Text fontSize="sm" color="fg.muted">Mostrando {filtered.length} de {products.length}</Text>
       </HStack>
-      <Box bg={bg} borderRadius="xl" borderWidth="1px" overflowX="auto">
+      <Box bg={bg} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" overflowX="auto">
         <Table size="sm">
           <Thead><Tr><Th>Nombre</Th><Th>Precio</Th><Th>Stock</Th><Th>Promo</Th><Th>Activo</Th><Th></Th></Tr></Thead>
           <Tbody>
             {filtered.map(p => (
               <Tr key={p.id}>
-                <Td>{p.name}</Td>
-                <Td>{formatPrice(p.price)}</Td>
-                <Td><Badge colorScheme={p.stock <= 5 ? 'orange' : 'green'}>{p.stock}</Badge></Td>
-                <Td>{p.is_promo ? <Badge colorScheme="purple">Sí</Badge> : 'No'}</Td>
-                <Td>{p.is_active ? 'Sí' : 'No'}</Td>
+                <Td fontWeight="500">{p.name}</Td>
+                <Td fontWeight="600">{formatPrice(p.price)}</Td>
+                <Td><Badge colorScheme={p.stock <= 5 ? 'orange' : 'green'} borderRadius="full">{p.stock}</Badge></Td>
+                <Td>{p.is_promo ? <Badge colorScheme="accent" variant="subtle" borderRadius="full">Sí</Badge> : <Text color="fg.muted">No</Text>}</Td>
+                <Td>{p.is_active ? 'Sí' : <Text color="fg.muted">No</Text>}</Td>
                 <Td>
                   <HStack>
                     <IconButton size="sm" icon={<FiEdit />} onClick={() => openEdit(p)} aria-label="Editar" />
@@ -254,7 +254,7 @@ export default function AdminProducts() {
               <FormLabel>Imagen</FormLabel>
               <HStack>
                 <Input value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} placeholder="/uploads/imagen.jpg" />
-                <input ref={imgRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadImage} />
+                <input ref={imgRef} type="file" accept="image/*" hidden onChange={uploadImage} />
                 <Button leftIcon={<FiUpload />} onClick={() => imgRef.current?.click()} isLoading={uploadingImg} loadingText="Subiendo" flexShrink={0}>
                   Subir imagen
                 </Button>
