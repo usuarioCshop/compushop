@@ -45,23 +45,28 @@ export default function ProductCard({ product, type = 'product' }) {
       borderRadius="lg"
       overflow="hidden"
       borderWidth="1px"
-      borderColor="border.subtle"
-      boxShadow="shadow-card"
+      borderColor="rgba(37,99,235,0.68)"
       h="100%"
       display="flex"
       flexDirection="column"
       transition="all 220ms ease"
-      _hover={{
-        boxShadow: 'shadow-cardHover',
-        transform: 'translateY(-4px)',
-        borderColor: 'border.strong',
+      sx={{
+        boxShadow: '0 0 0 1px rgba(37,99,235,0.27), 0 14px 40px -10px rgba(37,99,235,0.75)',
+        _hover: {
+          boxShadow: '0 0 0 2px rgba(37,99,235,0.82), 0 22px 56px -12px rgba(37,99,235,0.95)',
+          transform: 'translateY(-4px)',
+          borderColor: 'rgba(37,99,235,1)',
+        },
       }}
     >
       <Box
         as={RouterLink}
         to={to}
         position="relative"
-        sx={{ aspectRatio: 1 }}
+        w="100%"
+        flex={{ base: '0 0 auto', md: '0 0 50%' }}
+        maxH={{ base: '200px', md: 'none' }}
+        minH="0"
         bg="bg.subtle"
         overflow="hidden"
       >
@@ -102,15 +107,12 @@ export default function ProductCard({ product, type = 'product' }) {
         <Image
           src={resolveUploadUrl(product.image) || 'https://via.placeholder.com/400x400?text=Compushop'}
           alt={product.name}
-          sx={{
-            objectFit: 'contain',
-            transition: 'transform 0.3s',
-            '&:hover': { transform: 'scale(1.05)' },
-          }}
-          w="70%"
-          h="70%"
-          margin="auto"
-          opacity={0.9}
+          w="100%"
+          h="100%"
+          objectFit="cover"
+          objectPosition="center"
+          transition="transform 0.3s"
+          _hover={{ transform: 'scale(1.03)' }}
           fallbackSrc="https://via.placeholder.com/400x400?text=Compushop"
         />
         {type === 'product' && product.is_promo && (
