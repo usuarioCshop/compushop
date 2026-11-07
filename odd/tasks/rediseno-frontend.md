@@ -26,7 +26,7 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 - [x] T6 | S4 | Reemplazar/ajustar Detalle de producto | inline | completado (2026-11-06)
 - [x] T7 | S4 | Reemplazar/ajustar Carrito y flujo de pedido | inline | completado (2026-11-07)
 - [x] T8 | S4 | Reemplazar/ajustar Admin (Usuarios, Productos, Dashboard) | inline | completado (2026-11-07)
-- [ ] T9 | S5 | Checklist de calidad completo por cada cambio entregado (contraste, vacío, error, loading, 360px, oscuro); backup en commits separados | inline | pendiente
+- [x] T9 | S5 | Checklist de calidad completo por cada cambio entregado (contraste, vacío, error, loading, 360px, oscuro); backup en commits separados | inline | completado con hallazgos (2026-11-07)
 
 
 ## Auditoría del frontend actual (2026-11-06, T1)
@@ -89,6 +89,26 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 - Cargando: Spinner en Center (ya está la pauta) pero uniforme.
 - Error: mensaje breve + botón Reintentar.
 - Éxito: Toast (Chakra) con title corto.
+
+
+
+## Checklist T9 (2026-11-07, evidencia estructural + QA visual pendiente del usuario)
+
+### Entregado y verificado (T4-T8)
+- **Estados vacío:** Cart, Catálogo y Detalle usan `EmptyState`. AdminUsers/Messages/Dashboard usan mensajes inline en tablas (aceptable).
+- **Loading:** spinners/skeletons presentes en páginas entregadas; botones críticos con `isLoading`.
+- **Error:** toasts en operaciones (cart confirm, admin CRUD/import). Faltan estados de error con “Reintentar” dedicados en algunas vistas (gap menor, no introducido por el rediseño).
+- **Imagen alt:** corregido en Cart (auditoría #5). Inputs file ocultos con `hidden` (auditoría #6, Products/Services).
+- **Modo oscuro (tokens):** páginas entregadas usan tokens semánticos (`bg.*`, `fg.*`, `border.*`, `shadow-card`, `gradient-brand`, `_dark` donde aplica). Apariencia real en oscuro: requiere QA visual.
+- **Responsive:** uso de props `base/md/lg` y layout en columna en mobile (ej. Cart). **360px real: requiere QA visual.**
+- **Contraste AA:** no verificable por render automático aquí. **Requiere QA visual/herramienta de contraste.**
+
+### Residuales fuera del alcance de T4-T8 (preexistentes, no regresión)
+- `Navbar.jsx`, `ProductCard.jsx`, `Services.jsx`, `ServiceDetail.jsx` conservan hex/rgba/gradientes hardcodeados del diseño previo (detectados en auditoría T1; no fueron parte de Home/Catálogo/Detalle/Carrito/Admin).
+- Overlays rgba del hero de Home son intencionales (composición fotográfica, documentado en L8).
+
+### Conclusión
+- Checklist estructural de lo entregado: **OK con gaps menores** (error+retry dedicado; residual en páginas no tocadas). Contraste AA, 360px y modo oscuro real quedan **pendientes de validación visual del usuario** en `localhost:5173`.
 
 ## Log
 
