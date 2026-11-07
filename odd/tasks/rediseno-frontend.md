@@ -112,11 +112,21 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 
 ## Log
 
-- L5 (2026-11-06): T1 completada. Auditoría escrita: theme sólido pero hardcodeados en Home/ServiceDetail/Services/ProductCard/Navbar; falta componente EmptyState; espaciado/radii sin escala; theme-color del index.html no alinea con tokens. Ver sección Auditoría arriba.
-- L1: Pedido original (2026-11-06): "como crees que deberia seguir para entrar a trabajar con la estetica y diseño del frontend"
-- L2: Se propuso secuencia de 5 etapas (auditar → marca → design system → reemplazar → checklist); el usuario está completamente de acuerdo.
-- L3: Solicitud de seguimiento: lista de tareas con esos puntos para ir avanzando de a uno, consultable en cualquier momento. Este archivo es la fuente de verdad del estado; mirror en Engram (`odd/frontend-rediseno/tasks`).
+- L1 (2026-11-06): Pedido original: "como crees que deberia seguir para entrar a trabajar con la estetica y diseño del frontend"
+- L2 (2026-11-06): Se propuso secuencia de 5 etapas (auditar → marca → design system → reemplazar → checklist); el usuario está completamente de acuerdo.
+- L3 (2026-11-06): Solicitud de seguimiento: lista de tareas con esos puntos para ir avanzando de a uno, consultable en cualquier momento. Este archivo es la fuente de verdad del estado; mirror en Engram (`odd/frontend-rediseno/tasks`).
 - L4 (2026-11-06): Se crea la rama `frontend-rediseno` partiendo de `dev2` para trabajar en aislamiento (Vercel puede generar preview deploys de la rama). Decisión del usuario: se mejora sobre el diseño ACTUAL, no se rediseña de cero. La auditoría (T1) debe partir de lo existente.
+- L5 (2026-11-06): T1 completada. Auditoría escrita: theme sólido pero hardcodeados en Home/ServiceDetail/Services/ProductCard/Navbar; falta componente EmptyState; espaciado/radii sin escala; theme-color del index.html no alinea con tokens. Commit a30e45f.
+- L6 (2026-11-06): T2 completada. Brief de marca: premium profesional; brand azul + accent violeta, Inter cuerpo + Sora titulares, gradiente único brand→accent, radii/espaciado definidos. Commit 47f8572.
+- L7 (2026-11-06): T3 completada. Design system consolidado: accent violeta, Sora en theme e index.html, shadows/gradientes semánticos (gradient-brand), theme-color alineado, EmptyState. Verificado esbuild/vite. Commit ce44619.
+- L8 (2026-11-06): T4 completada y aprobada visualmente. Home con gradient-brand, H1 Sora, botón brand.600, sombras/tokens; overlays fotográficos del hero conservados a propósito. Commit 2a4aac3.
+- L9 (2026-11-06): T5 completada. Catálogo con jerarquía (total), búsqueda con ícono, limpiar filtros, EmptyState. Commit 356a792.
+- L10 (2026-11-06): T6 completada. Detalle con promo accent, badges subtle, precio brand.600, EmptyState not-found con useNavigate, shadow-card. Commit ae69468.
+- L11 (2026-11-07): T7 completada y aprobada visualmente. Carrito: EmptyState vacío, items/resumen con shadow-card, alt en imagen, jerarquía, CTA accent redondeado. Confirmar pedido crea orden real (backend prod). Commit b527d7f.
+- L12 (2026-11-07): T8 completada y aprobada visualmente. Admin (Dashboard, Usuarios, Productos) + Layout/Services: superficies consistentes, roles/badges accent, inputs file hidden (fix auditoría). Lógica sin cambios. Commit c57f5ab.
+- L13 (2026-11-07): T9 ejecutada (checklist estructural). Entregado OK con gaps menores; requiere QA visual del usuario: contraste AA, 360px real, modo oscuro real. Residuales fuera de alcance anotados (luego resueltos en L14). Commit b00065a.
+- L14 (2026-11-07): Residuales resueltos y aprobados visualmente. Navbar, ProductCard, Services, ServiceDetail alineados al design system (sin glows cyan; promos accent; héroes servicios brand+violeta/Sora; overlays fotográficos conservados). Commit 719fc94.
+- L15 (2026-11-07): Ajuste ProductCard aprobado. Imagen ancho completo, object-fit cover, 50% altura en desktop (maxH mobile). Sombra/borde azul reforzado con borde marcado en hover. Commit e267a6c.
 
 ## Para consultar el estado (preguntar al agente)
 
