@@ -25,7 +25,7 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 - [x] T5 | S4 | Reemplazar/ajustar Catálogo (Products + filtros) | inline | completado (2026-11-06)
 - [x] T6 | S4 | Reemplazar/ajustar Detalle de producto | inline | completado (2026-11-06)
 - [x] T7 | S4 | Reemplazar/ajustar Carrito y flujo de pedido | inline | completado (2026-11-07)
-- [ ] T8 | S4 | Reemplazar/ajustar Admin (Usuarios, Productos, Dashboard) | inline | pendiente
+- [x] T8 | S4 | Reemplazar/ajustar Admin (Usuarios, Productos, Dashboard) | inline | completado (2026-11-07)
 - [ ] T9 | S5 | Checklist de calidad completo por cada cambio entregado (contraste, vacío, error, loading, 360px, oscuro); backup en commits separados | inline | pendiente
 
 

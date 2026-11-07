@@ -24,7 +24,7 @@ export default function AdminLayout() {
   return (
     <Flex minH="calc(100vh - 64px)">
       <Box w="240px" bg={bg} borderRight="1px" borderColor={border} p={4} display={{ base: 'none', md: 'block' }}>
-        <Heading size="sm" mb={6} color="brand.500">Admin</Heading>
+        <Heading size="sm" mb={6} color="brand.600" letterSpacing="-0.01em">Admin</Heading>
         <VStack align="stretch" spacing={1}>
           {links.map(l => (
             <Button
@@ -36,7 +36,7 @@ export default function AdminLayout() {
               justifyContent="flex-start"
               leftIcon={<Icon as={l.icon} />}
               size="sm"
-              _activeLink={{ bg: 'brand.50', color: 'brand.600', fontWeight: 'bold' }}
+              _activeLink={{ bg: 'brand.50', color: 'brand.700', fontWeight: '600', _dark: { bg: 'whiteAlpha.100', color: 'brand.300' } }}
             >
               {l.label}
             </Button>
