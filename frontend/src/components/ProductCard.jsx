@@ -49,6 +49,7 @@ export default function ProductCard({ product, type = 'product' }) {
       h="100%"
       display="flex"
       flexDirection="column"
+      position="relative"
       transition="all 220ms ease"
       sx={{
         boxShadow: '0 0 0 1px rgba(37,99,235,0.27), 0 14px 40px -10px rgba(37,99,235,0.75)',
@@ -64,11 +65,10 @@ export default function ProductCard({ product, type = 'product' }) {
         to={to}
         position="relative"
         w="100%"
-        flex={{ base: '0 0 auto', md: '0 0 50%' }}
-        maxH={{ base: '200px', md: 'none' }}
-        minH="0"
+        sx={{ aspectRatio: '4 / 3' }}
         bg="bg.subtle"
         overflow="hidden"
+        flexShrink={0}
       >
         {type === 'product' && (
           <IconButton
@@ -81,6 +81,8 @@ export default function ProductCard({ product, type = 'product' }) {
             borderRadius="full"
             colorScheme={fav ? 'red' : 'gray'}
             variant={fav ? 'solid' : 'ghost'}
+            color={fav ? undefined : { base: 'gray.500', _dark: 'brand.400' }}
+            sx={!fav ? { _dark: { svg: { color: 'brand.400', stroke: 'currentColor' } } } : undefined}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -116,12 +118,23 @@ export default function ProductCard({ product, type = 'product' }) {
           fallbackSrc="https://via.placeholder.com/400x400?text=Compushop"
         />
         {type === 'product' && product.is_promo && (
-          <Badge position="absolute" top={3} left={3} colorScheme="accent" borderRadius="full" px={3} fontWeight="600" fontSize="xs">
+          <Badge
+            position="absolute"
+            top={3}
+            left={3}
+            colorScheme="accent"
+            variant="solid"
+            borderRadius="full"
+            px={3}
+            fontSize="xs"
+            fontWeight="700"
+            _dark={{ bg: 'accent.700', color: 'white' }}
+          >
             PROMOCIÓN
           </Badge>
         )}
         {type === 'product' && !product.is_promo && product.stock <= 5 && product.stock > 0 && (
-          <Badge position="absolute" top={3} left={3} colorScheme="red" borderRadius="full" px={3} fontSize="xs" fontWeight="600">
+          <Badge position="absolute" top={3} left={3} colorScheme="red" variant="solid" borderRadius="full" px={3} fontSize="xs" fontWeight="700">
             Últimas unidades
           </Badge>
         )}
@@ -132,20 +145,19 @@ export default function ProductCard({ product, type = 'product' }) {
         )}
       </Box>
 
-      <VStack p={5} align="stretch" spacing={2} flex="1">
-        {product.brand && (
-          <Text fontSize="xs" color="brand.400" textTransform="uppercase" letterSpacing="0.04em" fontWeight="600">
-            {product.brand}
-          </Text>
-        )}
+      <VStack px={5} pt={5} pb="56px" align="stretch" spacing={2} flex="1">
+        <Text fontSize="xs" color="brand.400" textTransform="uppercase" letterSpacing="0.04em" fontWeight="600">
+          {product.brand || 'Sin Marca'}
+        </Text>
         <Text
           as={RouterLink}
           to={to}
           fontWeight="600"
           fontSize="md"
-          noOfLines={2}
-          minH="48px"
+          noOfLines={1}
+          minH="unset"
           lineHeight="1.35"
+          title={product.name}
           _hover={{ color: 'brand.400' }}
         >
           {product.name}
@@ -155,22 +167,29 @@ export default function ProductCard({ product, type = 'product' }) {
             {product.description}
           </Text>
         )}
-        <HStack justify="space-between" align="center" mt="auto" pt={2}>
-          <Text fontWeight="700" fontSize="xl" letterSpacing="-0.02em">
-            {formatPrice(product.price)}
-          </Text>
-          <Button
-            colorScheme="brand"
-            borderRadius="full"
-            size="sm"
-            onClick={handleAdd}
-            isDisabled={type === 'product' && product.stock === 0}
-            px={5}
-          >
-            {type === 'service' ? 'Contratar' : 'Comprar'}
-          </Button>
-        </HStack>
       </VStack>
+      <HStack
+        justify="space-between"
+        align="center"
+        position="absolute"
+        left={5}
+        right={5}
+        bottom="2%"
+      >
+        <Text fontWeight="700" fontSize="xl" letterSpacing="-0.02em">
+          {formatPrice(product.price)}
+        </Text>
+        <Button
+          colorScheme="brand"
+          borderRadius="full"
+          size="sm"
+          onClick={handleAdd}
+          isDisabled={type === 'product' && product.stock === 0}
+          px={5}
+        >
+          {type === 'service' ? 'Contratar' : 'Comprar'}
+        </Button>
+      </HStack>
     </Box>
   );
 }
