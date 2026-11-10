@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const db = require('../db/database');
 
-const { authenticate, requireAdmin, requireSuperAdmin, optionalAuth } = require('../middleware/auth');
+const { authenticate, requireAdmin, requireSuperAdmin, requireTecnico, optionalAuth } = require('../middleware/auth');
 const { sendContactEmail } = require('../utils/email');
 const validate = require('../middleware/validate');
 const { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } = require('../validations/auth');
@@ -21,6 +21,7 @@ const contactCtrl = require('../controllers/contactController');
 const settingsCtrl = require('../controllers/settingsController');
 const dashboardCtrl = require('../controllers/dashboardController');
 const wishlistCtrl = require('../controllers/wishlistController');
+const technicalRepairsCtrl = require('../controllers/technicalRepairsController');
 
 const IS_VERCEL = !!process.env.VERCEL;
 const { uploadsDir: uploadDir } = require('../utils/uploads');
@@ -113,6 +114,38 @@ router.get('/users', authenticate, requireAdmin, usersCtrl.getAll);
 router.post('/users', authenticate, requireSuperAdmin, usersCtrl.createUser);
 router.put('/users/:id', authenticate, requireAdmin, usersCtrl.update);
 router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
+
+// ========== TECNICAL REPAIRS (servicio tecnico, solo tecnico/admin) ==========
+router.get('/technical-repairs', authenticate, requireTecnico, technicalRepairsCtrl.getAll);
+router.post('/technical-repairs', authenticate, requireTecnico, technicalRepairsCtrl.create);
+router.get('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.getOne);
+router.put('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.update);
+router.delete('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.remove);
+
+// Upload de imagen del equipo (servicio tecnico).
+router.post('/upload/repair-image', authenticate, requireTecnico, imageUpload.single('image'), async (req, res, next) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se envió ninguna imagen' });
+  }
+  const ext = path.extname(req.file.originalname).toLowerCase();
+  const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+  try {
+    if (UPLOADS_ON_BLOB) {
+      const { put } = require('@vercel/blob');
+      const blob = await put(`repair-images/${name}`, req.file.buffer, {
+        access: 'public',
+        contentType: req.file.mimetype,
+        addRandomSuffix: true,
+      });
+      return res.json({ url: blob.url });
+    }
+    ensureUploadsDir();
+    await fs.promises.writeFile(path.join(uploadDir, name), req.file.buffer);
+    res.json({ url: `/uploads/${name}` });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ========== CONTACT ==========
 router.post('/contact', validate(contactSchema), contactCtrl.sendMessage);

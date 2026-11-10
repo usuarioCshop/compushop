@@ -37,6 +37,15 @@ function requireSuperAdmin(req, res, next) {
   next();
 }
 
+// requireTecnico: acceso a la seccion de servicio tecnico. Permite tecnico,
+// admin y superadmin para que un admin pueda supervisar las reparaciones.
+function requireTecnico(req, res, next) {
+  if (!req.user || !['tecnico', 'admin', 'superadmin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Acceso denegado. Se requiere rol de tecnico.' });
+  }
+  next();
+}
+
 function optionalAuth(req, res, next) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -50,4 +59,4 @@ function optionalAuth(req, res, next) {
   next();
 }
 
-module.exports = { authenticate, requireAdmin, requireSuperAdmin, optionalAuth, isAdminRole };
+module.exports = { authenticate, requireAdmin, requireSuperAdmin, requireTecnico, optionalAuth, isAdminRole };
