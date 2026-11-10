@@ -19,7 +19,7 @@ Permitir elegir forma de pago (Transferencia / Efectivo) en el carrito, mostrar 
 - [x] T3 | Backend: `ordersController.create` acepta/valida/persiste `payment_method`, `payment_receipt_url`, `payment_receipt_pending` según D1/D3; exponerlos en respuestas.
 - [x] T4 | Frontend `Cart.jsx`: select forma de pago; si Transferencia mostrar alias "ALIAS DEL CBU compushopvo.mp", upload (img/PDF) y checkbox "No se pudo subir el comprobante" (comprobante no obligatorio). Enviar datos en `POST /orders`.
 - [x] T5 | Admin: mostrar forma de pago, comprobante (link/preview si imagen; link si PDF) y estado "comprobante pendiente/no subido" en detalle de pedido.
-- [ ] T6 | Verificación en test (efectivo; transferencia con comprobante; transferencia sin comprobante + checkbox marcado), doc/log y commit.
+- [x] T6 | Verificación en test (efectivo; transferencia con comprobante; transferencia sin comprobante + checkbox marcado), doc/log y commit.
 
 ## Riesgos / notas
 - Migraciones y escrituras solo contra **test**; aplicar en producción es acción del usuario al deploy.
@@ -38,3 +38,5 @@ Permitir elegir forma de pago (Transferencia / Efectivo) en el carrito, mostrar 
 - L5 (2026-11-10): T2-T5 implementadas (upload /api/upload/receipt img+PDF; orders create persiste metodo/comprobante/pendiente; Cart con select/alias/upload/checkbox; AdminOrders muestra pago y comprobante). Pendiente T6 verificación manual en test.
 
 - L6 (2026-11-10): Stock por forma de pago: transferencia descuenta al confirmar; efectivo descuenta al pasar a entregado (y se ajusta al cancelar/reabrir según corresponda).
+
+- L7 (2026-11-10): T6 verificada y confirmada por el usuario. Funcionalidad de pago/comprobante y regla de stock por forma de pago OK.
