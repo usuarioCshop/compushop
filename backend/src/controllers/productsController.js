@@ -20,7 +20,7 @@ function slugify(text) {
 // GET /api/products
 async function getAll(req, res) {
   try {
-    const { category, search, active, page = 1, limit = 20, promo_first } = req.query;
+    const { category, search, active, page = 1, limit = 20, promo_first, minPrice, maxPrice, min_price, max_price } = req.query;
     const take = parseInt(limit);
     const pageNum = parseInt(page);
 
@@ -29,6 +29,10 @@ async function getAll(req, res) {
     if (promo_first === '1' || promo_first === 'true') {
       const conditions = ['1=1'];
       const params = [];
+      const minPriceVal = minPrice ?? min_price;
+      const maxPriceVal = maxPrice ?? max_price;
+      const minNum = minPriceVal !== undefined && minPriceVal !== '' ? Number(minPriceVal) : NaN;
+      const maxNum = maxPriceVal !== undefined && maxPriceVal !== '' ? Number(maxPriceVal) : NaN;
 
       if (active !== 'all') {
         conditions.push('p.is_active = true');
@@ -44,6 +48,16 @@ async function getAll(req, res) {
         conditions.push(
           `(p.name ILIKE $${params.length} OR p.description ILIKE $${params.length} OR p.brand ILIKE $${params.length})`
         );
+      }
+
+      if (Number.isFinite(minNum)) {
+        params.push(minNum);
+        conditions.push(`p.price >= $${params.length}`);
+      }
+
+      if (Number.isFinite(maxNum)) {
+        params.push(maxNum);
+        conditions.push(`p.price <= $${params.length}`);
       }
 
       const from = `
@@ -83,6 +97,10 @@ async function getAll(req, res) {
     // SELECT, que se rompía con solo tocar la lista de columnas.
     const conditions = ['1=1'];
     const params = [];
+    const minPriceVal = minPrice ?? min_price;
+    const maxPriceVal = maxPrice ?? max_price;
+    const minNum = minPriceVal !== undefined && minPriceVal !== '' ? Number(minPriceVal) : NaN;
+    const maxNum = maxPriceVal !== undefined && maxPriceVal !== '' ? Number(maxPriceVal) : NaN;
 
     if (active !== 'all') {
       conditions.push('p.is_active = true');
@@ -100,6 +118,16 @@ async function getAll(req, res) {
       conditions.push(
         `(p.name ILIKE $${params.length} OR p.description ILIKE $${params.length} OR p.brand ILIKE $${params.length})`
       );
+    }
+
+    if (Number.isFinite(minNum)) {
+      params.push(minNum);
+      conditions.push(`p.price >= $${params.length}`);
+    }
+
+    if (Number.isFinite(maxNum)) {
+      params.push(maxNum);
+      conditions.push(`p.price <= $${params.length}`);
     }
 
     const from = `

@@ -25,8 +25,14 @@ export default function Products() {
   const [params, setParams] = useSearchParams();
   const category = params.get('category') || '';
   const search = params.get('search') || '';
+  const minPrice = params.get('minPrice') || '';
+  const maxPrice = params.get('maxPrice') || '';
   const [searchInput, setSearchInput] = useState(search);
+  const [minPriceInput, setMinPriceInput] = useState(minPrice);
+  const [maxPriceInput, setMaxPriceInput] = useState(maxPrice);
   const debouncedSearch = useDebounce(searchInput, 400);
+  const debouncedMinPrice = useDebounce(minPriceInput, 400);
+  const debouncedMaxPrice = useDebounce(maxPriceInput, 400);
   const loaderRef = useRef(null);
 
   useEffect(() => {
@@ -35,13 +41,11 @@ export default function Products() {
 
   useEffect(() => {
     const next = new URLSearchParams(params);
-    if (debouncedSearch) {
-      next.set('search', debouncedSearch);
-    } else {
-      next.delete('search');
-    }
+    if (debouncedSearch) next.set('search', debouncedSearch); else next.delete('search');
+    if (debouncedMinPrice !== '') next.set('minPrice', debouncedMinPrice); else next.delete('minPrice');
+    if (debouncedMaxPrice !== '') next.set('maxPrice', debouncedMaxPrice); else next.delete('maxPrice');
     setParams(next, { replace: true });
-  }, [debouncedSearch]);
+  }, [debouncedSearch, debouncedMinPrice, debouncedMaxPrice]);
 
   const fetchPage = useCallback(async (pageNum) => {
     setLoading(true);
@@ -51,6 +55,8 @@ export default function Products() {
       const q = new URLSearchParams();
       if (category) q.set('category', category);
       if (search) q.set('search', search);
+      if (minPrice) q.set('minPrice', minPrice);
+      if (maxPrice) q.set('maxPrice', maxPrice);
       q.set('limit', String(PAGE_SIZE));
       q.set('page', String(pageNum));
       q.set('promo_first', '1');
@@ -72,13 +78,13 @@ export default function Products() {
     } finally {
       setLoading(false);
     }
-  }, [category, search]);
+  }, [category, search, minPrice, maxPrice]);
 
   useEffect(() => {
     setPage(1);
     setHasMore(true);
     fetchPage(1);
-  }, [category, search, fetchPage]);
+  }, [category, search, minPrice, maxPrice, fetchPage]);
 
   useEffect(() => {
     const el = loaderRef.current;
@@ -138,13 +144,35 @@ export default function Products() {
             borderRadius="md"
           />
         </InputGroup>
-        {(category || search) && (
+        <HStack spacing={2}>
+          <Input
+            type="number"
+            min={0}
+            placeholder="Precio mín."
+            value={minPriceInput}
+            onChange={(e) => setMinPriceInput(e.target.value)}
+            maxW="140px"
+            bg="bg.surface"
+            borderRadius="md"
+          />
+          <Input
+            type="number"
+            min={0}
+            placeholder="Precio máx."
+            value={maxPriceInput}
+            onChange={(e) => setMaxPriceInput(e.target.value)}
+            maxW="140px"
+            bg="bg.surface"
+            borderRadius="md"
+          />
+        </HStack>
+        {(category || search || minPrice || maxPrice) && (
           <Button
             variant="ghost"
             leftIcon={<FiX />}
             size="sm"
             color="fg.muted"
-            onClick={() => { setSearchInput(''); setParams({}); }}
+            onClick={() => { setSearchInput(''); setMinPriceInput(''); setMaxPriceInput(''); setParams({}); }}
           >
             Limpiar
           </Button>
@@ -164,7 +192,7 @@ export default function Products() {
           title="Sin resultados"
           description="Ningún producto coincide con los filtros aplicados. Probá otra búsqueda o limpiá los filtros."
           actionLabel="Limpiar filtros"
-          onAction={() => { setSearchInput(''); setParams({}); }}
+          onAction={() => { setSearchInput(''); setMinPriceInput(''); setMaxPriceInput(''); setParams({}); }}
         />
       ) : (
         <>
