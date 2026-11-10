@@ -20,6 +20,9 @@ async function create(req, res) {
       customer_name,
       customer_email,
       customer_phone,
+      payment_method,
+      payment_receipt_url,
+      payment_receipt_pending,
     } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -28,6 +31,17 @@ async function create(req, res) {
 
     if (!customer_name || !customer_email) {
       return res.status(400).json({ error: 'Nombre y email del cliente son obligatorios' });
+    }
+
+    const allowedMethods = ['transferencia', 'efectivo'];
+    if (!payment_method || !allowedMethods.includes(payment_method)) {
+      return res.status(400).json({ error: 'Seleccioná una forma de pago válida' });
+    }
+
+    const receiptPending = payment_method === 'transferencia' ? !!payment_receipt_pending : false;
+    const receiptUrl = payment_method === 'transferencia' && payment_receipt_url ? String(payment_receipt_url) : null;
+    if (payment_method === 'transferencia' && !receiptUrl && !receiptPending) {
+      return res.status(400).json({ error: 'Subí el comprobante o marcá que no se pudo subir' });
     }
 
     // La tabla tiene un CHECK que solo acepta 'product' o 'service'. Sin esta
@@ -46,10 +60,10 @@ async function create(req, res) {
     // partiría la transacción en dos.
     const orderId = await db.transaction(async (tx) => {
       const insertedOrder = await tx.prepare(`
-        INSERT INTO orders (order_number, status, total, shipping_address, notes, customer_name, customer_email, customer_phone, user_id)
-        VALUES ($1, 'confirmed', $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO orders (order_number, status, total, shipping_address, notes, customer_name, customer_email, customer_phone, user_id, payment_method, payment_receipt_url, payment_receipt_pending)
+        VALUES ($1, 'confirmed', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id
-      `).run(orderNumber, total, shipping_address || null, notes || null, customer_name, customer_email, customer_phone || null, userId);
+      `).run(orderNumber, total, shipping_address || null, notes || null, customer_name, customer_email, customer_phone || null, userId, payment_method, receiptUrl, receiptPending);
 
       const newOrderId = insertedOrder.rows[0].id;
 

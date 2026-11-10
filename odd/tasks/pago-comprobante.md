@@ -15,10 +15,10 @@ Permitir elegir forma de pago (Transferencia / Efectivo) en el carrito, mostrar 
 - [x] T0.a | Entorno: `.env` local apuntando a rama test (`ep-odd-tree-b6vi1fsh`) — app y unpooled. Backend reiniciado y verificado en test (2026-11-10).
 - [x] T0.b | Decisiones D1–D3 cerradas con el usuario.
 - [x] T1 | Migración DB (test): agregados en `orders` `payment_method` (CHECK transferencia|efectivo), `payment_receipt_url` (TEXT nullable) y `payment_receipt_pending` (boolean NOT NULL DEFAULT false). Aplicada con `npm run migrate` en rama test (2026-11-10). (Producción: al deploy, autorizado por el usuario.)
-- [ ] T2 | Backend: upload de comprobante para checkout (público/optionalAuth, validación tipo imagen/PDF y tamaño), reutilizando Vercel Blob / `/uploads`. Actual `/api/upload` es admin-only e imagen-only.
-- [ ] T3 | Backend: `ordersController.create` acepta/valida/persiste `payment_method`, `payment_receipt_url`, `payment_receipt_pending` según D1/D3; exponerlos en respuestas.
-- [ ] T4 | Frontend `Cart.jsx`: select forma de pago; si Transferencia mostrar alias "ALIAS DEL CBU compushopvo.mp", upload (img/PDF) y checkbox "No se pudo subir el comprobante" (comprobante no obligatorio). Enviar datos en `POST /orders`.
-- [ ] T5 | Admin: mostrar forma de pago, comprobante (link/preview si imagen; link si PDF) y estado "comprobante pendiente/no subido" en detalle de pedido.
+- [x] T2 | Backend: upload de comprobante para checkout (público/optionalAuth, validación tipo imagen/PDF y tamaño), reutilizando Vercel Blob / `/uploads`. Actual `/api/upload` es admin-only e imagen-only.
+- [x] T3 | Backend: `ordersController.create` acepta/valida/persiste `payment_method`, `payment_receipt_url`, `payment_receipt_pending` según D1/D3; exponerlos en respuestas.
+- [x] T4 | Frontend `Cart.jsx`: select forma de pago; si Transferencia mostrar alias "ALIAS DEL CBU compushopvo.mp", upload (img/PDF) y checkbox "No se pudo subir el comprobante" (comprobante no obligatorio). Enviar datos en `POST /orders`.
+- [x] T5 | Admin: mostrar forma de pago, comprobante (link/preview si imagen; link si PDF) y estado "comprobante pendiente/no subido" en detalle de pedido.
 - [ ] T6 | Verificación en test (efectivo; transferencia con comprobante; transferencia sin comprobante + checkbox marcado), doc/log y commit.
 
 ## Riesgos / notas
@@ -34,3 +34,5 @@ Permitir elegir forma de pago (Transferencia / Efectivo) en el carrito, mostrar 
 - L3 (2026-11-10): T1 en progreso: creada `backend/src/db/migrations/008_order_payment.sql`. `npm run migrate` falló porque `DATABASE_URL_UNPOOLED` en `.env` no es una URL válida (la app usa `DATABASE_URL` pooled y está OK en test). Requiere corregir `DATABASE_URL_UNPOOLED` a la URL directa de `ep-odd-tree-b6vi1fsh` y reintentar.
 
 - L4 (2026-11-10): T1 completada. Migración `008_order_payment.sql` aplicada en test (ep-odd-tree-b6vi1fsh).
+
+- L5 (2026-11-10): T2-T5 implementadas (upload /api/upload/receipt img+PDF; orders create persiste metodo/comprobante/pendiente; Cart con select/alias/upload/checkbox; AdminOrders muestra pago y comprobante). Pendiente T6 verificación manual en test.
