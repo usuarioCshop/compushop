@@ -74,6 +74,7 @@ async function create(req, res) {
       const updateStock = tx.prepare(
         'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $3'
       );
+      const decrementOnCreate = payment_method === 'transferencia';
 
       for (const item of items) {
         const productId = item.type === 'product' ? item.id : null;
@@ -81,8 +82,8 @@ async function create(req, res) {
 
         await insertItem.run(newOrderId, productId, serviceId, item.name, item.price, item.quantity, item.type);
 
-        // Descontar stock solo de productos
-        if (item.type === 'product') {
+        // Transferencia: descuenta stock al confirmar. Efectivo: se descuenta al entregar.
+        if (item.type === 'product' && decrementOnCreate) {
           const info = await updateStock.run(item.quantity, item.id, item.quantity);
           if (info.changes === 0) {
             throw new Error(`Stock insuficiente para: ${item.name}`);
@@ -200,15 +201,19 @@ async function updateStatus(req, res) {
       return res.json({ message: 'Estado actualizado', order });
     }
 
-    // El descuento de stock pasa adentro de create(), al confirmar. Cancelar
-    // tiene que devolverlo y reabrir tiene que volver a reservarlo: si sólo
-    // repusiéramos al cancelar, reabrir una orden dejaría el stock inflado y
-    // crearíamos otro bug en lugar de cerrar este.
-    const haciaCancelado = status === 'cancelled';
-    const desdeCancelado = order.status === 'cancelled';
+    // Transferencia/legado: el stock se descuenta al crear y se ajusta al cancelar/reabrir.
+    // Efectivo: no se descuenta al crear; se descuenta al pasar a "delivered" y se devuelve
+    // si un pedido entregado se cancela.
+    const isEfectivo = order.payment_method === 'efectivo';
+    const doDecrement = isEfectivo
+      ? (status === 'delivered' && order.status !== 'delivered')
+      : (order.status === 'cancelled' && status !== 'cancelled');
+    const doRestore = isEfectivo
+      ? (order.status === 'delivered' && status === 'cancelled')
+      : (status === 'cancelled' && order.status !== 'cancelled');
 
     const updated = await db.transaction(async (tx) => {
-      // Compare-and-swap sobre el estado anterior: dos admins cancelando a la
+      // Compare-and-swap sobre el estado anterior: dos admins cambiando a la
       // vez sólo uno gana, así el stock se mueve UNA sola vez.
       const claimed = await tx.prepare(
         'UPDATE orders SET status = $1 WHERE id = $2 AND status = $3 RETURNING id'
@@ -220,26 +225,24 @@ async function updateStatus(req, res) {
         throw err;
       }
 
-      // Sólo 'product' lleva stock; create() no descuenta los 'service'.
-      // Una transición que no entra ni sale de 'cancelled' no mueve nada.
-      if (haciaCancelado || desdeCancelado) {
+      if (doDecrement || doRestore) {
         const items = await tx.prepare(
           "SELECT product_id, quantity FROM order_items WHERE order_id = $1 AND type = 'product' AND product_id IS NOT NULL"
         ).all(id);
 
         for (const item of items) {
-          if (haciaCancelado) {
+          if (doRestore) {
             await tx.prepare('UPDATE products SET stock = stock + $1 WHERE id = $2')
               .run(item.quantity, item.product_id);
           } else {
-            // El CHECK (stock >= 0) del esquema es la última red de seguridad;
-            // acá evitamos igual llegar a él y que reviente un 500.
             const info = await tx.prepare(
               'UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1'
             ).run(item.quantity, item.product_id);
 
             if (info.changes === 0) {
-              const err = new Error('No hay stock suficiente para reabrir este pedido: otro pedido ya reservó esas unidades');
+              const err = new Error(isEfectivo
+                ? 'No hay stock suficiente para entregar este pedido'
+                : 'No hay stock suficiente para reabrir este pedido: otro pedido ya reservó esas unidades');
               err.httpStatus = 409;
               throw err;
             }

@@ -36,3 +36,5 @@ Permitir elegir forma de pago (Transferencia / Efectivo) en el carrito, mostrar 
 - L4 (2026-11-10): T1 completada. Migración `008_order_payment.sql` aplicada en test (ep-odd-tree-b6vi1fsh).
 
 - L5 (2026-11-10): T2-T5 implementadas (upload /api/upload/receipt img+PDF; orders create persiste metodo/comprobante/pendiente; Cart con select/alias/upload/checkbox; AdminOrders muestra pago y comprobante). Pendiente T6 verificación manual en test.
+
+- L6 (2026-11-10): Stock por forma de pago: transferencia descuenta al confirmar; efectivo descuenta al pasar a entregado (y se ajusta al cancelar/reabrir según corresponda).
