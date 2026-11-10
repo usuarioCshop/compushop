@@ -186,8 +186,18 @@ export default function Cart() {
               </Select>
             </FormControl>
             {form.payment_method === 'transferencia' && (
-              <Box w="100%" p={3} borderWidth="1px" borderColor="border.subtle" borderRadius="md" bg="bg.subtle">
-                <Text fontSize="sm" fontWeight="600" mb={2}>ALIAS DEL CBU compushopvo.mp</Text>
+              <Box w="100%" p={3} borderWidth="1px" borderColor="accent.200" borderRadius="md" bg="bg.subtle" _dark={{ borderColor: 'accent.600' }}>
+                <Text fontSize="xs" color="fg.muted" mb={1}>Alias CBU</Text>
+                <Text
+                  fontSize="lg"
+                  fontWeight="800"
+                  color="accent.600"
+                  letterSpacing="0.02em"
+                  mb={3}
+                  _dark={{ color: 'accent.300' }}
+                >
+                  ALIAS DEL CBU compushopvo.mp
+                </Text>
                 <FormControl mb={2}>
                   <FormLabel fontSize="sm">Comprobante (imagen o PDF)</FormLabel>
                   <Input
@@ -204,15 +214,22 @@ export default function Cart() {
                   )}
                 </FormControl>
                 <Checkbox
-                  size="sm"
+                  colorScheme="accent"
                   isChecked={form.payment_receipt_pending}
                   onChange={(e) => setForm((f) => ({
                     ...f,
                     payment_receipt_pending: e.target.checked,
                     payment_receipt_url: e.target.checked ? '' : f.payment_receipt_url,
                   }))}
+                  sx={{
+                    '.chakra-checkbox__control': {
+                      borderWidth: '2px',
+                      borderColor: 'gray.400',
+                      _dark: { borderColor: 'accent.300', bg: 'whiteAlpha.100' },
+                    },
+                  }}
                 >
-                  No se pudo subir el comprobante
+                  <Text fontSize="sm" fontWeight="600" color="fg.default">No se pudo subir el comprobante</Text>
                 </Checkbox>
               </Box>
             )}
