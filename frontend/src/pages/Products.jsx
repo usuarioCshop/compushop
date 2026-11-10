@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Container, Heading, Select, Input, HStack, InputGroup, InputLeftElement, Icon,
-  Spinner, Center, Text, Button, Flex, Grid, GridItem, VStack,
+  Spinner, Center, Text, Button, Flex, Grid, GridItem, VStack, Box,
+  RangeSlider, RangeSliderTrack, RangeSliderFilledTrack, RangeSliderThumb,
 } from '@chakra-ui/react';
 import { FiSearch, FiX } from 'react-icons/fi';
 import { useSearchParams } from 'react-router-dom';
@@ -13,6 +14,10 @@ import EmptyState from '../components/EmptyState';
 import useDebounce from '../hooks/useDebounce';
 
 const PAGE_SIZE = 40;
+const PRICE_SLIDER_MAX = 5000000;
+const PRICE_STEP = 5000;
+
+const formatPrice = (value) => `$${Number(value || 0).toLocaleString('es-AR')}`;
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -28,12 +33,20 @@ export default function Products() {
   const minPrice = params.get('minPrice') || '';
   const maxPrice = params.get('maxPrice') || '';
   const [searchInput, setSearchInput] = useState(search);
-  const [minPriceInput, setMinPriceInput] = useState(minPrice);
-  const [maxPriceInput, setMaxPriceInput] = useState(maxPrice);
+  const [priceRange, setPriceRange] = useState([
+    minPrice ? Math.min(Math.max(Number(minPrice), 0), PRICE_SLIDER_MAX) : 0,
+    maxPrice ? Math.min(Math.max(Number(maxPrice), 0), PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX,
+  ]);
   const debouncedSearch = useDebounce(searchInput, 400);
-  const debouncedMinPrice = useDebounce(minPriceInput, 400);
-  const debouncedMaxPrice = useDebounce(maxPriceInput, 400);
+  const debouncedPriceRange = useDebounce(priceRange, 400);
   const loaderRef = useRef(null);
+
+  useEffect(() => {
+    setPriceRange([
+      minPrice ? Math.min(Math.max(Number(minPrice), 0), PRICE_SLIDER_MAX) : 0,
+      maxPrice ? Math.min(Math.max(Number(maxPrice), 0), PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX,
+    ]);
+  }, [minPrice, maxPrice]);
 
   useEffect(() => {
     api.get('/categories').then(r => setCategories(r.data.categories || [])).catch(console.error);
@@ -42,10 +55,11 @@ export default function Products() {
   useEffect(() => {
     const next = new URLSearchParams(params);
     if (debouncedSearch) next.set('search', debouncedSearch); else next.delete('search');
-    if (debouncedMinPrice !== '') next.set('minPrice', debouncedMinPrice); else next.delete('minPrice');
-    if (debouncedMaxPrice !== '') next.set('maxPrice', debouncedMaxPrice); else next.delete('maxPrice');
+    const [minVal, maxVal] = debouncedPriceRange;
+    if (minVal > 0) next.set('minPrice', String(minVal)); else next.delete('minPrice');
+    if (maxVal < PRICE_SLIDER_MAX) next.set('maxPrice', String(maxVal)); else next.delete('maxPrice');
     setParams(next, { replace: true });
-  }, [debouncedSearch, debouncedMinPrice, debouncedMaxPrice]);
+  }, [debouncedSearch, debouncedPriceRange]);
 
   const fetchPage = useCallback(async (pageNum) => {
     setLoading(true);
@@ -144,35 +158,36 @@ export default function Products() {
             borderRadius="md"
           />
         </InputGroup>
-        <HStack spacing={2}>
-          <Input
-            type="number"
+        <Box minW={{ base: '100%', md: '280px' }} maxW="360px" px={1}>
+          <HStack justify="space-between" mb={1}>
+            <Text fontSize="sm" color="fg.muted">Rango de precio</Text>
+            <Text fontSize="sm" fontWeight="600" color="fg.default">
+              {formatPrice(priceRange[0])} - {formatPrice(priceRange[1])}
+            </Text>
+          </HStack>
+          <RangeSlider
+            aria-label={['Precio mínimo', 'Precio máximo']}
             min={0}
-            placeholder="Precio mín."
-            value={minPriceInput}
-            onChange={(e) => setMinPriceInput(e.target.value)}
-            maxW="140px"
-            bg="bg.surface"
-            borderRadius="md"
-          />
-          <Input
-            type="number"
-            min={0}
-            placeholder="Precio máx."
-            value={maxPriceInput}
-            onChange={(e) => setMaxPriceInput(e.target.value)}
-            maxW="140px"
-            bg="bg.surface"
-            borderRadius="md"
-          />
-        </HStack>
+            max={PRICE_SLIDER_MAX}
+            step={PRICE_STEP}
+            value={priceRange}
+            onChange={(val) => setPriceRange(val)}
+            colorScheme="brand"
+          >
+            <RangeSliderTrack bg="border.subtle">
+              <RangeSliderFilledTrack />
+            </RangeSliderTrack>
+            <RangeSliderThumb index={0} boxSize={4} />
+            <RangeSliderThumb index={1} boxSize={4} />
+          </RangeSlider>
+        </Box>
         {(category || search || minPrice || maxPrice) && (
           <Button
             variant="ghost"
             leftIcon={<FiX />}
             size="sm"
             color="fg.muted"
-            onClick={() => { setSearchInput(''); setMinPriceInput(''); setMaxPriceInput(''); setParams({}); }}
+            onClick={() => { setSearchInput(''); setPriceRange([0, PRICE_SLIDER_MAX]); setParams({}); }}
           >
             Limpiar
           </Button>
@@ -192,7 +207,7 @@ export default function Products() {
           title="Sin resultados"
           description="Ningún producto coincide con los filtros aplicados. Probá otra búsqueda o limpiá los filtros."
           actionLabel="Limpiar filtros"
-          onAction={() => { setSearchInput(''); setMinPriceInput(''); setMaxPriceInput(''); setParams({}); }}
+          onAction={() => { setSearchInput(''); setPriceRange([0, PRICE_SLIDER_MAX]); setParams({}); }}
         />
       ) : (
         <>
