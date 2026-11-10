@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
   Box, Container, Heading, VStack, HStack, Text, Button, Image, IconButton,
-  Divider, Input, FormControl, FormLabel, useToast, NumberInput, NumberInputField, NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper,
+  Divider, Input, FormControl, FormLabel, useToast, NumberInput, NumberInputField,
+  NumberInputStepper, NumberIncrementStepper, NumberDecrementStepper, Select, Checkbox,
 } from '@chakra-ui/react';
 import { FiTrash2, FiShoppingCart } from 'react-icons/fi';
 import { useCart } from '../context/CartContext';
@@ -21,24 +22,70 @@ export default function Cart() {
   const navigate = useNavigate();
   const bg = 'bg.surface';
   const [loading, setLoading] = useState(false);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [receiptFileName, setReceiptFileName] = useState('');
   const [form, setForm] = useState({
     customer_name: user?.name || '',
     customer_email: user?.email || '',
     customer_phone: user?.phone || '',
     shipping_address: user?.address || '',
     notes: '',
+    payment_method: 'efectivo',
+    payment_receipt_url: '',
+    payment_receipt_pending: false,
   });
+
+  const handleReceiptUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const okType = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'].includes(file.type);
+    if (!okType) {
+      toast({ title: 'Formato no permitido', description: 'Subí una imagen (jpg, png, webp, gif) o PDF', status: 'warning' });
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'Archivo muy grande', description: 'Máximo 5 MB', status: 'warning' });
+      e.target.value = '';
+      return;
+    }
+    setUploadingReceipt(true);
+    try {
+      const fd = new FormData();
+      fd.append('receipt', file);
+      const { data } = await api.post('/upload/receipt', fd, { headers: { 'Content-Type': undefined } });
+      setForm((f) => ({ ...f, payment_receipt_url: data.url, payment_receipt_pending: false }));
+      setReceiptFileName(file.name);
+      toast({ title: 'Comprobante cargado', status: 'success' });
+    } catch (err) {
+      toast({ title: 'No se pudo subir', description: err.response?.data?.error || err.message, status: 'error' });
+      e.target.value = '';
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
 
   const handleConfirm = async () => {
     if (!form.customer_name || !form.customer_email) {
       toast({ title: 'Completá nombre y email', status: 'warning' });
       return;
     }
+    if (form.payment_method === 'transferencia' && !form.payment_receipt_url && !form.payment_receipt_pending) {
+      toast({ title: 'Comprobante requerido', description: 'Subí el comprobante o marcá que no se pudo subir', status: 'warning' });
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await api.post('/orders', {
         items: items.map(i => ({ id: i.id, name: i.name, price: i.price, quantity: i.quantity, type: i.type })),
-        ...form,
+        customer_name: form.customer_name,
+        customer_email: form.customer_email,
+        customer_phone: form.customer_phone,
+        shipping_address: form.shipping_address,
+        notes: form.notes,
+        payment_method: form.payment_method,
+        payment_receipt_url: form.payment_method === 'transferencia' ? (form.payment_receipt_url || null) : null,
+        payment_receipt_pending: form.payment_method === 'transferencia' ? !!form.payment_receipt_pending : false,
       });
       clearCart();
       toast({ title: '¡Pedido confirmado!', description: `Nº ${data.order.order_number}`, status: 'success', duration: 5000 });
@@ -122,6 +169,70 @@ export default function Cart() {
               <FormLabel fontSize="sm">Dirección de envío</FormLabel>
               <Input size="sm" value={form.shipping_address} onChange={e => setForm({ ...form, shipping_address: e.target.value })} />
             </FormControl>
+            <FormControl isRequired>
+              <FormLabel fontSize="sm">Forma de pago</FormLabel>
+              <Select
+                size="sm"
+                value={form.payment_method}
+                onChange={e => setForm((f) => ({
+                  ...f,
+                  payment_method: e.target.value,
+                  payment_receipt_url: '',
+                  payment_receipt_pending: false,
+                }))}
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+              </Select>
+            </FormControl>
+            {form.payment_method === 'transferencia' && (
+              <Box w="100%" p={3} borderWidth="1px" borderColor="accent.200" borderRadius="md" bg="bg.subtle" _dark={{ borderColor: 'accent.600' }}>
+                <Text fontSize="xs" color="fg.muted" mb={1}>Alias CBU</Text>
+                <Text
+                  fontSize="lg"
+                  fontWeight="800"
+                  color="accent.600"
+                  letterSpacing="0.02em"
+                  mb={3}
+                  _dark={{ color: 'accent.300' }}
+                >
+                  ALIAS DEL CBU compushopvo.mp
+                </Text>
+                <FormControl mb={2}>
+                  <FormLabel fontSize="sm">Comprobante (imagen o PDF)</FormLabel>
+                  <Input
+                    size="sm"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                    onChange={handleReceiptUpload}
+                    isDisabled={form.payment_receipt_pending || uploadingReceipt}
+                    p={1}
+                  />
+                  {uploadingReceipt && <Text fontSize="xs" color="fg.muted" mt={1}>Subiendo comprobante...</Text>}
+                  {form.payment_receipt_url && !uploadingReceipt && (
+                    <Text fontSize="xs" color="green.500" mt={1}>Comprobante cargado: {receiptFileName || 'archivo'}</Text>
+                  )}
+                </FormControl>
+                <Checkbox
+                  colorScheme="accent"
+                  isChecked={form.payment_receipt_pending}
+                  onChange={(e) => setForm((f) => ({
+                    ...f,
+                    payment_receipt_pending: e.target.checked,
+                    payment_receipt_url: e.target.checked ? '' : f.payment_receipt_url,
+                  }))}
+                  sx={{
+                    '.chakra-checkbox__control': {
+                      borderWidth: '2px',
+                      borderColor: 'gray.400',
+                      _dark: { borderColor: 'accent.300', bg: 'whiteAlpha.100' },
+                    },
+                  }}
+                >
+                  <Text fontSize="sm" fontWeight="600" color="fg.default">No se pudo subir el comprobante</Text>
+                </Checkbox>
+              </Box>
+            )}
             <FormControl>
               <FormLabel fontSize="sm">Notas</FormLabel>
               <Input size="sm" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />

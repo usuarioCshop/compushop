@@ -48,6 +48,16 @@ const imageUpload = multer({
   },
 });
 
+const receiptUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /image\/(jpeg|jpg|png|webp|gif)/.test(file.mimetype) || file.mimetype === 'application/pdf';
+    if (!ok) return cb(new Error('Solo se permiten imágenes (jpg, png, webp, gif) o PDF'));
+    cb(null, true);
+  },
+});
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -139,6 +149,31 @@ router.post('/upload', authenticate, requireAdmin, imageUpload.single('image'), 
       return res.json({ url: blob.url });
     }
     // Fallback local: disco (en Vercel /tmp, efimero pero no tumba la app).
+    ensureUploadsDir();
+    await fs.promises.writeFile(path.join(uploadDir, name), req.file.buffer);
+    res.json({ url: `/uploads/${name}` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Upload de comprobante de pago (checkout, público). Imagen o PDF.
+router.post('/upload/receipt', optionalAuth, receiptUpload.single('receipt'), async (req, res, next) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se envió ningún comprobante' });
+  }
+  const ext = path.extname(req.file.originalname).toLowerCase() || (req.file.mimetype === 'application/pdf' ? '.pdf' : '');
+  const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+  try {
+    if (UPLOADS_ON_BLOB) {
+      const { put } = require('@vercel/blob');
+      const blob = await put(`receipts/${name}`, req.file.buffer, {
+        access: 'public',
+        contentType: req.file.mimetype,
+        addRandomSuffix: true,
+      });
+      return res.json({ url: blob.url });
+    }
     ensureUploadsDir();
     await fs.promises.writeFile(path.join(uploadDir, name), req.file.buffer);
     res.json({ url: `/uploads/${name}` });
