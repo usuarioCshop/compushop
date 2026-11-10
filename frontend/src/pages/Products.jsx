@@ -14,10 +14,15 @@ import EmptyState from '../components/EmptyState';
 import useDebounce from '../hooks/useDebounce';
 
 const PAGE_SIZE = 40;
-const PRICE_SLIDER_MAX = 5000000;
-const PRICE_STEP = 5000;
+const FALLBACK_MAX = 5000000;
 
 const formatPrice = (value) => `$${Number(value || 0).toLocaleString('es-AR')}`;
+const calcStep = (min, max) => {
+  const span = Math.max(0, Number(max) - Number(min));
+  if (span <= 0) return 1;
+  const raw = Math.pow(10, Math.floor(Math.log10(span)) - 1);
+  return Math.max(1000, raw);
+};
 
 export default function Products() {
   const [products, setProducts] = useState([]);
@@ -33,20 +38,28 @@ export default function Products() {
   const minPrice = params.get('minPrice') || '';
   const maxPrice = params.get('maxPrice') || '';
   const [searchInput, setSearchInput] = useState(search);
+  const [bounds, setBounds] = useState({ min: 0, max: FALLBACK_MAX });
   const [priceRange, setPriceRange] = useState([
-    minPrice ? Math.min(Math.max(Number(minPrice), 0), PRICE_SLIDER_MAX) : 0,
-    maxPrice ? Math.min(Math.max(Number(maxPrice), 0), PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX,
+    minPrice ? Number(minPrice) : 0,
+    maxPrice ? Number(maxPrice) : FALLBACK_MAX,
   ]);
   const debouncedSearch = useDebounce(searchInput, 400);
   const debouncedPriceRange = useDebounce(priceRange, 400);
   const loaderRef = useRef(null);
 
   useEffect(() => {
-    setPriceRange([
-      minPrice ? Math.min(Math.max(Number(minPrice), 0), PRICE_SLIDER_MAX) : 0,
-      maxPrice ? Math.min(Math.max(Number(maxPrice), 0), PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX,
-    ]);
-  }, [minPrice, maxPrice]);
+    const bMin = Number(bounds.min) || 0;
+    const bMax = Number(bounds.max) || 0;
+    const hi = bMax >= bMin ? bMax : bMin;
+    setPriceRange((prev) => {
+      const wantMin = minPrice !== '' ? Number(minPrice) : bMin;
+      const wantMax = maxPrice !== '' ? Number(maxPrice) : hi;
+      const nextMin = Math.min(Math.max(wantMin, bMin), hi);
+      const nextMax = Math.min(Math.max(wantMax, bMin), hi);
+      const safe = nextMax >= nextMin ? [nextMin, nextMax] : [nextMin, nextMin];
+      return prev[0] === safe[0] && prev[1] === safe[1] ? prev : safe;
+    });
+  }, [bounds, minPrice, maxPrice]);
 
   useEffect(() => {
     api.get('/categories').then(r => setCategories(r.data.categories || [])).catch(console.error);
@@ -56,10 +69,12 @@ export default function Products() {
     const next = new URLSearchParams(params);
     if (debouncedSearch) next.set('search', debouncedSearch); else next.delete('search');
     const [minVal, maxVal] = debouncedPriceRange;
-    if (minVal > 0) next.set('minPrice', String(minVal)); else next.delete('minPrice');
-    if (maxVal < PRICE_SLIDER_MAX) next.set('maxPrice', String(maxVal)); else next.delete('maxPrice');
+    const bMin = Number(bounds.min) || 0;
+    const bMax = Number(bounds.max) || 0;
+    if (minVal > bMin) next.set('minPrice', String(minVal)); else next.delete('minPrice');
+    if (maxVal < bMax) next.set('maxPrice', String(maxVal)); else next.delete('maxPrice');
     setParams(next, { replace: true });
-  }, [debouncedSearch, debouncedPriceRange]);
+  }, [debouncedSearch, debouncedPriceRange, bounds]);
 
   const fetchPage = useCallback(async (pageNum) => {
     setLoading(true);
@@ -81,6 +96,11 @@ export default function Products() {
 
       setPagination(pag);
       setHasMore(pageNum < pag.pages);
+      if (res.data.priceBounds) {
+        const bMin = Number(res.data.priceBounds.min) || 0;
+        const bMax = Number(res.data.priceBounds.max) || 0;
+        setBounds({ min: bMin, max: bMax >= bMin ? bMax : bMin });
+      }
 
       setProducts(items);
       setPage(pageNum);
@@ -167,11 +187,12 @@ export default function Products() {
           </HStack>
           <RangeSlider
             aria-label={['Precio mínimo', 'Precio máximo']}
-            min={0}
-            max={PRICE_SLIDER_MAX}
-            step={PRICE_STEP}
+            min={Number(bounds.min) || 0}
+            max={Math.max(Number(bounds.max) || 0, (Number(bounds.min) || 0) + 1)}
+            step={calcStep(bounds.min, bounds.max)}
             value={priceRange}
             onChange={(val) => setPriceRange(val)}
+            isDisabled={(Number(bounds.max) || 0) <= (Number(bounds.min) || 0)}
             colorScheme="brand"
           >
             <RangeSliderTrack bg="border.subtle">
@@ -187,7 +208,7 @@ export default function Products() {
             leftIcon={<FiX />}
             size="sm"
             color="fg.muted"
-            onClick={() => { setSearchInput(''); setPriceRange([0, PRICE_SLIDER_MAX]); setParams({}); }}
+            onClick={() => { setSearchInput(''); setPriceRange([Number(bounds.min) || 0, Number(bounds.max) || 0]); setParams({}); }}
           >
             Limpiar
           </Button>
@@ -207,7 +228,7 @@ export default function Products() {
           title="Sin resultados"
           description="Ningún producto coincide con los filtros aplicados. Probá otra búsqueda o limpiá los filtros."
           actionLabel="Limpiar filtros"
-          onAction={() => { setSearchInput(''); setPriceRange([0, PRICE_SLIDER_MAX]); setParams({}); }}
+          onAction={() => { setSearchInput(''); setPriceRange([Number(bounds.min) || 0, Number(bounds.max) || 0]); setParams({}); }}
         />
       ) : (
         <>
