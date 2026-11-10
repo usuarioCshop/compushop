@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import {
   Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Select, Badge, Spinner, Center, useToast, Text,
   IconButton, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton,
-  VStack, HStack, Divider, useDisclosure, Checkbox,
+  VStack, HStack, Divider, useDisclosure, Checkbox, Link, Image,
 } from '@chakra-ui/react';
 import { FiEye } from 'react-icons/fi';
 import api from '../../api/client';
+import { resolveUploadUrl } from '../../api/uploads';
 
 const formatPrice = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
 const statuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
@@ -119,6 +120,33 @@ export default function AdminOrders() {
                   <Text fontSize="sm" color="fg.muted">{selectedOrder.customer_email}{selectedOrder.customer_phone ? ` · ${selectedOrder.customer_phone}` : ''}</Text>
                   {selectedOrder.shipping_address && <Text fontSize="sm" mt={1}>Envío: {selectedOrder.shipping_address}</Text>}
                   {selectedOrder.notes && <Text fontSize="sm" color="fg.muted" mt={1}>Notas: {selectedOrder.notes}</Text>}
+                </Box>
+                <Divider />
+                <Box>
+                  <Text fontSize="sm" color="fg.muted">Forma de pago</Text>
+                  <HStack spacing={2} mt={1} flexWrap="wrap">
+                    <Text fontWeight="600" textTransform="capitalize">
+                      {selectedOrder.payment_method === 'transferencia' ? 'Transferencia' : selectedOrder.payment_method === 'efectivo' ? 'Efectivo' : 'No informado'}
+                    </Text>
+                    {selectedOrder.payment_method === 'transferencia' && selectedOrder.payment_receipt_pending && (
+                      <Badge colorScheme="orange" borderRadius="full">Comprobante no subido</Badge>
+                    )}
+                  </HStack>
+                  {selectedOrder.payment_method === 'transferencia' && selectedOrder.payment_receipt_url && (() => {
+                    const url = resolveUploadUrl(selectedOrder.payment_receipt_url);
+                    const isPdf = /\.pdf($|\?)/i.test(selectedOrder.payment_receipt_url);
+                    return (
+                      <Box mt={2}>
+                        {isPdf ? (
+                          <Link href={url} color="brand.500" isExternal fontSize="sm">Ver comprobante (PDF)</Link>
+                        ) : (
+                          <Link href={url} isExternal>
+                            <Image src={url} alt="Comprobante" maxH="180px" borderRadius="md" borderWidth="1px" borderColor="border.subtle" />
+                          </Link>
+                        )}
+                      </Box>
+                    );
+                  })()}
                 </Box>
                 <Divider />
                 <Box>

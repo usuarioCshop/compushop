@@ -92,26 +92,27 @@ commiteado; el estado se puede consultar en cualquier momento en este archivo
 
 
 
-## Checklist T9 (2026-11-07, evidencia estructural + QA visual pendiente del usuario)
+## Checklist T9 (2026-11-07 / 2026-11-10, evidencia estructural + QA visual realizado por el usuario)
 
 ### Entregado y verificado (T4-T8)
 - **Estados vacío:** Cart, Catálogo y Detalle usan `EmptyState`. AdminUsers/Messages/Dashboard usan mensajes inline en tablas (aceptable).
 - **Loading:** spinners/skeletons presentes en páginas entregadas; botones críticos con `isLoading`.
 - **Error:** toasts en operaciones (cart confirm, admin CRUD/import). Faltan estados de error con “Reintentar” dedicados en algunas vistas (gap menor, no introducido por el rediseño).
 - **Imagen alt:** corregido en Cart (auditoría #5). Inputs file ocultos con `hidden` (auditoría #6, Products/Services).
-- **Modo oscuro (tokens):** páginas entregadas usan tokens semánticos (`bg.*`, `fg.*`, `border.*`, `shadow-card`, `gradient-brand`, `_dark` donde aplica). Apariencia real en oscuro: requiere QA visual.
-- **Responsive:** uso de props `base/md/lg` y layout en columna en mobile (ej. Cart). **360px real: requiere QA visual.**
-- **Contraste AA:** no verificable por render automático aquí. **Requiere QA visual/herramienta de contraste.**
+- **Modo oscuro (tokens):** páginas entregadas usan tokens semánticos (`bg.*`, `fg.*`, `border.*`, `shadow-card`, `gradient-brand`, `_dark` donde aplica). **QA visual en modo oscuro: OK (2026-11-10).**
+- **Responsive:** uso de props `base/md/lg` y layout en columna en mobile (ej. Cart). **QA visual 360px real: OK (2026-11-10).**
+- **Contraste AA:** **QA visual/herramienta realizado por el usuario: OK (2026-11-10).**
 
 ### Residuales fuera del alcance de T4-T8 (preexistentes, no regresión)
 - `Navbar.jsx`, `ProductCard.jsx`, `Services.jsx`, `ServiceDetail.jsx`: **resueltos en L14** (alineados al design system; se conservan solo overlays fotográficos).
 - Overlays rgba del hero de Home son intencionales (composición fotográfica, documentado en L8).
 
 ### Conclusión
-- Checklist estructural de lo entregado: **OK con gaps menores** (error+retry dedicado; residual en páginas no tocadas). Contraste AA, 360px y modo oscuro real quedan **pendientes de validación visual del usuario** en `localhost:5173`.
+- Checklist estructural de lo entregado: **OK con gaps menores** (error+retry dedicado; residual en páginas no tocadas). **QA visual final (contraste AA, 360px, modo oscuro) realizado y correcto por el usuario (2026-11-10).** **Merge a `dev2`/`main` realizado y deploy funcionando correctamente (2026-11-10).**
 
 ## Log
 
+- L16 (2026-11-10): Usuario confirma QA visual final correcto (contraste AA, 360px, modo oscuro) y merge a dev2/main + deploy realizado y funcionando correctamente.
 - L1 (2026-11-06): Pedido original: "como crees que deberia seguir para entrar a trabajar con la estetica y diseño del frontend"
 - L2 (2026-11-06): Se propuso secuencia de 5 etapas (auditar → marca → design system → reemplazar → checklist); el usuario está completamente de acuerdo.
 - L3 (2026-11-06): Solicitud de seguimiento: lista de tareas con esos puntos para ir avanzando de a uno, consultable en cualquier momento. Este archivo es la fuente de verdad del estado; mirror en Engram (`odd/frontend-rediseno/tasks`).
