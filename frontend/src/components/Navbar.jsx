@@ -4,7 +4,7 @@ import {
   useDisclosure, Drawer, DrawerBody, DrawerHeader, DrawerOverlay, DrawerContent, DrawerCloseButton, VStack, Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
-import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart, FiTools } from 'react-icons/fi';
+import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart, FiBriefcase } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -182,7 +182,7 @@ export default function Navbar() {
                     </MenuItem>
                   )}
                   {isTecnico && !isAdmin && (
-                    <MenuItem icon={<FiTools />} onClick={() => navigate('/tecnico')}>
+                    <MenuItem icon={<FiBriefcase />} onClick={() => navigate('/tecnico')}>
                       Servicio Técnico
                     </MenuItem>
                   )}
