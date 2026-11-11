@@ -76,79 +76,86 @@ async function getTechnicians(req, res) {
   }
 }
 
+// Arma el WHERE y el ORDER BY compartidos por el listado y el export.
+function buildFilters(query) {
+  const {
+    status,
+    search,
+    received_from,
+    received_to,
+    probable_from,
+    probable_to,
+    sort_by,
+    sort_dir,
+  } = query;
+
+  const conditions = ['1=1'];
+  const params = [];
+
+  if (status) {
+    params.push(status);
+    conditions.push(`t.status = $${params.length}`);
+  }
+
+  if (search) {
+    params.push(`%${search}%`);
+    conditions.push(
+      `(t.ticket_number ILIKE $${params.length} OR t.client_name ILIKE $${params.length} OR t.article ILIKE $${params.length} OR t.client_id ILIKE $${params.length})`
+    );
+  }
+
+  if (received_from) {
+    params.push(received_from);
+    conditions.push(`t.received_at >= $${params.length}::date`);
+  }
+
+  if (received_to) {
+    params.push(received_to);
+    conditions.push(`t.received_at < ($${params.length}::date + interval '1 day')`);
+  }
+
+  if (probable_from) {
+    params.push(probable_from);
+    conditions.push(`t.probable_repair_date >= $${params.length}::date`);
+  }
+
+  if (probable_to) {
+    params.push(probable_to);
+    conditions.push(`t.probable_repair_date <= $${params.length}::date`);
+  }
+
+  const sortColumns = {
+    ticket_number: 't.ticket_number',
+    client_name: 't.client_name',
+    article: 't.article',
+    brand: 't.brand',
+    status: 't.status',
+    received_at: 't.received_at',
+    probable_repair_date: 't.probable_repair_date',
+    assigned_to: 'u.name',
+  };
+
+  return {
+    where: `WHERE ${conditions.join(' AND ')}`,
+    params,
+    sortColumn: sortColumns[sort_by] || 't.received_at',
+    sortDirection: sort_dir === 'asc' ? 'ASC' : 'DESC',
+  };
+}
+
 // GET /api/technical-repairs  (solo tecnico/admin)
 async function getAll(req, res) {
   try {
-    const {
-      status,
-      search,
-      page,
-      limit,
-      received_from,
-      received_to,
-      probable_from,
-      probable_to,
-      sort_by,
-      sort_dir,
-    } = req.query;
-
+    const { page, limit } = req.query;
     const take = limit;
     const pageNum = page;
     const offset = (pageNum - 1) * take;
 
-    const conditions = ['1=1'];
-    const params = [];
-
-    if (status) {
-      params.push(status);
-      conditions.push(`t.status = $${params.length}`);
-    }
-
-    if (search) {
-      params.push(`%${search}%`);
-      conditions.push(
-        `(t.ticket_number ILIKE $${params.length} OR t.client_name ILIKE $${params.length} OR t.article ILIKE $${params.length} OR t.client_id ILIKE $${params.length})`
-      );
-    }
-
-    if (received_from) {
-      params.push(received_from);
-      conditions.push(`t.received_at >= $${params.length}::date`);
-    }
-
-    if (received_to) {
-      params.push(received_to);
-      conditions.push(`t.received_at < ($${params.length}::date + interval '1 day')`);
-    }
-
-    if (probable_from) {
-      params.push(probable_from);
-      conditions.push(`t.probable_repair_date >= $${params.length}::date`);
-    }
-
-    if (probable_to) {
-      params.push(probable_to);
-      conditions.push(`t.probable_repair_date <= $${params.length}::date`);
-    }
-
-    const where = `WHERE ${conditions.join(' AND ')}`;
+    const { where, params, sortColumn, sortDirection } = buildFilters(req.query);
 
     const { total } = await db.prepare(
       `SELECT COUNT(*)::int AS total FROM technical_repairs t ${where}`
     ).get(...params);
-
-    const sortColumns = {
-      ticket_number: 't.ticket_number',
-      client_name: 't.client_name',
-      article: 't.article',
-      brand: 't.brand',
-      status: 't.status',
-      received_at: 't.received_at',
-      probable_repair_date: 't.probable_repair_date',
-      assigned_to: 'u.name',
-    };
-    const sortColumn = sortColumns[sort_by] || 't.received_at';
-    const sortDirection = sort_dir === 'asc' ? 'ASC' : 'DESC';
 
     params.push(take, offset);
     const repairs = await db.prepare(`
@@ -172,6 +179,95 @@ async function getAll(req, res) {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener reparaciones' });
+  }
+}
+
+// Escapa una celda de CSV y evita que Excel interprete formulas.
+function csvCell(value) {
+  if (value === null || value === undefined) return '';
+
+  let text = String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function formatDateOnly(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// GET /api/technical-repairs/export  (solo tecnico/admin)
+// Devuelve el listado filtrado en CSV (sin paginar).
+async function exportCsv(req, res) {
+  try {
+    const { where, params, sortColumn, sortDirection } = buildFilters(req.query);
+
+    const repairs = await db.prepare(`
+      SELECT t.*, u.name AS assigned_to_name
+      FROM technical_repairs t
+      LEFT JOIN users u ON u.id = t.assigned_to
+      ${where}
+      ORDER BY ${sortColumn} ${sortDirection} NULLS LAST, t.id DESC
+    `).all(...params);
+
+    const headers = [
+      'Nº boleta',
+      'Estado',
+      'Recibido',
+      'Cliente',
+      'DNI',
+      'Teléfono',
+      'Email',
+      'Dirección',
+      'Artículo',
+      'Marca',
+      'Modelo',
+      'Nº serie',
+      'Daño reportado',
+      'Notas',
+      'Fecha probable',
+      'Técnico asignado',
+    ];
+
+    const rows = repairs.map((repair) => [
+      repair.ticket_number,
+      repair.status,
+      formatDateTime(repair.received_at),
+      repair.client_name,
+      repair.client_id,
+      repair.client_phone,
+      repair.client_email,
+      repair.client_address,
+      repair.article,
+      repair.brand,
+      repair.model,
+      repair.serial_number,
+      repair.damage_reported,
+      repair.notes,
+      formatDateOnly(repair.probable_repair_date),
+      repair.assigned_to_name,
+    ]);
+
+    const csv = `\uFEFF${[headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')}`;
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="reparaciones-${stamp}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al exportar las reparaciones' });
   }
 }
 
@@ -318,6 +414,7 @@ async function remove(req, res) {
 
 module.exports = {
   getAll,
+  exportCsv,
   create,
   getOne,
   update,

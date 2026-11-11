@@ -128,6 +128,7 @@ router.get('/technical-repairs', authenticate, requireTecnico, validate(technica
 router.post('/technical-repairs', authenticate, requireTecnico, validate(technicalRepairCreateSchema), technicalRepairsCtrl.create);
 router.get('/technical-repairs/next-ticket', authenticate, requireTecnico, technicalRepairsCtrl.getNextTicket);
 router.get('/technical-repairs/technicians', authenticate, requireTecnico, technicalRepairsCtrl.getTechnicians);
+router.get('/technical-repairs/export', authenticate, requireTecnico, validate(technicalRepairQuerySchema), technicalRepairsCtrl.exportCsv);
 router.get('/technical-repairs/:id', authenticate, requireTecnico, validate(technicalRepairIdSchema), technicalRepairsCtrl.getOne);
 router.put(
   '/technical-repairs/:id',
