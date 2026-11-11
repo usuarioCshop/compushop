@@ -28,3 +28,5 @@ Ver el detalle de un pedido desde el dashboard/admin para saber qué productos/s
 - L3 (2026-11-07): Alcance ampliado (confirmado por usuario): checkbox por ítem para preparación, persistido en `localStorage` hasta que el pedido se guarda como `shipped`. Sin cambios de backend/DB.
 
 - L4 (2026-11-07): Checkbox "Listo" por ítem en modal de detalle, guardado en `localStorage` (`compushop_order_prep_<orderId>`). Se limpia al cambiar estado a `shipped`. Compila (esbuild). Pendiente QA visual.
+
+- L5 (2026-11-10): Usuario confirma QA visual final correcto y merge/deploy realizado y funcionando correctamente.

@@ -20,30 +20,54 @@ function slugify(text) {
 // GET /api/products
 async function getAll(req, res) {
   try {
-    const { category, search, active, page = 1, limit = 20, promo_first } = req.query;
+    const { category, search, active, page = 1, limit = 20, promo_first, minPrice, maxPrice, min_price, max_price } = req.query;
     const take = parseInt(limit);
     const pageNum = parseInt(page);
 
     // Para el listado de productos se priorizan los en promocion (is_promo).
     // Si se pide 20 y hay menos en promo, se completan con el resto al azar.
     if (promo_first === '1' || promo_first === 'true') {
-      const conditions = ['1=1'];
-      const params = [];
+      const baseConditions = ['1=1'];
+      const baseParams = [];
+      const minPriceVal = minPrice ?? min_price;
+      const maxPriceVal = maxPrice ?? max_price;
+      const minNum = minPriceVal !== undefined && minPriceVal !== '' ? Number(minPriceVal) : NaN;
+      const maxNum = maxPriceVal !== undefined && maxPriceVal !== '' ? Number(maxPriceVal) : NaN;
 
       if (active !== 'all') {
-        conditions.push('p.is_active = true');
+        baseConditions.push('p.is_active = true');
       }
 
       if (category) {
-        params.push(category);
-        conditions.push(`c.slug = $${params.length}`);
+        baseParams.push(category);
+        baseConditions.push(`c.slug = $${baseParams.length}`);
       }
 
       if (search) {
-        params.push(`%${search}%`);
-        conditions.push(
-          `(p.name ILIKE $${params.length} OR p.description ILIKE $${params.length} OR p.brand ILIKE $${params.length})`
+        baseParams.push(`%${search}%`);
+        baseConditions.push(
+          `(p.name ILIKE $${baseParams.length} OR p.description ILIKE $${baseParams.length} OR p.brand ILIKE $${baseParams.length})`
         );
+      }
+
+      const baseFrom = `
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE ${baseConditions.join(' AND ')}
+      `;
+      const bounds = await db.prepare(
+        `SELECT MIN(p.price) as min_price, MAX(p.price) as max_price ${baseFrom}`
+      ).get(...baseParams);
+
+      const conditions = [...baseConditions];
+      const params = [...baseParams];
+      if (Number.isFinite(minNum)) {
+        params.push(minNum);
+        conditions.push(`p.price >= $${params.length}`);
+      }
+      if (Number.isFinite(maxNum)) {
+        params.push(maxNum);
+        conditions.push(`p.price <= $${params.length}`);
       }
 
       const from = `
@@ -67,6 +91,10 @@ async function getAll(req, res) {
 
       return res.json({
         products,
+        priceBounds: {
+          min: bounds?.min_price != null ? Number(bounds.min_price) : 0,
+          max: bounds?.max_price != null ? Number(bounds.max_price) : 0,
+        },
         pagination: {
           page: pageNum,
           limit: take,
@@ -81,25 +109,49 @@ async function getAll(req, res) {
     // El WHERE se arma una vez y lo comparten la consulta de conteo y la de
     // listado. Antes se derivaba el conteo con un replace() por regex sobre el
     // SELECT, que se rompía con solo tocar la lista de columnas.
-    const conditions = ['1=1'];
-    const params = [];
+    const baseConditions = ['1=1'];
+    const baseParams = [];
+    const minPriceVal = minPrice ?? min_price;
+    const maxPriceVal = maxPrice ?? max_price;
+    const minNum = minPriceVal !== undefined && minPriceVal !== '' ? Number(minPriceVal) : NaN;
+    const maxNum = maxPriceVal !== undefined && maxPriceVal !== '' ? Number(maxPriceVal) : NaN;
 
     if (active !== 'all') {
-      conditions.push('p.is_active = true');
+      baseConditions.push('p.is_active = true');
     }
 
     if (category) {
-      params.push(category);
-      conditions.push(`c.slug = $${params.length}`);
+      baseParams.push(category);
+      baseConditions.push(`c.slug = $${baseParams.length}`);
     }
 
     if (search) {
       // ILIKE, no LIKE: en SQLite LIKE ignoraba mayúsculas, en Postgres no.
       // El mismo término se referencia tres veces con el mismo $n.
-      params.push(`%${search}%`);
-      conditions.push(
-        `(p.name ILIKE $${params.length} OR p.description ILIKE $${params.length} OR p.brand ILIKE $${params.length})`
+      baseParams.push(`%${search}%`);
+      baseConditions.push(
+        `(p.name ILIKE $${baseParams.length} OR p.description ILIKE $${baseParams.length} OR p.brand ILIKE $${baseParams.length})`
       );
+    }
+
+    const baseFrom = `
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE ${baseConditions.join(' AND ')}
+    `;
+    const bounds = await db.prepare(
+      `SELECT MIN(p.price) as min_price, MAX(p.price) as max_price ${baseFrom}`
+    ).get(...baseParams);
+
+    const conditions = [...baseConditions];
+    const params = [...baseParams];
+    if (Number.isFinite(minNum)) {
+      params.push(minNum);
+      conditions.push(`p.price >= $${params.length}`);
+    }
+    if (Number.isFinite(maxNum)) {
+      params.push(maxNum);
+      conditions.push(`p.price <= $${params.length}`);
     }
 
     const from = `
@@ -120,6 +172,10 @@ async function getAll(req, res) {
 
     res.json({
       products,
+      priceBounds: {
+        min: bounds?.min_price != null ? Number(bounds.min_price) : 0,
+        max: bounds?.max_price != null ? Number(bounds.max_price) : 0,
+      },
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -281,6 +337,12 @@ async function remove(req, res) {
     await db.prepare('DELETE FROM products WHERE id = $1').run(id);
     res.json({ message: 'Producto eliminado' });
   } catch (error) {
+    if (error && (error.code === '23503' || error.code === '23001')) {
+      return res.status(409).json({
+        error:
+          'No se puede eliminar el producto: tiene repuestos usados en servicios. Desactivalo en su lugar.',
+      });
+    }
     console.error(error);
     res.status(500).json({ error: 'Error al eliminar producto' });
   }
