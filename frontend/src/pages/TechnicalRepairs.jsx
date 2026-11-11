@@ -470,7 +470,13 @@ export default function TechnicalRepairs() {
       const q = new URLSearchParams();
       if (term.trim()) q.set('search', term.trim());
       const { data } = await api.get(`/repair-clients?${q.toString()}`);
-      setClientResults(data.clients || []);
+      const clients = data.clients || [];
+      setClientResults(clients);
+
+      // Si no hay resultados, acercamos el termino buscado al alta rapida.
+      if (clients.length === 0 && term.trim()) {
+        setClientForm((prev) => (prev.name.trim() ? prev : { ...prev, name: term.trim() }));
+      }
     } catch (err) {
       console.error(err);
       toast({
@@ -523,6 +529,12 @@ export default function TechnicalRepairs() {
     const name = clientForm.name.trim();
     if (!name) {
       toast({ title: 'Falta el nombre del cliente', status: 'warning', duration: 3000, isClosable: true });
+      return;
+    }
+
+    const email = clientForm.email.trim();
+    if (email && !isEmail(email)) {
+      toast({ title: 'Email inválido', description: 'Revisá el email del cliente.', status: 'warning', duration: 3000, isClosable: true });
       return;
     }
 
