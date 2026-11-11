@@ -33,6 +33,10 @@ const KNOWN_TABLES = [
   'contact_messages',
   'settings',
   'password_resets',
+  'technical_repairs',
+  'repair_catalog_items',
+  'repair_clients',
+  'repair_parts',
 ];
 
 let pool = null;
