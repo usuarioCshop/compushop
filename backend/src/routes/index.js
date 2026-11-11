@@ -22,6 +22,8 @@ const settingsCtrl = require('../controllers/settingsController');
 const dashboardCtrl = require('../controllers/dashboardController');
 const wishlistCtrl = require('../controllers/wishlistController');
 const technicalRepairsCtrl = require('../controllers/technicalRepairsController');
+const repairCatalogsCtrl = require('../controllers/repairCatalogsController');
+const repairClientsCtrl = require('../controllers/repairClientsController');
 
 const IS_VERCEL = !!process.env.VERCEL;
 const { uploadsDir: uploadDir } = require('../utils/uploads');
@@ -118,9 +120,16 @@ router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
 // ========== TECNICAL REPAIRS (servicio tecnico, solo tecnico/admin) ==========
 router.get('/technical-repairs', authenticate, requireTecnico, technicalRepairsCtrl.getAll);
 router.post('/technical-repairs', authenticate, requireTecnico, technicalRepairsCtrl.create);
+router.get('/technical-repairs/next-ticket', authenticate, requireTecnico, technicalRepairsCtrl.getNextTicket);
 router.get('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.getOne);
 router.put('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.update);
 router.delete('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.remove);
+
+// Catalogos y clientes de servicio tecnico.
+router.get('/repair-catalogs/:type', authenticate, requireTecnico, repairCatalogsCtrl.getAll);
+router.post('/repair-catalogs/:type', authenticate, requireTecnico, repairCatalogsCtrl.create);
+router.get('/repair-clients', authenticate, requireTecnico, repairClientsCtrl.getAll);
+router.post('/repair-clients', authenticate, requireTecnico, repairClientsCtrl.create);
 
 // Upload de imagen del equipo (servicio tecnico).
 router.post('/upload/repair-image', authenticate, requireTecnico, imageUpload.single('image'), async (req, res, next) => {

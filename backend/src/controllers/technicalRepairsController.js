@@ -10,6 +10,33 @@ function generateTicketNumber() {
   return `CS${y}${m}${d}-${rand}`;
 }
 
+// GET /api/technical-repairs/next-ticket  (solo tecnico/admin)
+// Devuelve el proximo numero de boleta del dia, con formato CSYYMMDD-####.
+async function getNextTicket(req, res) {
+  try {
+    const now = new Date();
+    const y = now.getFullYear().toString().slice(-2);
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const prefix = `CS${y}${m}${d}-`;
+
+    const last = await db.prepare(
+      'SELECT ticket_number FROM technical_repairs WHERE ticket_number LIKE $1 ORDER BY ticket_number DESC LIMIT 1'
+    ).get(`${prefix}%`);
+
+    let seq = 1;
+    if (last && last.ticket_number) {
+      const parsed = parseInt(last.ticket_number.slice(prefix.length), 10);
+      if (!Number.isNaN(parsed)) seq = parsed + 1;
+    }
+
+    res.json({ ticket_number: `${prefix}${String(seq).padStart(4, '0')}` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al calcular el próximo número de boleta' });
+  }
+}
+
 // GET /api/technical-repairs  (solo tecnico/admin)
 async function getAll(req, res) {
   try {
@@ -208,4 +235,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { getAll, create, getOne, update, remove };
+module.exports = { getAll, create, getOne, update, remove, getNextTicket };

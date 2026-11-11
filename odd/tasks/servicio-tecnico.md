@@ -37,10 +37,10 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - T7 | S8 | inline | registro de rutas en `App.jsx` y enlace en Navbar | completado
 - T8 | S1-S9 | inline | verificación en test (crear/listar/editar reparación con imagen) | completado
 
-- T9 | S10 | inline | migración 010 (catálogos, clientes, `assigned_to`, status sin CHECK) | pendiente
-- T10 | S11 | inline | controlador y rutas de catálogos | pendiente
-- T11 | S12 | inline | controlador y rutas de clientes | pendiente
-- T12 | S13 | inline | endpoint próximo Nº de boleta | pendiente
+- T9 | S10 | inline | migración 010 (catálogos, clientes, `assigned_to`, status sin CHECK) | completada · verificada OK
+- T10 | S11 | inline | controlador y rutas de catálogos | completada · verificada OK
+- T11 | S12 | inline | controlador y rutas de clientes | completada · verificada OK
+- T12 | S13 | inline | endpoint próximo Nº de boleta | completada · verificada OK
 - T13 | S14 | inline | validación zod + filtros/orden + `assigned_to` | pendiente
 - T14 | S15 | inline | export CSV | pendiente
 - T15 | S16 | inline | toasts + validación frontend | pendiente
@@ -66,3 +66,5 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - L6 (2026-11-11): Usuario aprueba el esqueleto y pide: «El esqueleto esta ok te paso mi lista,  cargar el campo de orden con el nro que le corresponde antes de guardar, para los campos articulo, marca y estado agregar un boton (+) al lado para incorporar nuevos items para los y cambiar de input a select, una lupa al lado del input de cliente para realizar busquedas y en caso de no encontrarse permiter rellenar los datos y guardarlos todo en un modal y al cerrar el modal ya sea porque se guardo o se encontro cargar los datos en la orden, ya con eso creo que tenemos para un rato». Decisiones de fase 2: catálogos en `repair_catalog_items`; clientes en `repair_clients`; estados pasan a ser catálogo (se quita el CHECK); `assigned_to` como FK a `users`.
 
 - L7 (2026-11-11): Lista de tareas de la fase 2 (T9-T22) integrada en este documento. Pendiente: confirmación de arranque por bloque.
+
+- L8 (2026-11-11): T9-T12 implementadas y verificadas OK contra la base de test. Migración 010 aplicada: `assigned_to` presente, sin CHECK de status, catálogos `article` (7), `brand` (6) y `status` (5), tabla `repair_clients` operativa. GET/POST `/api/repair-catalogs/:type` (201 al crear, 409 en duplicado), GET/POST `/api/repair-clients` con búsqueda, `next-ticket` = `CS261111-0001`, y 403 con rol `customer`. Pendientes: T13-T22.
