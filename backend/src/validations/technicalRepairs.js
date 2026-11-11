@@ -1,9 +1,21 @@
 const { z } = require('zod');
 
+// Valida forma y existencia real en el calendario (rechaza 2026-02-30, 2026-13-01).
+const isCalendarDate = (value) => {
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+};
+
 const dateString = z
   .string()
   .trim()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato YYYY-MM-DD');
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato YYYY-MM-DD')
+  .refine(isCalendarDate, 'La fecha no existe en el calendario');
 
 const optionalDate = z.union([dateString, z.literal('')]).optional().nullable();
 
@@ -53,10 +65,10 @@ const technicalRepairQuerySchema = z.object({
     search: z.string().trim().max(100).optional(),
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
-    received_from: dateString.optional(),
-    received_to: dateString.optional(),
-    probable_from: dateString.optional(),
-    probable_to: dateString.optional(),
+    received_from: z.union([dateString, z.literal('')]).optional(),
+    received_to: z.union([dateString, z.literal('')]).optional(),
+    probable_from: z.union([dateString, z.literal('')]).optional(),
+    probable_to: z.union([dateString, z.literal('')]).optional(),
     sort_by: z
       .enum([
         'ticket_number',
