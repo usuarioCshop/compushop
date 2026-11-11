@@ -10,7 +10,7 @@ import {
 } from '@chakra-ui/react';
 import {
   FiSearch, FiX, FiPlus, FiEdit, FiTrash2, FiSave, FiImage, FiRefreshCw,
-  FiUsers, FiClipboardList,
+  FiUsers, FiClipboard,
 } from 'react-icons/fi';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
@@ -440,7 +440,7 @@ export default function TechnicalRepairs() {
               <Center py={10}><Spinner color="brand.500" /></Center>
             ) : repairs.length === 0 ? (
               <EmptyState
-                icon={FiClipboardList}
+                icon={FiClipboard}
                 title="Sin boletas"
                 description="No hay órdenes de reparación con los filtros aplicados."
               />
