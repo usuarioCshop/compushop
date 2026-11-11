@@ -1,62 +1,62 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  Badge, Box, Button, Card, CardBody, Center, Divider, FormControl,
-  FormLabel, Grid, GridItem, Heading, HStack, Icon, IconButton, Image as ChakraImage,
-  Input, InputGroup, InputLeftElement, Link, Modal, ModalBody, ModalCloseButton,
-  ModalContent, ModalFooter, ModalHeader, ModalOverlay, Select, SimpleGrid, Spinner,
-  Table, TableContainer, Tbody, Td, Text, Textarea, Th, Thead, Tr, useToast, VStack,
+  Box,
+  Button,
+  Card,
+  CardBody,
+  Center,
+  Divider,
+  FormControl,
+  FormLabel,
+  Grid,
+  GridItem,
+  HStack,
+  Heading,
+  Icon,
+  IconButton,
+  Image as ChakraImage,
+  Input,
+  InputGroup,
+  InputLeftElement,
+  Link,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
+  Select,
+  Spinner,
+  Text,
+  Textarea,
+  VStack,
+  useToast,
 } from '@chakra-ui/react';
-import {
-  FiChevronDown, FiChevronUp, FiClipboard, FiDownload, FiEdit, FiImage, FiPlus,
-  FiRefreshCw, FiSearch, FiTrash2, FiUserPlus, FiX,
-} from 'react-icons/fi';
+import { FiImage, FiPlus, FiRefreshCw, FiSearch, FiUserPlus } from 'react-icons/fi';
 import api from '../../api/client';
-import EmptyState from '../EmptyState';
-import useDebounce from '../../hooks/useDebounce';
 import {
   DEFAULT_STATUSES,
-  PAGE_SIZE,
-  buildFilterParams,
-  downloadBlob,
   emptyForm,
-  formatDateOnly,
-  formatDateTime,
   isEmail,
-  statusColor,
   statusLabel,
   toDateInput,
   toDateTimeInput,
   validateForm,
 } from './constants';
 
-
-export default function EntradaTab({ onChanged }) {
+// Alta y edicion de boletas (datos del cliente y equipo).
+export default function EntradaTab({ onChanged, editRepair, onEditDone }) {
   const toast = useToast();
-
-  const [repairs, setRepairs] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [selectedRepair, setSelectedRepair] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [openImageModal, setOpenImageModal] = useState(false);
-  const [receivedAtDefault] = useState(() => toDateTimeInput(new Date().toISOString()));
-
-  const [searchInput, setSearchInput] = useState('');
-  const [statusInput, setStatusInput] = useState('');
-  const debouncedSearch = useDebounce(searchInput, 400);
-  const debouncedStatus = useDebounce(statusInput, 400);
-  const search = debouncedSearch;
-  const status = debouncedStatus;
-
-  const [receivedFrom, setReceivedFrom] = useState('');
-  const [receivedTo, setReceivedTo] = useState('');
-  const [probableFrom, setProbableFrom] = useState('');
-  const [probableTo, setProbableTo] = useState('');
-  const [sortBy, setSortBy] = useState('received_at');
-  const [sortDir, setSortDir] = useState('desc');
+  const [receivedAtDefault, setReceivedAtDefault] = useState(() =>
+    toDateTimeInput(new Date().toISOString())
+  );
 
   const [form, setForm] = useState({ ...emptyForm });
   const [catalogs, setCatalogs] = useState({ article: [], brand: [], status: [] });
@@ -74,11 +74,7 @@ export default function EntradaTab({ onChanged }) {
   const [clientForm, setClientForm] = useState({ name: '', address: '', dni: '', email: '', phone: '' });
   const [clientSaving, setClientSaving] = useState(false);
 
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailRepair, setDetailRepair] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-
-  const fetchCatalogs = async () => {
+  const fetchCatalogs = useCallback(async () => {
     try {
       const [articleRes, brandRes, statusRes] = await Promise.all([
         api.get('/repair-catalogs/article'),
@@ -90,85 +86,71 @@ export default function EntradaTab({ onChanged }) {
         brand: brandRes.data.items || [],
         status: statusRes.data.items || [],
       });
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
     }
-  };
+  }, []);
 
-  const fetchTechnicians = async () => {
+  const fetchTechnicians = useCallback(async () => {
     try {
       const { data } = await api.get('/technical-repairs/technicians');
       setTechnicians(data.technicians || []);
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
     }
-  };
+  }, []);
 
-  const loadNextTicket = async () => {
+  const loadNextTicket = useCallback(async () => {
     try {
       const { data } = await api.get('/technical-repairs/next-ticket');
       setForm((prev) => ({ ...prev, ticket_number: data.ticket_number || '' }));
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
     }
-  };
+  }, []);
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setEditingId(null);
     setSelectedRepair(null);
     setImagePreview(null);
     setForm({ ...emptyForm });
-  };
-
-  const fetchPage = useCallback(async (pageNum) => {
-    setLoading(true);
-    try {
-      const q = buildFilterParams({
-        search,
-        status,
-        receivedFrom,
-        receivedTo,
-        probableFrom,
-        probableTo,
-        sortBy,
-        sortDir,
-      });
-      q.set('limit', String(PAGE_SIZE));
-      q.set('page', String(pageNum));
-
-      const { data } = await api.get(`/technical-repairs?${q.toString()}`);
-      setRepairs(data.repairs || []);
-      setPagination(data.pagination || { page: pageNum, pages: 1, total: 0 });
-    } catch (err) {
-      console.error(err);
-      setRepairs([]);
-      toast({
-        title: 'No se pudo cargar el listado',
-        description: err.response?.data?.error,
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, status, receivedFrom, receivedTo, probableFrom, probableTo, sortBy, sortDir]);
-
-  useEffect(() => {
-    fetchPage(1);
-  }, [fetchPage]);
+    setReceivedAtDefault(toDateTimeInput(new Date().toISOString()));
+  }, []);
 
   useEffect(() => {
     fetchCatalogs();
     fetchTechnicians();
     loadNextTicket();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchCatalogs, fetchTechnicians, loadNextTicket]);
+
+  useEffect(() => {
+    if (!editRepair) return;
+    setEditingId(editRepair.id);
+    setSelectedRepair(editRepair);
+    setImagePreview(editRepair.image_url || null);
+    setForm({
+      ticket_number: editRepair.ticket_number || '',
+      status: editRepair.status || 'pendiente',
+      client_name: editRepair.client_name || '',
+      client_address: editRepair.client_address || '',
+      client_id: editRepair.client_id || '',
+      client_email: editRepair.client_email || '',
+      client_phone: editRepair.client_phone || '',
+      article: editRepair.article || '',
+      brand: editRepair.brand || '',
+      model: editRepair.model || '',
+      serial_number: editRepair.serial_number || '',
+      damage_reported: editRepair.damage_reported || '',
+      notes: editRepair.notes || '',
+      image_url: editRepair.image_url || '',
+      probable_repair_date: toDateInput(editRepair.probable_repair_date),
+      assigned_to: editRepair.assigned_to ? String(editRepair.assigned_to) : '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [editRepair]);
 
   const handleSave = async (e) => {
     e.preventDefault();
-
     const validationError = validateForm(form);
     if (validationError) {
       toast({
@@ -218,14 +200,13 @@ export default function EntradaTab({ onChanged }) {
 
       resetForm();
       loadNextTicket();
-      fetchPage(1);
+      onEditDone?.();
       onChanged?.();
-    } catch (err) {
-      const detalles = err.response?.data?.detalles;
+    } catch (error) {
+      const detalles = error.response?.data?.detalles;
       const description = detalles?.length
         ? detalles.map((d) => `${d.campo}: ${d.mensaje}`).join(' · ')
-        : err.response?.data?.error || 'No se pudo guardar la orden';
-
+        : error.response?.data?.error || 'No se pudo guardar la orden';
       toast({
         title: 'Error al guardar',
         description,
@@ -238,44 +219,20 @@ export default function EntradaTab({ onChanged }) {
     }
   };
 
-  const handleEdit = (repair) => {
-    setEditingId(repair.id);
-    setSelectedRepair(repair);
-    setImagePreview(repair.image_url || null);
-    setForm({
-      ticket_number: repair.ticket_number || '',
-      status: repair.status || 'pendiente',
-      client_name: repair.client_name || '',
-      client_address: repair.client_address || '',
-      client_id: repair.client_id || '',
-      client_email: repair.client_email || '',
-      client_phone: repair.client_phone || '',
-      article: repair.article || '',
-      brand: repair.brand || '',
-      model: repair.model || '',
-      serial_number: repair.serial_number || '',
-      damage_reported: repair.damage_reported || '',
-      notes: repair.notes || '',
-      image_url: repair.image_url || '',
-      probable_repair_date: toDateInput(repair.probable_repair_date),
-      assigned_to: repair.assigned_to ? String(repair.assigned_to) : '',
-    });
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleDelete = async (id) => {
+  const handleDelete = async () => {
+    if (!editingId) return;
     if (!window.confirm('¿Eliminar esta orden de reparación?')) return;
-
     try {
-      await api.delete(`/technical-repairs/${id}`);
+      await api.delete(`/technical-repairs/${editingId}`);
       toast({ title: 'Boleta eliminada', status: 'success', duration: 3000, isClosable: true });
-      if (editingId === id) resetForm();
-      fetchPage(pagination.page);
+      resetForm();
+      loadNextTicket();
+      onEditDone?.();
       onChanged?.();
-    } catch (err) {
+    } catch (error) {
       toast({
         title: 'No se pudo eliminar',
-        description: err.response?.data?.error,
+        description: error.response?.data?.error,
         status: 'error',
         duration: 4000,
         isClosable: true,
@@ -294,10 +251,10 @@ export default function EntradaTab({ onChanged }) {
       });
       setForm((prev) => ({ ...prev, image_url: data.url }));
       setImagePreview(data.url);
-    } catch (err) {
+    } catch (error) {
       toast({
         title: 'No se pudo subir la imagen',
-        description: err.response?.data?.error,
+        description: error.response?.data?.error,
         status: 'error',
         duration: 4000,
         isClosable: true,
@@ -310,7 +267,6 @@ export default function EntradaTab({ onChanged }) {
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Archivo inválido',
@@ -321,7 +277,6 @@ export default function EntradaTab({ onChanged }) {
       });
       return;
     }
-
     const reader = new FileReader();
     reader.onload = (ev) => setImagePreview(ev.target.result);
     reader.readAsDataURL(file);
@@ -340,12 +295,13 @@ export default function EntradaTab({ onChanged }) {
       toast({ title: 'Falta el nombre', status: 'warning', duration: 3000, isClosable: true });
       return;
     }
-
     setCatalogSaving(true);
     try {
       const { data } = await api.post(`/repair-catalogs/${catalogType}`, { name });
       await fetchCatalogs();
-      setForm((prev) => ({ ...prev, [catalogType]: data.item.name }));
+      if (catalogType === 'article' || catalogType === 'brand' || catalogType === 'status') {
+        setForm((prev) => ({ ...prev, [catalogType]: data.item.name }));
+      }
       setCatalogModalOpen(false);
       toast({
         title: 'Ítem agregado',
@@ -354,10 +310,10 @@ export default function EntradaTab({ onChanged }) {
         duration: 3000,
         isClosable: true,
       });
-    } catch (err) {
+    } catch (error) {
       toast({
         title: 'No se pudo agregar',
-        description: err.response?.data?.error,
+        description: error.response?.data?.error,
         status: 'error',
         duration: 4000,
         isClosable: true,
@@ -375,16 +331,14 @@ export default function EntradaTab({ onChanged }) {
       const { data } = await api.get(`/repair-clients?${q.toString()}`);
       const clients = data.clients || [];
       setClientResults(clients);
-
-      // Si no hay resultados, acercamos el termino buscado al alta rapida.
       if (clients.length === 0 && term.trim()) {
         setClientForm((prev) => (prev.name.trim() ? prev : { ...prev, name: term.trim() }));
       }
-    } catch (err) {
-      console.error(err);
+    } catch (error) {
+      console.error(error);
       toast({
         title: 'No se pudo buscar clientes',
-        description: err.response?.data?.error,
+        description: error.response?.data?.error,
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -434,13 +388,17 @@ export default function EntradaTab({ onChanged }) {
       toast({ title: 'Falta el nombre del cliente', status: 'warning', duration: 3000, isClosable: true });
       return;
     }
-
     const email = clientForm.email.trim();
     if (email && !isEmail(email)) {
-      toast({ title: 'Email inválido', description: 'Revisá el email del cliente.', status: 'warning', duration: 3000, isClosable: true });
+      toast({
+        title: 'Email inválido',
+        description: 'Revisá el email del cliente.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
       return;
     }
-
     setClientSaving(true);
     try {
       const { data } = await api.post('/repair-clients', {
@@ -451,10 +409,10 @@ export default function EntradaTab({ onChanged }) {
         phone: clientForm.phone.trim(),
       });
       handleUseClient(data.client);
-    } catch (err) {
+    } catch (error) {
       toast({
         title: 'No se pudo guardar el cliente',
-        description: err.response?.data?.error,
+        description: error.response?.data?.error,
         status: 'error',
         duration: 4000,
         isClosable: true,
@@ -464,168 +422,27 @@ export default function EntradaTab({ onChanged }) {
     }
   };
 
-  const openDetail = async (id) => {
-    setDetailOpen(true);
-    setDetailLoading(true);
-    setDetailRepair(null);
-    try {
-      const { data } = await api.get(`/technical-repairs/${id}`);
-      setDetailRepair(data.repair);
-    } catch (err) {
-      toast({
-        title: 'No se pudo abrir la boleta',
-        description: err.response?.data?.error,
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-      setDetailOpen(false);
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  const handleEditFromDetail = () => {
-    if (!detailRepair) return;
-    handleEdit(detailRepair);
-    setDetailOpen(false);
-  };
-
-  const handleExport = async () => {
-    try {
-      const q = buildFilterParams({
-        search,
-        status,
-        receivedFrom,
-        receivedTo,
-        probableFrom,
-        probableTo,
-        sortBy,
-        sortDir,
-      });
-      const response = await api.get(`/technical-repairs/export?${q.toString()}`, {
-        responseType: 'blob',
-      });
-
-      downloadBlob(response, 'reparaciones.csv');
-
-      toast({ title: 'CSV exportado', status: 'success', duration: 3000, isClosable: true });
-    } catch (err) {
-      toast({
-        title: 'No se pudo exportar',
-        description: err.response?.data?.error,
-        status: 'error',
-        duration: 4000,
-        isClosable: true,
-      });
-    }
-  };
-
-  const toggleSort = (field) => {
-    if (sortBy === field) {
-      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(field);
-      setSortDir('asc');
-    }
-  };
-
-  const sortIcon = (field) => {
-    if (sortBy !== field) return <Icon as={FiChevronDown} opacity={0.3} />;
-    return <Icon as={sortDir === 'asc' ? FiChevronUp : FiChevronDown} />;
-  };
-
-  const clearFilters = () => {
-    setSearchInput('');
-    setStatusInput('');
-    setReceivedFrom('');
-    setReceivedTo('');
-    setProbableFrom('');
-    setProbableTo('');
-    setSortBy('received_at');
-    setSortDir('desc');
-  };
-
-  const handleRefresh = () => {
-    fetchPage(pagination.page);
-    fetchCatalogs();
-    fetchTechnicians();
-    if (!editingId) loadNextTicket();
-  };
-
   const statusOptions = catalogs.status.length
     ? catalogs.status
     : DEFAULT_STATUSES.map((name, index) => ({ id: `default-${index}`, name }));
 
   return (
     <>
-      <HStack justify="flex-end" spacing={2} mb={4} flexWrap="wrap">
-        <Button leftIcon={<FiDownload />} size="sm" variant="outline" onClick={handleExport}>
-          Exportar CSV
-        </Button>
-        <Button leftIcon={<FiRefreshCw />} size="sm" onClick={handleRefresh}>
-          Actualizar
-        </Button>
-      </HStack>
-
       <VStack spacing={4} align="stretch">
-        <Card>
-          <CardBody>
-            <VStack spacing={4} align="stretch">
-              <HStack spacing={3} flexWrap="wrap" align="center">
-                <InputGroup flex="1" minW="240px">
-                  <InputLeftElement>
-                    <Icon as={FiSearch} color="fg.muted" />
-                  </InputLeftElement>
-                  <Input
-                    placeholder="Buscar boleta, cliente, artículo..."
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    bg="bg.surface"
-                  />
-                </InputGroup>
-                <Select
-                  minW="190px"
-                  value={statusInput}
-                  onChange={(e) => setStatusInput(e.target.value)}
-                  bg="bg.surface"
-                  placeholder="Todos los estados"
-                >
-                  {statusOptions.map((item) => (
-                    <option key={item.id} value={item.name}>
-                      {statusLabel(item.name)}
-                    </option>
-                  ))}
-                </Select>
-              </HStack>
-
-              <Grid templateColumns={{ base: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }} gap={3}>
-                <FormControl>
-                  <FormLabel fontSize="sm">Recibida desde</FormLabel>
-                  <Input type="date" value={receivedFrom} onChange={(e) => setReceivedFrom(e.target.value)} />
-                </FormControl>
-                <FormControl>
-                  <FormLabel fontSize="sm">Recibida hasta</FormLabel>
-                  <Input type="date" value={receivedTo} onChange={(e) => setReceivedTo(e.target.value)} />
-                </FormControl>
-                <FormControl>
-                  <FormLabel fontSize="sm">Probable desde</FormLabel>
-                  <Input type="date" value={probableFrom} onChange={(e) => setProbableFrom(e.target.value)} />
-                </FormControl>
-                <FormControl>
-                  <FormLabel fontSize="sm">Probable hasta</FormLabel>
-                  <Input type="date" value={probableTo} onChange={(e) => setProbableTo(e.target.value)} />
-                </FormControl>
-              </Grid>
-
-              <HStack justify="flex-end">
-                <Button type="button" size="sm" variant="ghost" leftIcon={<FiX />} onClick={clearFilters}>
-                  Limpiar filtros
-                </Button>
-              </HStack>
-            </VStack>
-          </CardBody>
-        </Card>
+        <HStack justify="flex-end" spacing={2} flexWrap="wrap">
+          <Button
+            leftIcon={<FiRefreshCw />}
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              fetchCatalogs();
+              fetchTechnicians();
+              if (!editingId) loadNextTicket();
+            }}
+          >
+            Actualizar datos
+          </Button>
+        </HStack>
 
         <Card>
           <CardBody padding={6}>
@@ -647,6 +464,7 @@ export default function EntradaTab({ onChanged }) {
                   onClick={() => {
                     resetForm();
                     loadNextTicket();
+                    onEditDone?.();
                   }}
                 >
                   {editingId ? 'Cancelar edición' : 'Nueva orden'}
@@ -704,7 +522,7 @@ export default function EntradaTab({ onChanged }) {
                     />
                   </FormControl>
 
-                  <GridItem colSpan={2}>
+                  <GridItem colSpan={{ base: 1, md: 2 }}>
                     <FormControl isRequired>
                       <FormLabel>Cliente</FormLabel>
                       <HStack spacing={2}>
@@ -723,7 +541,7 @@ export default function EntradaTab({ onChanged }) {
                     </FormControl>
                   </GridItem>
 
-                  <GridItem colSpan={2}>
+                  <GridItem colSpan={{ base: 1, md: 2 }}>
                     <FormControl>
                       <FormLabel>Domicilio</FormLabel>
                       <Input
@@ -758,7 +576,7 @@ export default function EntradaTab({ onChanged }) {
                     />
                   </FormControl>
 
-                  <GridItem colSpan={2}>
+                  <GridItem colSpan={{ base: 1, md: 2 }}>
                     <FormControl>
                       <FormLabel>Artículo</FormLabel>
                       <CatalogSelect
@@ -821,7 +639,7 @@ export default function EntradaTab({ onChanged }) {
                       <Textarea
                         value={form.damage_reported}
                         onChange={(e) => setForm({ ...form, damage_reported: e.target.value })}
-                        minRows={3}
+                        minH="90px"
                       />
                     </FormControl>
                   </GridItem>
@@ -832,7 +650,7 @@ export default function EntradaTab({ onChanged }) {
                       <Textarea
                         value={form.notes}
                         onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                        minRows={2}
+                        minH="80px"
                       />
                     </FormControl>
                   </GridItem>
@@ -877,12 +695,7 @@ export default function EntradaTab({ onChanged }) {
                     {editingId ? 'Guardar cambios' : 'Crear orden'}
                   </Button>
                   {editingId && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => handleDelete(editingId)}
-                      colorScheme="red"
-                    >
+                    <Button type="button" variant="outline" onClick={handleDelete} colorScheme="red">
                       Eliminar
                     </Button>
                   )}
@@ -891,190 +704,7 @@ export default function EntradaTab({ onChanged }) {
             </VStack>
           </CardBody>
         </Card>
-
-        <Card>
-          <CardBody padding={6}>
-            <HStack justify="space-between" align="center" mb={4} flexWrap="wrap" gap={2}>
-              <Heading as="h4" size="sm">
-                Listado de Nº de Boleta
-              </Heading>
-              <Text fontSize="sm" color="fg.muted">
-                {pagination.total} boleta{pagination.total !== 1 ? 's' : ''}
-              </Text>
-            </HStack>
-
-            {loading ? (
-              <Center py={10}>
-                <Spinner color="brand.500" />
-              </Center>
-            ) : repairs.length === 0 ? (
-              <EmptyState
-                icon={FiClipboard}
-                title="Sin boletas"
-                description="No hay órdenes de reparación con los filtros aplicados."
-              />
-            ) : (
-              <TableContainer>
-                <Table size="sm" variant="simple">
-                  <Thead>
-                    <Tr>
-                      <SortableTh label="Nº Boleta" field="ticket_number" sortBy={sortBy} sortIcon={sortIcon} onSort={toggleSort} />
-                      <SortableTh label="Cliente" field="client_name" sortBy={sortBy} sortIcon={sortIcon} onSort={toggleSort} />
-                      <SortableTh label="Artículo" field="article" sortBy={sortBy} sortIcon={sortIcon} onSort={toggleSort} />
-                      <SortableTh label="Estado" field="status" sortBy={sortBy} sortIcon={sortIcon} onSort={toggleSort} />
-                      <SortableTh label="Técnico" field="assigned_to" sortBy={sortBy} sortIcon={sortIcon} onSort={toggleSort} />
-                      <SortableTh label="Fecha recepción" field="received_at" sortBy={sortBy} sortIcon={sortIcon} onSort={toggleSort} />
-                      <Th>Acciones</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {repairs.map((r) => (
-                      <Tr
-                        key={r.id}
-                        onClick={() => openDetail(r.id)}
-                        cursor="pointer"
-                        _hover={{ bg: 'bg.subtle' }}
-                      >
-                        <Td fontWeight="600">{r.ticket_number}</Td>
-                        <Td>{r.client_name}</Td>
-                        <Td>{r.article || '-'}</Td>
-                        <Td>
-                          <Badge colorScheme={statusColor(r.status)}>{statusLabel(r.status)}</Badge>
-                        </Td>
-                        <Td>{r.assigned_to_name || '-'}</Td>
-                        <Td fontSize="sm" color="fg.muted">
-                          {formatDateTime(r.received_at)}
-                        </Td>
-                        <Td>
-                          <HStack spacing={1}>
-                            <IconButton
-                              aria-label="Editar"
-                              icon={<FiEdit />}
-                              size="sm"
-                              variant="ghost"
-                              color="brand.500"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(r);
-                              }}
-                            />
-                            <IconButton
-                              aria-label="Eliminar"
-                              icon={<FiTrash2 />}
-                              size="sm"
-                              variant="ghost"
-                              color="red.500"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDelete(r.id);
-                              }}
-                            />
-                          </HStack>
-                        </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </TableContainer>
-            )}
-
-            <HStack spacing={3} mt={6} align="center" justify="center">
-              <Button
-                size="sm"
-                variant="outline"
-                isDisabled={pagination.page <= 1 || loading}
-                onClick={() => fetchPage(pagination.page - 1)}
-              >
-                Anterior
-              </Button>
-              <Text fontSize="sm" color="fg.muted" mx={2}>
-                Página {pagination.page} de {Math.max(pagination.pages, 1)}
-              </Text>
-              <Button
-                size="sm"
-                variant="outline"
-                isDisabled={pagination.page >= Math.max(pagination.pages, 1) || loading}
-                onClick={() => fetchPage(pagination.page + 1)}
-              >
-                Siguiente
-              </Button>
-            </HStack>
-          </CardBody>
-        </Card>
       </VStack>
-
-      <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} size="2xl" scrollBehavior="inside">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Boleta {detailRepair?.ticket_number || ''}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
-            {detailLoading ? (
-              <Center py={10}>
-                <Spinner color="brand.500" />
-              </Center>
-            ) : detailRepair ? (
-              <VStack align="stretch" spacing={4}>
-                <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-                  <DetailItem
-                    label="Estado"
-                    value={
-                      <Badge colorScheme={statusColor(detailRepair.status)}>
-                        {statusLabel(detailRepair.status)}
-                      </Badge>
-                    }
-                  />
-                  <DetailItem label="Técnico asignado" value={detailRepair.assigned_to_name || 'Sin asignar'} />
-                  <DetailItem label="Fecha de recepción" value={formatDateTime(detailRepair.received_at)} />
-                  <DetailItem label="Fecha probable" value={formatDateOnly(detailRepair.probable_repair_date)} />
-                  <DetailItem label="Cliente" value={detailRepair.client_name} />
-                  <DetailItem label="DNI" value={detailRepair.client_id} />
-                  <DetailItem label="Teléfono" value={detailRepair.client_phone} />
-                  <DetailItem label="Email" value={detailRepair.client_email} />
-                  <DetailItem label="Domicilio" value={detailRepair.client_address} />
-                  <DetailItem label="Artículo" value={detailRepair.article} />
-                  <DetailItem label="Marca" value={detailRepair.brand} />
-                  <DetailItem label="Modelo" value={detailRepair.model} />
-                  <DetailItem label="Nº de serie" value={detailRepair.serial_number} />
-                </SimpleGrid>
-                <Divider />
-                <DetailItem label="Daño reportado" value={detailRepair.damage_reported} />
-                <DetailItem label="Notas" value={detailRepair.notes} />
-                {detailRepair.image_url && (
-                  <Box>
-                    <Text fontSize="xs" color="fg.muted" textTransform="uppercase" mb={2}>
-                      Imagen del equipo
-                    </Text>
-                    <ChakraImage
-                      src={detailRepair.image_url}
-                      alt="Equipo"
-                      maxH="360px"
-                      borderRadius="md"
-                      border="1px solid"
-                      borderColor="border.subtle"
-                    />
-                  </Box>
-                )}
-              </VStack>
-            ) : null}
-          </ModalBody>
-          <ModalFooter>
-            <HStack>
-              <Button variant="outline" onClick={() => setDetailOpen(false)}>
-                Cerrar
-              </Button>
-              <Button
-                colorScheme="brand"
-                leftIcon={<FiEdit />}
-                onClick={handleEditFromDetail}
-                isDisabled={!detailRepair}
-              >
-                Editar
-              </Button>
-            </HStack>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       <Modal isOpen={catalogModalOpen} onClose={() => setCatalogModalOpen(false)} size="sm">
         <ModalOverlay />
@@ -1277,44 +907,14 @@ function CatalogSelect({ type, value, options, onChange, onAdd, placeholder }) {
   return (
     <HStack spacing={2}>
       <Select value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} bg="bg.surface">
-        {hasValue && (
-          <option value={value}>{type === 'status' ? statusLabel(value) : value}</option>
-        )}
+        {hasValue && <option value={value}>{type === 'status' ? statusLabel(value) : value}</option>}
         {options.map((item) => (
           <option key={item.id} value={item.name}>
             {type === 'status' ? statusLabel(item.name) : item.name}
           </option>
         ))}
       </Select>
-      <IconButton
-        type="button"
-        aria-label={`Agregar ${type}`}
-        icon={<FiPlus />}
-        onClick={onAdd}
-        variant="outline"
-      />
+      <IconButton type="button" aria-label={`Agregar ${type}`} icon={<FiPlus />} onClick={onAdd} variant="outline" />
     </HStack>
-  );
-}
-
-function SortableTh({ label, field, sortBy, sortIcon, onSort }) {
-  return (
-    <Th cursor="pointer" userSelect="none" onClick={() => onSort(field)} whiteSpace="nowrap">
-      <HStack spacing={1}>
-        <Text as="span">{label}</Text>
-        {sortIcon(field)}
-      </HStack>
-    </Th>
-  );
-}
-
-function DetailItem({ label, value }) {
-  return (
-    <Box>
-      <Text fontSize="xs" color="fg.muted" textTransform="uppercase" letterSpacing="wide">
-        {label}
-      </Text>
-      <Text mt={1}>{value || '-'}</Text>
-    </Box>
   );
 }

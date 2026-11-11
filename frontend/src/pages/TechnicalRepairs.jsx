@@ -2,8 +2,6 @@ import {
   Box,
   Container,
   Heading,
-  HStack,
-  Spinner,
   Tab,
   TabList,
   TabPanel,
@@ -17,16 +15,20 @@ import { useCallback, useEffect, useState } from 'react';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import EntradaTab from '../components/technical-repairs/EntradaTab';
+import HistoricoTab from '../components/technical-repairs/HistoricoTab';
 import ReparacionTab from '../components/technical-repairs/ReparacionTab';
 import InformesTab from '../components/technical-repairs/InformesTab';
 import KpiCards from '../components/technical-repairs/KpiCards';
 
-// Dashboard de servicio tecnico con Entrada, Reparacion e Informes.
+// Dashboard de servicio tecnico con Entrada, Historico, Reparacion e Informes.
 export default function TechnicalRepairs() {
   const { isTecnico } = useAuth();
   const toast = useToast();
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [tabIndex, setTabIndex] = useState(0);
+  const [editRepair, setEditRepair] = useState(null);
+  const [historicoKey, setHistoricoKey] = useState(0);
 
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
@@ -50,6 +52,11 @@ export default function TechnicalRepairs() {
     if (isTecnico) fetchStats();
   }, [isTecnico, fetchStats]);
 
+  const handleChanged = useCallback(() => {
+    fetchStats();
+    setHistoricoKey((k) => k + 1);
+  }, [fetchStats]);
+
   if (!isTecnico) {
     return (
       <Container maxW="4xl" py={20} textAlign="center">
@@ -63,32 +70,45 @@ export default function TechnicalRepairs() {
   return (
     <Container maxW="9xl" py={6} px={4}>
       <VStack align="stretch" spacing={5}>
-        <HStack justify="space-between" align="start" flexWrap="wrap" gap={3}>
-          <Box>
-            <Heading as="h2" size="lg" letterSpacing="-0.02em">
-              Servicio Técnico
-            </Heading>
-            <Text color="fg.muted" fontSize="sm">
-              Dashboard de ingreso, reparación e informes de boletas
-            </Text>
-          </Box>
-        </HStack>
+        <Box>
+          <Heading as="h2" size="lg" letterSpacing="-0.02em">
+            Servicio Técnico
+          </Heading>
+          <Text color="fg.muted" fontSize="sm">
+            Dashboard de ingreso, historial, reparación e informes de boletas
+          </Text>
+        </Box>
 
         <KpiCards stats={stats} loading={statsLoading} />
 
-        <Tabs colorScheme="brand" variant="enclosed" isLazy>
+        <Tabs colorScheme="brand" variant="enclosed" index={tabIndex} onChange={setTabIndex}>
           <TabList overflowX="auto" flexWrap={{ base: 'nowrap', md: 'wrap' }}>
             <Tab>Entrada</Tab>
+            <Tab>Histórico de Órdenes</Tab>
             <Tab>Reparación</Tab>
             <Tab>Informes</Tab>
           </TabList>
 
           <TabPanels>
             <TabPanel px={0} pt={4}>
-              <EntradaTab onChanged={fetchStats} />
+              <EntradaTab
+                onChanged={handleChanged}
+                editRepair={editRepair}
+                onEditDone={() => setEditRepair(null)}
+              />
             </TabPanel>
             <TabPanel px={0} pt={4}>
-              <ReparacionTab onChanged={fetchStats} />
+              <HistoricoTab
+                key={historicoKey}
+                onChanged={handleChanged}
+                onEdit={(repair) => {
+                  setEditRepair(repair);
+                  setTabIndex(0);
+                }}
+              />
+            </TabPanel>
+            <TabPanel px={0} pt={4}>
+              <ReparacionTab onChanged={handleChanged} />
             </TabPanel>
             <TabPanel px={0} pt={4}>
               <InformesTab />
