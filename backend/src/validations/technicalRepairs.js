@@ -32,6 +32,26 @@ const optionalAssignedTo = z.preprocess((value) => {
   return value;
 }, z.union([z.number().int().positive(), z.null()]).optional());
 
+// Los inputs numericos del frontend pueden llegar como string vacio.
+const optionalMoney = z.preprocess((value) => {
+  if (value === null || value === '' || value === undefined) return undefined;
+  return Number(value);
+}, z.number().min(0, 'El precio no puede ser negativo').optional());
+
+const partSchema = z.object({
+  product_id: z.coerce.number().int().positive(),
+  quantity: z.coerce.number().int().positive('La cantidad debe ser mayor a 0'),
+  unit_price: optionalMoney,
+});
+
+const partsSchema = z
+  .array(partSchema)
+  .max(100, 'Máximo 100 repuestos por boleta')
+  .refine(
+    (parts) => new Set(parts.map((part) => part.product_id)).size === parts.length,
+    'No se puede repetir el mismo repuesto en la boleta'
+  );
+
 const bodySchema = z.object({
   ticket_number: z.string().trim().max(30).optional(),
   status: z.string().trim().min(1).max(50).optional(),
@@ -49,6 +69,9 @@ const bodySchema = z.object({
   image_url: z.string().trim().max(500).optional().nullable(),
   probable_repair_date: optionalDate,
   assigned_to: optionalAssignedTo,
+  diagnosis: z.string().trim().max(4000).optional().nullable(),
+  labor_price: optionalMoney,
+  parts: partsSchema.optional(),
 });
 
 const technicalRepairCreateSchema = z.object({ body: bodySchema });
@@ -85,9 +108,30 @@ const technicalRepairQuerySchema = z.object({
   }),
 });
 
+const technicalReportQuerySchema = z.object({
+  query: z.object({
+    group_by: z.enum(['status', 'client', 'equipment', 'part']).default('status'),
+    received_from: z.union([dateString, z.literal('')]).optional(),
+    received_to: z.union([dateString, z.literal('')]).optional(),
+    status: z.string().trim().max(50).optional(),
+    client: z.string().trim().max(120).optional(),
+    article: z.string().trim().max(120).optional(),
+    brand: z.string().trim().max(120).optional(),
+    part: z.string().trim().max(120).optional(),
+  }),
+});
+
+const technicalPartsCatalogQuerySchema = z.object({
+  query: z.object({
+    search: z.string().trim().max(100).optional(),
+  }),
+});
+
 module.exports = {
   technicalRepairCreateSchema,
   technicalRepairUpdateSchema,
   technicalRepairIdSchema,
   technicalRepairQuerySchema,
+  technicalReportQuerySchema,
+  technicalPartsCatalogQuerySchema,
 };
