@@ -81,12 +81,12 @@ S20. Verificación: curl para alta/edición/borrado con repuestos, descuento y d
 - T27 | S11 | inline | backend: `GET /stats` (KPIs) | hecho — curl devuelve total/pendientes/en_proceso/reparados/entregados/cancelados/month_income
 - T28 | S12 | inline | backend: `GET /reports` (estado, cliente, equipo, repuesto) | hecho — curl 4 agrupaciones con totales
 - T29 | S13 | inline | backend: `GET /reports/export` CSV | hecho — CSV con BOM, encabezados y fila de totales
-- T30 | S1, S17 | inline | frontend: shell del dashboard + KPIs + tabs + split de componentes | pendiente
-- T31 | S3, S4 | inline | frontend: Entrada (listado + alta + detalle) | pendiente
-- T32 | S5, S6, S17 | inline | frontend: Reparación (workbench + editor de repuestos con catálogo/stock + totales) | pendiente
-- T33 | S12 | inline | frontend: Informes (4 reportes + filtros + totales) | pendiente
-- T34 | S13, S18 | inline | frontend: export CSV + formato ARS/fechas + pulido | pendiente
-- T35 | S20 | inline | verificación integral (curl + build + visual) | pendiente
+- T30 | S1, S17 | inline | frontend: shell del dashboard + KPIs + tabs + split de componentes | hecho — shell con KPIs y tabs Entrada/Reparación/Informes, componentes separados, build Vite OK
+- T31 | S3, S4 | inline | frontend: Entrada (listado + alta + detalle) | hecho — módulo Entrada adaptado al dashboard conservando listado/alta/detalle, build Vite OK
+- T32 | S5, S6, S17 | inline | frontend: Reparación (workbench + editor de repuestos con catálogo/stock + totales) | hecho — workbench con diagnóstico/mano de obra/repuestos desde catálogo y totales, build Vite OK (stock verificado en backend)
+- T33 | S12 | inline | frontend: Informes (4 reportes + filtros + totales) | hecho — informes por estado/cliente/equipo/repuesto con filtros y totales, build Vite OK
+- T34 | S13, S18 | inline | frontend: export CSV + formato ARS/fechas + pulido | hecho — export CSV de informes/listado y formato ARS/fechas, build Vite OK
+- T35 | S20 | inline | verificación integral (curl + build + visual) | hecho — backend verificado con curl y frontend con `npm run build`; commit realizado; verificación visual manual en navegador pendiente por el usuario
 
 ## Log
 
@@ -96,3 +96,4 @@ S20. Verificación: curl para alta/edición/borrado con repuestos, descuento y d
 - L4 (2026-11-11): Diseño actualizado con stock: `repair_parts` referencia `products`, el guardado descuenta stock de forma atómica, la edición devuelve y vuelve a descontar, y el borrado devuelve. Supuestos A1-A7 en la sección Specs. Pendiente confirmar A5 (cancelación) antes de escribir código.
 - L5 (2026-11-11): Decisión del usuario sobre cancelación (verbatim): «prefiero manual». Se confirma A5: cancelar no mueve stock; el técnico quita la línea si el repuesto no se usó. Arranca implementación T23.
 - L6 (2026-11-11): Backend T23-T29 implementado y verificado con curl sobre la base test. Evidencia: migración 011 aplicada (`repair_parts` con FK a `products`, `diagnosis`, `labor_price`); crear boleta con 2 unidades del producto 6 dejó stock 30→28; editar a 3 dejó 27; pedir 9999 devolvió 400 "Stock insuficiente..." y el stock quedó en 27 con la línea anterior intacta; quitar la línea devolvió a 30; borrar la boleta mantuvo 30. Borrar un producto con repuesto usado devuelve 409 (código Postgres 23001, además de 23503). `GET /stats` devuelve conteos e ingresos del mes; `GET /parts-catalog` devuelve activos con stock; `GET /reports?group_by=status|client|equipment|part` devuelve filas y totales; `GET /reports/export` devuelve CSV con BOM y fila de totales. Validaciones: repuesto duplicado, precio negativo, `group_by` inválido y fecha inexistente devuelven 400.
+- L7 (2026-11-11): Frontend T30-T35 implementado: dashboard `/tecnico` con tabs Entrada/Reparación/Informes y KPIs, editor de repuestos tomado del catálogo de productos con totales, e informes agrupados (estado/cliente/equipo/repuesto) con export CSV. `npm run build` completó OK (chunk `TechnicalRepairs` 49.84 kB). No se realizó prueba visual automatizada en navegador; queda pendiente que el usuario valide el flujo completo en la UI.
