@@ -43,13 +43,13 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - T12 | S13 | inline | endpoint próximo Nº de boleta | completada · verificada OK
 - T13 | S14 | inline | validación zod + filtros/orden + `assigned_to` | completada · verificada OK
 - T14 | S15 | inline | export CSV | completada · verificada OK
-- T15 | S16 | inline | toasts + validación frontend | pendiente
-- T16 | S17 | inline | selects con (+) para artículo/marca/estado | pendiente
-- T17 | S18 | inline | modal búsqueda/creación de cliente | pendiente
-- T18 | S19 | inline | precarga de Nº de boleta | pendiente
-- T19 | S20 | inline | vista de detalle de boleta | pendiente
-- T20 | S21 | inline | filtros de fecha + orden visual | pendiente
-- T21 | S22 | inline | selector de técnico asignado | pendiente
+- T15 | S16 | inline | toasts + validación frontend | implementada · build OK · pendiente verificación visual
+- T16 | S17 | inline | selects con (+) para artículo/marca/estado | implementada · build OK · pendiente verificación visual
+- T17 | S18 | inline | modal búsqueda/creación de cliente | implementada · build OK · pendiente verificación visual
+- T18 | S19 | inline | precarga de Nº de boleta | implementada · build OK · pendiente verificación visual
+- T19 | S20 | inline | vista de detalle de boleta | implementada · build OK · pendiente verificación visual
+- T20 | S21 | inline | filtros de fecha + orden visual | implementada · build OK · pendiente verificación visual
+- T21 | S22 | inline | selector de técnico asignado | implementada · build OK · pendiente verificación visual
 - T22 | S10-S22 | inline | verificación integral en test | pendiente
 
 ## Log
@@ -72,3 +72,5 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - L9 (2026-11-11): T13 implementada y verificada OK. Validación zod en alta/edición (`client_name`, `damage_reported`, email, fechas, `assigned_to`), estado validado contra `repair_catalog_items` (se acepta un estado nuevo del catálogo, ej. `listo`; uno inexistente devuelve 400), filtros `received_from/to` y `probable_from/to`, orden por columna (`sort_by`/`sort_dir`), `assigned_to` persistido y `assigned_to_name` en listado/detalle, endpoint `GET /api/technical-repairs/technicians`, 404 en id inexistente y 400 en id inválido. Se corrigió el middleware `validate` (usaba `schema.body` en vez de `schema.shape.body`, por lo que no validaba nada) y la asignación de `req.query` en Express 4. Verificado con curl: 201 con `assigned_to=7` y estado `listo`, 400 en estado/técnico/email/damage inválidos, 200 al desasignar, login validado. Pendientes: T14-T22.
 
 - L10 (2026-11-11): T14 implementada y verificada OK. `GET /api/technical-repairs/export` devuelve CSV (`text/csv; charset=utf-8`, `Content-Disposition` con fecha, BOM para Excel) del listado filtrado y ordenado, sin paginar. Reutiliza `buildFilters` con el listado. Verificado con curl: filtro `status=listo` (2 filas), orden por cliente, escapado correcto de comillas/comas/saltos de línea y de fórmulas (`=SUM` queda como texto), y 403 con rol customer. Pendientes: T15-T22 (frontend).
+
+- L11 (2026-11-11): T15-T21 implementadas en `frontend/src/pages/TechnicalRepairs.jsx` (build de Vite OK). Incluye: toasts de Chakra en lugar de `alert`, validación previa (nombre, daño, email), selects de artículo/marca/estado con botón (+) que crea el ítem en el catálogo y lo selecciona, modal de cliente con búsqueda (nombre/DNI/email/teléfono) y alta rápida que vuelca los datos a la orden, precarga del próximo Nº de boleta al iniciar y después de guardar, detalle de boleta al hacer clic en la fila con botón Editar, filtros por fecha de recepción/probable y ordenamiento por columnas, selector de técnico asignado y botón Exportar CSV. Verificado: build de producción OK, Vite transforma la página (HTTP 200), y el payload exacto del frontend (strings vacíos + `assigned_to: null`) devuelve 201/200 en create/update con limpieza de campos y asignación de técnico. Pendiente: verificación visual en navegador (T22).
