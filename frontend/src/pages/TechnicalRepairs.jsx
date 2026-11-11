@@ -9,8 +9,8 @@ import {
   ModalCloseButton, FormControl, FormLabel, Link, Image as ChakraImage,
 } from '@chakra-ui/react';
 import {
-  FiSearch, FiX, FiPlus, FiEdit, FiTrash2, FiSave, FiFileImage, FiRefreshCw,
-  FiSearch as FiSearchIcon, FiUsers, FiClipboardList,
+  FiSearch, FiX, FiPlus, FiEdit, FiTrash2, FiSave, FiImage, FiRefreshCw,
+  FiUsers, FiClipboardList,
 } from 'react-icons/fi';
 import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
@@ -392,7 +392,7 @@ export default function TechnicalRepairs() {
                       {imagePreview && (
                         <Button
                           size="sm"
-                          leftIcon={<FiFileImage />}
+                          leftIcon={<FiImage />}
                           onClick={() => {
                             setSelectedRepair({ image_url: imagePreview, id: editingId || 0 });
                             setOpenImageModal(true);
