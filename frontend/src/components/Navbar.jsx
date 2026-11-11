@@ -4,7 +4,7 @@ import {
   useDisclosure, Drawer, DrawerBody, DrawerHeader, DrawerOverlay, DrawerContent, DrawerCloseButton, VStack, Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
-import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart } from 'react-icons/fi';
+import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart, FiBriefcase } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -12,7 +12,7 @@ import logo from '../assets/logo-header.png';
 
 export default function Navbar() {
   const { colorMode, toggleColorMode } = useColorMode();
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, isTecnico } = useAuth();
   const { totalItems } = useCart();
   const { totalItems: wishlistCount } = useWishlist();
   const navigate = useNavigate();
@@ -179,6 +179,11 @@ export default function Navbar() {
                   {isAdmin && (
                     <MenuItem icon={<FiSettings />} onClick={() => navigate('/admin')}>
                       Dashboard
+                    </MenuItem>
+                  )}
+                  {isTecnico && !isAdmin && (
+                    <MenuItem icon={<FiBriefcase />} onClick={() => navigate('/tecnico')}>
+                      Servicio Técnico
                     </MenuItem>
                   )}
                   <MenuItem icon={<FiLogOut />} onClick={() => { logout(); navigate('/'); }}>

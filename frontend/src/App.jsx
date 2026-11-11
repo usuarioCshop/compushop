@@ -25,6 +25,7 @@ const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const TechnicalRepairs = lazy(() => import('./pages/TechnicalRepairs'));
 
 function PageLoader() {
   return (
@@ -38,6 +39,13 @@ function PrivateAdmin({ children }) {
   const { user, loading, isAdmin } = useAuth();
   if (loading) return null;
   if (!user || !isAdmin) return <Navigate to="/login" replace state={{ from: '/admin' }} />;
+  return children;
+}
+
+function PrivateTecnico({ children }) {
+  const { user, loading, isTecnico } = useAuth();
+  if (loading) return null;
+  if (!user || !isTecnico) return <Navigate to="/login" replace state={{ from: '/tecnico' }} />;
   return children;
 }
 
@@ -78,6 +86,14 @@ export default function App() {
           <Route path="mensajes" element={<Suspense fallback={<PageLoader />}><AdminMessages /></Suspense>} />
           <Route path="configuracion" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
         </Route>
+        <Route
+          path="/tecnico"
+          element={
+            <PrivateTecnico>
+              <Suspense fallback={<PageLoader />}><TechnicalRepairs /></Suspense>
+            </PrivateTecnico>
+          }
+        />
       </Routes>
       </Box>
       <Footer />

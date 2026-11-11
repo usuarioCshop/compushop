@@ -337,6 +337,12 @@ async function remove(req, res) {
     await db.prepare('DELETE FROM products WHERE id = $1').run(id);
     res.json({ message: 'Producto eliminado' });
   } catch (error) {
+    if (error && (error.code === '23503' || error.code === '23001')) {
+      return res.status(409).json({
+        error:
+          'No se puede eliminar el producto: tiene repuestos usados en servicios. Desactivalo en su lugar.',
+      });
+    }
     console.error(error);
     res.status(500).json({ error: 'Error al eliminar producto' });
   }
