@@ -41,7 +41,7 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - T10 | S11 | inline | controlador y rutas de catálogos | completada · verificada OK
 - T11 | S12 | inline | controlador y rutas de clientes | completada · verificada OK
 - T12 | S13 | inline | endpoint próximo Nº de boleta | completada · verificada OK
-- T13 | S14 | inline | validación zod + filtros/orden + `assigned_to` | pendiente
+- T13 | S14 | inline | validación zod + filtros/orden + `assigned_to` | completada · verificada OK
 - T14 | S15 | inline | export CSV | pendiente
 - T15 | S16 | inline | toasts + validación frontend | pendiente
 - T16 | S17 | inline | selects con (+) para artículo/marca/estado | pendiente
@@ -68,3 +68,5 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - L7 (2026-11-11): Lista de tareas de la fase 2 (T9-T22) integrada en este documento. Pendiente: confirmación de arranque por bloque.
 
 - L8 (2026-11-11): T9-T12 implementadas y verificadas OK contra la base de test. Migración 010 aplicada: `assigned_to` presente, sin CHECK de status, catálogos `article` (7), `brand` (6) y `status` (5), tabla `repair_clients` operativa. GET/POST `/api/repair-catalogs/:type` (201 al crear, 409 en duplicado), GET/POST `/api/repair-clients` con búsqueda, `next-ticket` = `CS261111-0001`, y 403 con rol `customer`. Pendientes: T13-T22.
+
+- L9 (2026-11-11): T13 implementada y verificada OK. Validación zod en alta/edición (`client_name`, `damage_reported`, email, fechas, `assigned_to`), estado validado contra `repair_catalog_items` (se acepta un estado nuevo del catálogo, ej. `listo`; uno inexistente devuelve 400), filtros `received_from/to` y `probable_from/to`, orden por columna (`sort_by`/`sort_dir`), `assigned_to` persistido y `assigned_to_name` en listado/detalle, endpoint `GET /api/technical-repairs/technicians`, 404 en id inexistente y 400 en id inválido. Se corrigió el middleware `validate` (usaba `schema.body` en vez de `schema.shape.body`, por lo que no validaba nada) y la asignación de `req.query` en Express 4. Verificado con curl: 201 con `assigned_to=7` y estado `listo`, 400 en estado/técnico/email/damage inválidos, 200 al desasignar, login validado. Pendientes: T14-T22.

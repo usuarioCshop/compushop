@@ -10,6 +10,12 @@ const { sendContactEmail } = require('../utils/email');
 const validate = require('../middleware/validate');
 const { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } = require('../validations/auth');
 const { contactSchema } = require('../validations/contact');
+const {
+  technicalRepairCreateSchema,
+  technicalRepairUpdateSchema,
+  technicalRepairIdSchema,
+  technicalRepairQuerySchema,
+} = require('../validations/technicalRepairs');
 
 const authCtrl = require('../controllers/authController');
 const productsCtrl = require('../controllers/productsController');
@@ -118,12 +124,20 @@ router.put('/users/:id', authenticate, requireAdmin, usersCtrl.update);
 router.delete('/users/:id', authenticate, requireAdmin, usersCtrl.remove);
 
 // ========== TECNICAL REPAIRS (servicio tecnico, solo tecnico/admin) ==========
-router.get('/technical-repairs', authenticate, requireTecnico, technicalRepairsCtrl.getAll);
-router.post('/technical-repairs', authenticate, requireTecnico, technicalRepairsCtrl.create);
+router.get('/technical-repairs', authenticate, requireTecnico, validate(technicalRepairQuerySchema), technicalRepairsCtrl.getAll);
+router.post('/technical-repairs', authenticate, requireTecnico, validate(technicalRepairCreateSchema), technicalRepairsCtrl.create);
 router.get('/technical-repairs/next-ticket', authenticate, requireTecnico, technicalRepairsCtrl.getNextTicket);
-router.get('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.getOne);
-router.put('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.update);
-router.delete('/technical-repairs/:id', authenticate, requireTecnico, technicalRepairsCtrl.remove);
+router.get('/technical-repairs/technicians', authenticate, requireTecnico, technicalRepairsCtrl.getTechnicians);
+router.get('/technical-repairs/:id', authenticate, requireTecnico, validate(technicalRepairIdSchema), technicalRepairsCtrl.getOne);
+router.put(
+  '/technical-repairs/:id',
+  authenticate,
+  requireTecnico,
+  validate(technicalRepairIdSchema),
+  validate(technicalRepairUpdateSchema),
+  technicalRepairsCtrl.update
+);
+router.delete('/technical-repairs/:id', authenticate, requireTecnico, validate(technicalRepairIdSchema), technicalRepairsCtrl.remove);
 
 // Catalogos y clientes de servicio tecnico.
 router.get('/repair-catalogs/:type', authenticate, requireTecnico, repairCatalogsCtrl.getAll);

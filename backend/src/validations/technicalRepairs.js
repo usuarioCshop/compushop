@@ -1,0 +1,81 @@
+const { z } = require('zod');
+
+const dateString = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener formato YYYY-MM-DD');
+
+const optionalDate = z.union([dateString, z.literal('')]).optional().nullable();
+
+const optionalEmail = z
+  .union([z.string().trim().email('Email del cliente inválido').max(120), z.literal('')])
+  .optional()
+  .nullable();
+
+// El select del frontend manda el tecnico como string o null.
+const optionalAssignedTo = z.preprocess((value) => {
+  if (value === null || value === '') return null;
+  if (value === undefined) return undefined;
+  if (typeof value === 'string') return Number(value);
+  return value;
+}, z.union([z.number().int().positive(), z.null()]).optional());
+
+const bodySchema = z.object({
+  ticket_number: z.string().trim().max(30).optional(),
+  status: z.string().trim().min(1).max(50).optional(),
+  client_name: z.string().trim().min(2, 'El nombre del cliente debe tener al menos 2 caracteres').max(120),
+  client_address: z.string().trim().max(255).optional().nullable(),
+  client_id: z.string().trim().max(50).optional().nullable(),
+  client_email: optionalEmail,
+  client_phone: z.string().trim().max(50).optional().nullable(),
+  article: z.string().trim().max(120).optional().nullable(),
+  brand: z.string().trim().max(120).optional().nullable(),
+  model: z.string().trim().max(120).optional().nullable(),
+  serial_number: z.string().trim().max(120).optional().nullable(),
+  damage_reported: z.string().trim().min(3, 'El daño reportado debe tener al menos 3 caracteres').max(2000),
+  notes: z.string().trim().max(2000).optional().nullable(),
+  image_url: z.string().trim().max(500).optional().nullable(),
+  probable_repair_date: optionalDate,
+  assigned_to: optionalAssignedTo,
+});
+
+const technicalRepairCreateSchema = z.object({ body: bodySchema });
+
+const technicalRepairUpdateSchema = z.object({ body: bodySchema.partial() });
+
+const technicalRepairIdSchema = z.object({
+  params: z.object({ id: z.coerce.number().int().positive() }),
+});
+
+const technicalRepairQuerySchema = z.object({
+  query: z.object({
+    status: z.string().trim().max(50).optional(),
+    search: z.string().trim().max(100).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+    received_from: dateString.optional(),
+    received_to: dateString.optional(),
+    probable_from: dateString.optional(),
+    probable_to: dateString.optional(),
+    sort_by: z
+      .enum([
+        'ticket_number',
+        'client_name',
+        'article',
+        'brand',
+        'status',
+        'received_at',
+        'probable_repair_date',
+        'assigned_to',
+      ])
+      .default('received_at'),
+    sort_dir: z.enum(['asc', 'desc']).default('desc'),
+  }),
+});
+
+module.exports = {
+  technicalRepairCreateSchema,
+  technicalRepairUpdateSchema,
+  technicalRepairIdSchema,
+  technicalRepairQuerySchema,
+};
