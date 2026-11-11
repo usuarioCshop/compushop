@@ -13,6 +13,20 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - S8: Frontend página `/tecnico` con interfaz similar a la imagen de referencia, protegida por rol `tecnico` (y admin para supervisión).
 - S9: `AuthContext` expone `isTecnico`.
 
+- S10: Migración 010: tabla `repair_catalog_items` (`type` en `article|brand|status`, `name`, `is_active`, único por `type+name`) con seed inicial; tabla `repair_clients` (`name`, `address`, `dni`, `email`, `phone`, `created_at`, `updated_at`); columna `assigned_to` en `technical_repairs` (FK a `users`, `SET NULL`); quitar el CHECK de `technical_repairs.status` para permitir estados del catálogo.
+- S11: Endpoints `GET /api/repair-catalogs/:type` y `POST /api/repair-catalogs/:type` (solo técnico/admin) para listar y agregar ítems de catálogo.
+- S12: Endpoints `GET /api/repair-clients?search=` (busca por nombre, DNI, email o teléfono) y `POST /api/repair-clients` (solo técnico/admin).
+- S13: Endpoint `GET /api/technical-repairs/next-ticket` que devuelve el próximo Nº de boleta.
+- S14: Validación con zod en creación/edición de reparación; filtros de fecha (`received_from`, `received_to`, `probable_from`, `probable_to`) y ordenamiento (`sort_by`, `sort_dir`); persistir `assigned_to`.
+- S15: Endpoint `GET /api/technical-repairs/export` que devuelve CSV del listado filtrado.
+- S16: Frontend reemplaza `alert` por toasts de Chakra y valida el formulario antes de enviar.
+- S17: Campos Artículo, Marca y Estado son `Select` con botón (+) para agregar ítems al catálogo.
+- S18: Lupa junto al input Cliente abre modal de búsqueda; si no se encuentra, permite cargar y guardar el cliente; al cerrar el modal (encontrado o guardado) carga los datos en la orden.
+- S19: Al iniciar una nueva orden, el Nº de boleta se precarga con el próximo número antes de guardar.
+- S20: Click en una fila abre la vista de detalle de la boleta.
+- S21: Filtros de fecha en la UI y ordenamiento visual por columnas.
+- S22: Selector de técnico asignado en el formulario.
+
 ## Tasks
 - T1 | S1,S2 | inline | migración 009 (`users.role` + `technical_repairs`) | completada
 - T2 | S7 | inline | middleware `requireTecnico` | completado
@@ -22,6 +36,21 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - T6 | S8 | inline | frontend página `/tecnico` (listado + formulario) | completado
 - T7 | S8 | inline | registro de rutas en `App.jsx` y enlace en Navbar | completado
 - T8 | S1-S9 | inline | verificación en test (crear/listar/editar reparación con imagen) | completado
+
+- T9 | S10 | inline | migración 010 (catálogos, clientes, `assigned_to`, status sin CHECK) | pendiente
+- T10 | S11 | inline | controlador y rutas de catálogos | pendiente
+- T11 | S12 | inline | controlador y rutas de clientes | pendiente
+- T12 | S13 | inline | endpoint próximo Nº de boleta | pendiente
+- T13 | S14 | inline | validación zod + filtros/orden + `assigned_to` | pendiente
+- T14 | S15 | inline | export CSV | pendiente
+- T15 | S16 | inline | toasts + validación frontend | pendiente
+- T16 | S17 | inline | selects con (+) para artículo/marca/estado | pendiente
+- T17 | S18 | inline | modal búsqueda/creación de cliente | pendiente
+- T18 | S19 | inline | precarga de Nº de boleta | pendiente
+- T19 | S20 | inline | vista de detalle de boleta | pendiente
+- T20 | S21 | inline | filtros de fecha + orden visual | pendiente
+- T21 | S22 | inline | selector de técnico asignado | pendiente
+- T22 | S10-S22 | inline | verificación integral en test | pendiente
 
 ## Log
 - L1 (2026-11-10): Usuario solicita sección de servicio técnico solo para rol Técnico, interfaz tipo gestión de boletas de reparación (imagen de referencia). Rama `feature-ser-tec` creada desde `dev2`.
@@ -33,3 +62,7 @@ Objetivo: sección de servicio técnico accesible solo por el rol `tecnico`, con
 - L4 (2026-11-10): Feature de servicio técnico completa y verificada. T1-T8 cerradas en `feature-ser-tec`. Pendiente: push/merge (usuario).
 
 - L5 (2026-11-11): Se crearon 4 usuarios de prueba (uno por rol) con contraseña común `Compushop2026`: superadmin, admin, tecnico, customer. Se corrigieron iconos de react-icons inexistentes (`FiFileImage` → `FiImage`, `FiClipboardList` → `FiClipboard`, `FiTools` → `FiBriefcase`). Backend y frontend verificados OK en localhost.
+
+- L6 (2026-11-11): Usuario aprueba el esqueleto y pide: «El esqueleto esta ok te paso mi lista,  cargar el campo de orden con el nro que le corresponde antes de guardar, para los campos articulo, marca y estado agregar un boton (+) al lado para incorporar nuevos items para los y cambiar de input a select, una lupa al lado del input de cliente para realizar busquedas y en caso de no encontrarse permiter rellenar los datos y guardarlos todo en un modal y al cerrar el modal ya sea porque se guardo o se encontro cargar los datos en la orden, ya con eso creo que tenemos para un rato». Decisiones de fase 2: catálogos en `repair_catalog_items`; clientes en `repair_clients`; estados pasan a ser catálogo (se quita el CHECK); `assigned_to` como FK a `users`.
+
+- L7 (2026-11-11): Lista de tareas de la fase 2 (T9-T22) integrada en este documento. Pendiente: confirmación de arranque por bloque.
