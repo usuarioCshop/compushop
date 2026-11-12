@@ -22,6 +22,10 @@ async function update(req, res) {
       'store_name', 'store_phone', 'store_address', 'store_email',
       'usd_rate',
       'iibb_percent',
+      // Datos fiscales del emisor (facturación)
+      'emisor_razon_social', 'emisor_nombre_fantasia', 'emisor_cuit', 'emisor_domicilio',
+      'emisor_condicion_iva', 'emisor_iibb', 'emisor_inicio_actividades',
+      'emisor_telefono', 'emisor_email', 'emisor_logo',
     ];
 
     // Dentro de la transaccion se usa siempre el runner que entrega el callback

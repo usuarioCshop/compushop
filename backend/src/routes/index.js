@@ -32,6 +32,10 @@ const wishlistCtrl = require('../controllers/wishlistController');
 const technicalRepairsCtrl = require('../controllers/technicalRepairsController');
 const repairCatalogsCtrl = require('../controllers/repairCatalogsController');
 const repairClientsCtrl = require('../controllers/repairClientsController');
+const billingClientsCtrl = require('../controllers/billingClientsController');
+const invoicesCtrl = require('../controllers/invoicesController');
+const { billingClientSchema, billingClientUpdateSchema } = require('../validations/billingClients');
+const { invoiceCreateSchema, invoiceUpdateSchema, invoiceIdSchema, invoiceVoidSchema } = require('../validations/invoices');
 
 const IS_VERCEL = !!process.env.VERCEL;
 const { uploadsDir: uploadDir } = require('../utils/uploads');
@@ -255,5 +259,26 @@ router.get('/health', async (req, res) => {
     res.status(503).json({ status: 'error', db: 'disconnected' });
   }
 });
+
+
+// ========== BILLING CLIENTS (facturación) ==========
+router.get('/billing-clients', authenticate, requireTecnico, billingClientsCtrl.getAll);
+router.get('/billing-clients/sources', authenticate, requireTecnico, billingClientsCtrl.getSources);
+router.get('/billing-clients/:id', authenticate, requireTecnico, billingClientsCtrl.getOne);
+router.post('/billing-clients', authenticate, requireTecnico, validate(billingClientSchema), billingClientsCtrl.create);
+router.put('/billing-clients/:id', authenticate, requireTecnico, validate(billingClientUpdateSchema), billingClientsCtrl.update);
+
+// ========== INVOICES (facturación) ==========
+router.get('/invoices/next-number', authenticate, requireTecnico, invoicesCtrl.getNextNumber);
+router.get('/invoices/preload/product/:id', authenticate, requireTecnico, invoicesCtrl.preloadProduct);
+router.get('/invoices/preload/repair/:id', authenticate, requireTecnico, invoicesCtrl.preloadRepair);
+router.get('/invoices', authenticate, requireTecnico, invoicesCtrl.getAll);
+router.post('/invoices', authenticate, requireTecnico, validate(invoiceCreateSchema), invoicesCtrl.create);
+router.get('/invoices/:id/pdf', authenticate, requireTecnico, validate(invoiceIdSchema), invoicesCtrl.getPdf);
+router.get('/invoices/:id', authenticate, requireTecnico, validate(invoiceIdSchema), invoicesCtrl.getOne);
+router.put('/invoices/:id', authenticate, requireTecnico, validate(invoiceUpdateSchema), invoicesCtrl.update);
+router.post('/invoices/:id/issue', authenticate, requireTecnico, validate(invoiceIdSchema), invoicesCtrl.issue);
+router.post('/invoices/:id/void', authenticate, requireTecnico, validate(invoiceVoidSchema), invoicesCtrl.voidInvoice);
+router.delete('/invoices/:id', authenticate, requireTecnico, validate(invoiceIdSchema), invoicesCtrl.remove);
 
 module.exports = router;

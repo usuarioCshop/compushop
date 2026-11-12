@@ -100,6 +100,7 @@ export function AuthProvider({ children }) {
         isAdmin: ['admin', 'superadmin'].includes(user?.role),
         isSuperAdmin: user?.role === 'superadmin',
         isTecnico: ['tecnico', 'admin', 'superadmin'].includes(user?.role),
+        isBilling: ['tecnico', 'admin', 'superadmin'].includes(user?.role),
         isAuthenticated: !!user,
         token: typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null,
       }}
