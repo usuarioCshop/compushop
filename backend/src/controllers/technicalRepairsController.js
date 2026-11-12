@@ -150,12 +150,13 @@ async function fetchRepairWithParts(id) {
     (acc, part) => acc + Number(part.quantity) * Number(part.unit_price),
     0
   );
+  const ivaAmount = laborIvaAmount(repair);
 
   return {
     ...repair,
-    parts,
+    labor_iva_amount: ivaAmount,
     parts_total: partsTotal,
-    total: Number(repair.labor_price) + partsTotal,
+    total: Number(repair.labor_price || 0) + ivaAmount + partsTotal,
   };
 }
 
@@ -293,6 +294,14 @@ function buildFilters(query) {
   };
 }
 
+// Monto de IVA sobre mano de obra cuando esta habilitado.
+function laborIvaAmount(repair) {
+  if (!repair || !repair.labor_iva_enabled) return 0;
+  return Number(repair.labor_price || 0) * (Number(repair.labor_iva_rate || 0) / 100);
+}
+
+const LABOR_IVA_SQL = `(CASE WHEN t.labor_iva_enabled THEN t.labor_price * t.labor_iva_rate / 100 ELSE 0 END)`;
+
 // Subconsulta de totales de repuestos por reparacion, reutilizada en listado,
 // export, stats y reportes.
 const PARTS_TOTALS_JOIN = `
@@ -321,7 +330,8 @@ async function getAll(req, res) {
     const repairs = await db.prepare(`
       SELECT t.*, u.name AS assigned_to_name,
              COALESCE(pt.parts_total, 0) AS parts_total,
-             t.labor_price + COALESCE(pt.parts_total, 0) AS total
+             ${LABOR_IVA_SQL} AS labor_iva_amount,
+             t.labor_price + ${LABOR_IVA_SQL} + COALESCE(pt.parts_total, 0) AS total
       FROM technical_repairs t
       LEFT JOIN users u ON u.id = t.assigned_to
       ${PARTS_TOTALS_JOIN}
@@ -390,7 +400,8 @@ async function exportCsv(req, res) {
     const repairs = await db.prepare(`
       SELECT t.*, u.name AS assigned_to_name,
              COALESCE(pt.parts_total, 0) AS parts_total,
-             t.labor_price + COALESCE(pt.parts_total, 0) AS total,
+             ${LABOR_IVA_SQL} AS labor_iva_amount,
+             t.labor_price + ${LABOR_IVA_SQL} + COALESCE(pt.parts_total, 0) AS total,
              COALESCE((
                SELECT string_agg(rp.quantity || 'x ' || rp.description, '; ' ORDER BY rp.id)
                FROM repair_parts rp
@@ -423,6 +434,9 @@ async function exportCsv(req, res) {
       'Diagnóstico',
       'Repuestos',
       'Mano de obra',
+      'IVA habilitado',
+      'IVA %',
+      'IVA mano de obra',
       'Total',
     ];
 
@@ -446,6 +460,9 @@ async function exportCsv(req, res) {
       repair.diagnosis,
       repair.parts_summary,
       csvMoney(repair.labor_price),
+      repair.labor_iva_enabled ? 'Sí' : 'No',
+      repair.labor_iva_enabled ? csvMoney(repair.labor_iva_rate) : '0.00',
+      csvMoney(repair.labor_iva_amount),
       csvMoney(repair.total),
     ]);
 
@@ -471,7 +488,7 @@ async function getStats(req, res) {
         COALESCE(SUM(
           CASE
             WHEN t.status <> 'cancelado' AND t.received_at >= date_trunc('month', now())
-            THEN t.labor_price + COALESCE(pt.parts_total, 0)
+            THEN t.labor_price + ${LABOR_IVA_SQL} + COALESCE(pt.parts_total, 0)
             ELSE 0
           END
         ), 0) AS month_income
@@ -576,8 +593,8 @@ async function buildReport(groupBy, query) {
       t.client_id AS client_id,
       COUNT(*)::int AS count,
       COALESCE(SUM(pt.parts_total), 0) AS parts_total,
-      COALESCE(SUM(t.labor_price), 0) AS labor_total,
-      COALESCE(SUM(t.labor_price + COALESCE(pt.parts_total, 0)), 0) AS total
+      COALESCE(SUM(t.labor_price + ${LABOR_IVA_SQL}), 0) AS labor_total,
+      COALESCE(SUM(t.labor_price + ${LABOR_IVA_SQL} + COALESCE(pt.parts_total, 0)), 0) AS total
     `;
     group = 'GROUP BY t.client_name, t.client_id';
     order = 'ORDER BY total DESC, client_name ASC';
@@ -588,8 +605,8 @@ async function buildReport(groupBy, query) {
       COALESCE(t.model, '') AS model,
       COUNT(*)::int AS count,
       COALESCE(SUM(pt.parts_total), 0) AS parts_total,
-      COALESCE(SUM(t.labor_price), 0) AS labor_total,
-      COALESCE(SUM(t.labor_price + COALESCE(pt.parts_total, 0)), 0) AS total
+      COALESCE(SUM(t.labor_price + ${LABOR_IVA_SQL}), 0) AS labor_total,
+      COALESCE(SUM(t.labor_price + ${LABOR_IVA_SQL} + COALESCE(pt.parts_total, 0)), 0) AS total
     `;
     group = 'GROUP BY t.article, t.brand, t.model';
     order = 'ORDER BY count DESC, article ASC, brand ASC, model ASC';
@@ -598,8 +615,8 @@ async function buildReport(groupBy, query) {
       t.status AS status,
       COUNT(*)::int AS count,
       COALESCE(SUM(pt.parts_total), 0) AS parts_total,
-      COALESCE(SUM(t.labor_price), 0) AS labor_total,
-      COALESCE(SUM(t.labor_price + COALESCE(pt.parts_total, 0)), 0) AS total
+      COALESCE(SUM(t.labor_price + ${LABOR_IVA_SQL}), 0) AS labor_total,
+      COALESCE(SUM(t.labor_price + ${LABOR_IVA_SQL} + COALESCE(pt.parts_total, 0)), 0) AS total
     `;
     group = 'GROUP BY t.status';
     order = 'ORDER BY t.status ASC';
@@ -766,9 +783,9 @@ async function create(req, res) {
         INSERT INTO technical_repairs (
           ticket_number, status, client_name, client_address, client_id, client_email, client_phone,
           article, brand, model, serial_number, damage_reported, notes, image_url, probable_repair_date,
-          assigned_to, diagnosis, labor_price
+          assigned_to, diagnosis, labor_price, labor_iva_enabled, labor_iva_rate
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         RETURNING *
       `).run(
         body.ticket_number || generateTicketNumber(),
@@ -788,7 +805,9 @@ async function create(req, res) {
         body.probable_repair_date || null,
         body.assigned_to ?? null,
         body.diagnosis || null,
-        body.labor_price ?? 0
+        body.labor_price ?? 0,
+        body.labor_iva_enabled ?? false,
+        body.labor_iva_rate ?? 21
       );
 
       const created = inserted.rows[0];
@@ -858,8 +877,9 @@ async function update(req, res) {
           ticket_number = $1, status = $2, client_name = $3, client_address = $4, client_id = $5,
           client_email = $6, client_phone = $7, article = $8, brand = $9, model = $10,
           serial_number = $11, damage_reported = $12, notes = $13, image_url = $14,
-          probable_repair_date = $15, assigned_to = $16, diagnosis = $17, labor_price = $18
-        WHERE id = $19
+          probable_repair_date = $15, assigned_to = $16, diagnosis = $17, labor_price = $18,
+          labor_iva_enabled = $19, labor_iva_rate = $20
+        WHERE id = $21
       `).run(
         body.ticket_number || existing.ticket_number,
         body.status !== undefined ? body.status : existing.status,
@@ -879,6 +899,8 @@ async function update(req, res) {
         body.assigned_to !== undefined ? body.assigned_to : existing.assigned_to,
         pick(body, 'diagnosis', existing.diagnosis),
         body.labor_price !== undefined ? body.labor_price : existing.labor_price,
+        body.labor_iva_enabled !== undefined ? body.labor_iva_enabled : existing.labor_iva_enabled,
+        body.labor_iva_rate !== undefined ? body.labor_iva_rate : existing.labor_iva_rate,
         id
       );
 

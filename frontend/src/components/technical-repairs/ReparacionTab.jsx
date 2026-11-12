@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   CardBody,
+  Checkbox,
   Divider,
   FormControl,
   FormLabel,
@@ -17,15 +18,8 @@ import {
   Select,
   SimpleGrid,
   Spinner,
-  Table,
-  TableContainer,
-  Tbody,
-  Td,
   Text,
   Textarea,
-  Th,
-  Thead,
-  Tr,
   VStack,
   useToast,
 } from '@chakra-ui/react';
@@ -48,6 +42,8 @@ function toForm(repair) {
   return {
     diagnosis: repair.diagnosis || '',
     labor_price: repair.labor_price ?? 0,
+    labor_iva_enabled: Boolean(repair.labor_iva_enabled),
+    labor_iva_rate: repair.labor_iva_rate ?? 21,
     notes: repair.notes || '',
     status: repair.status || 'pendiente',
     assigned_to: repair.assigned_to || '',
@@ -193,7 +189,10 @@ export default function ReparacionTab({ onChanged }) {
       ),
     [form]
   );
-  const total = Number(form?.labor_price || 0) + partsTotal;
+  const laborBase = Number(form?.labor_price || 0);
+  const laborIvaAmount =
+    form?.labor_iva_enabled ? laborBase * (Number(form?.labor_iva_rate || 0) / 100) : 0;
+  const total = laborBase + laborIvaAmount + partsTotal;
 
   const handleSave = async () => {
     if (!selectedId || !form) return;
@@ -202,6 +201,11 @@ export default function ReparacionTab({ onChanged }) {
       const payload = {
         diagnosis: form.diagnosis,
         labor_price: form.labor_price === '' ? 0 : Number(form.labor_price),
+        labor_iva_enabled: Boolean(form.labor_iva_enabled),
+        labor_iva_rate:
+          form.labor_iva_rate === '' || form.labor_iva_rate === undefined
+            ? 21
+            : Number(form.labor_iva_rate),
         notes: form.notes,
         status: form.status,
         assigned_to: form.assigned_to === '' ? null : Number(form.assigned_to),
@@ -408,7 +412,7 @@ export default function ReparacionTab({ onChanged }) {
 
                 <Divider />
 
-                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={4} alignItems="end">
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} alignItems="end">
                   <FormControl>
                     <FormLabel>Mano de obra</FormLabel>
                     <Input
@@ -424,11 +428,51 @@ export default function ReparacionTab({ onChanged }) {
                       }
                     />
                   </FormControl>
+                  <FormControl>
+                    <FormLabel>IVA sobre mano de obra</FormLabel>
+                    <VStack align="start" spacing={2}>
+                      <Checkbox
+                        isChecked={Boolean(form.labor_iva_enabled)}
+                        onChange={(event) =>
+                          setForm({ ...form, labor_iva_enabled: event.target.checked })
+                        }
+                      >
+                        Agregar IVA
+                      </Checkbox>
+                      {form.labor_iva_enabled && (
+                        <HStack>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            value={form.labor_iva_rate}
+                            onChange={(event) =>
+                              setForm({
+                                ...form,
+                                labor_iva_rate:
+                                  event.target.value === '' ? '' : Number(event.target.value),
+                              })
+                            }
+                            maxW="120px"
+                          />
+                          <Text fontSize="sm" color="fg.muted">
+                            %
+                          </Text>
+                        </HStack>
+                      )}
+                    </VStack>
+                  </FormControl>
                   <Box>
                     <Text fontSize="sm" color="fg.muted">
                       Repuestos
                     </Text>
                     <Text fontWeight="semibold">{formatCurrency(partsTotal)}</Text>
+                    {form.labor_iva_enabled && (
+                      <Text fontSize="sm" color="fg.muted" mt={1}>
+                        IVA mano de obra: {formatCurrency(laborIvaAmount)}
+                      </Text>
+                    )}
                   </Box>
                   <Box>
                     <Text fontSize="sm" color="fg.muted">

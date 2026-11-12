@@ -493,8 +493,14 @@ export default function HistoricoTab({ onChanged, onEdit }) {
                     </TableContainer>
                   </Box>
                 )}
-                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={3}>
                   <DetailItem label="Mano de obra" value={formatCurrency(detailRepair.labor_price || 0)} />
+                  {detailRepair.labor_iva_enabled && (
+                    <DetailItem
+                      label={`IVA mano de obra (${detailRepair.labor_iva_rate || 0}%)`}
+                      value={formatCurrency(detailRepair.labor_iva_amount || 0)}
+                    />
+                  )}
                   <DetailItem label="Repuestos" value={formatCurrency(detailRepair.parts_total || 0)} />
                   <DetailItem label="Total" value={formatCurrency(detailRepair.total || 0)} />
                 </SimpleGrid>
