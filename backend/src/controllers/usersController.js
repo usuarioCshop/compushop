@@ -12,8 +12,8 @@ async function createUser(req, res) {
     if (!name || !email || !password || !role) {
       return res.status(400).json({ error: 'Faltan datos obligatorios: name, email, password, role' });
     }
-    if (!['admin', 'customer'].includes(role)) {
-      return res.status(400).json({ error: 'El rol debe ser admin o customer' });
+    if (!['admin', 'customer', 'tecnico'].includes(role)) {
+      return res.status(400).json({ error: 'El rol debe ser admin, customer o tecnico' });
     }
     if (password.length < 8) {
       return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
@@ -101,7 +101,7 @@ async function update(req, res) {
     if (role !== undefined && role !== existing.role && !requesterIsSuper) {
       return res.status(403).json({ error: 'Solo el super administrador puede cambiar roles.' });
     }
-    if (role && !['admin', 'customer', 'superadmin'].includes(role)) {
+    if (role && !['admin', 'customer', 'superadmin', 'tecnico'].includes(role)) {
       return res.status(400).json({ error: 'Rol inválido' });
     }
     if (parseInt(id) === req.user.id && role && role !== existing.role) {
