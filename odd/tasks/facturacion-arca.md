@@ -21,8 +21,8 @@ S8. Homologación verificable end-to-end con cert/pto vta de prueba; runbook par
 - [x] T2 | S2,S4 | inline | F2: migraciones `arca_tokens` y campos/tablas fiscales en facturación + KNOWN_TABLES. Commit: `82a700a`.
 - [x] T3 | S2,S3,S5 | inline | F3: servicios WSAA/WSFE, mapeo alícuotas/cálculo fiscal, QR (port de `temp/src/arca` y `temp/src/invoice/calc` a CJS). Commit: `2c8d6d6`.
 - [x] T4 | S4,S5,S7 | inline | F4: API de emisión electrónica (validación, numeración ARCA, pending/approved/rejected, idempotencia básica) y endpoints de consulta/PDF fiscal. Commit: `ba7f989` (etapa verificada: endpoint + validaciones; requiere cert/CUIT/PTO para emisión real).
-- [x] T5 | S6,S7 | inline | F5: PDF fiscal (A/B, CAE, QR) y UI `/facturacion` (tipo/concepto/receptor fiscal, emitir, estado, descarga). Commit: pendiente (etapa verificada).
-- [ ] T6 | S8 | inline | F6: verificación homologación, hardening y documentación/runbook.
+- [x] T5 | S6,S7 | inline | F5: PDF fiscal (A/B, CAE, QR) y UI `/facturacion` (tipo/concepto/receptor fiscal, emitir, estado, descarga). Commit: `ad2ac81`.
+- [x] T6 | S8 | inline | F6: verificación homologación, hardening y documentación/runbook. Commit: pendiente (docs/runbook; homologación E2E real pendiente de cert/CUIT/PTO).
 
 ## Log
 L1: "bien arranca y verificamos cada etapa antes del commit y continuar a la siguiente tarea" — análisis de `temp/` completado; iniciar implementación por fases con verificación y commit por etapa.
