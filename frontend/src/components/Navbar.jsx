@@ -4,7 +4,7 @@ import {
   useDisclosure, Drawer, DrawerBody, DrawerHeader, DrawerOverlay, DrawerContent, DrawerCloseButton, VStack, Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
-import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart, FiBriefcase } from 'react-icons/fi';
+import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart, FiBriefcase, FiFileText } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -12,7 +12,7 @@ import logo from '../assets/logo-header.png';
 
 export default function Navbar() {
   const { colorMode, toggleColorMode } = useColorMode();
-  const { user, logout, isAdmin, isTecnico } = useAuth();
+  const { user, logout, isAdmin, isTecnico, isBilling } = useAuth();
   const { totalItems } = useCart();
   const { totalItems: wishlistCount } = useWishlist();
   const navigate = useNavigate();
@@ -181,9 +181,14 @@ export default function Navbar() {
                       Dashboard
                     </MenuItem>
                   )}
-                  {isTecnico && !isAdmin && (
+                  {isTecnico && (
                     <MenuItem icon={<FiBriefcase />} onClick={() => navigate('/tecnico')}>
                       Servicio Técnico
+                    </MenuItem>
+                  )}
+                  {isBilling && (
+                    <MenuItem icon={<FiFileText />} onClick={() => navigate('/facturacion')}>
+                      Facturación
                     </MenuItem>
                   )}
                   <MenuItem icon={<FiLogOut />} onClick={() => { logout(); navigate('/'); }}>
