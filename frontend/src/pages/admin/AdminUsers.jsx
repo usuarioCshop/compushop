@@ -83,8 +83,17 @@ export default function AdminUsers() {
                 <Td color="fg.muted">{u.email}</Td>
                 <Td>{u.dni || '—'}</Td>
                 <Td>
-                  <Badge colorScheme={u.role === 'superadmin' ? 'brand' : u.role === 'admin' ? 'accent' : 'gray'} variant="subtle" borderRadius="full">
-                    {u.role}
+                  <Badge
+                    colorScheme={
+                      u.role === 'superadmin' ? 'brand'
+                        : u.role === 'admin' ? 'accent'
+                        : u.role === 'tecnico' ? 'blue'
+                        : 'gray'
+                    }
+                    variant="subtle"
+                    borderRadius="full"
+                  >
+                    {u.role === 'tecnico' ? 'Técnico' : u.role}
                   </Badge>
                 </Td>
                 <Td>
@@ -120,6 +129,7 @@ export default function AdminUsers() {
                 <Select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>
                   <option value="customer">Cliente</option>
                   <option value="admin">Administrador</option>
+                  <option value="tecnico">Técnico</option>
                 </Select>
               </FormControl>
               <FormControl><FormLabel>DNI</FormLabel>

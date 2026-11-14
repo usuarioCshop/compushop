@@ -26,6 +26,7 @@ const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const TechnicalRepairs = lazy(() => import('./pages/TechnicalRepairs'));
+const Invoicing = lazy(() => import('./pages/Invoicing'));
 
 function PageLoader() {
   return (
@@ -46,6 +47,13 @@ function PrivateTecnico({ children }) {
   const { user, loading, isTecnico } = useAuth();
   if (loading) return null;
   if (!user || !isTecnico) return <Navigate to="/login" replace state={{ from: '/tecnico' }} />;
+  return children;
+}
+
+function PrivateBilling({ children }) {
+  const { user, loading, isBilling } = useAuth();
+  if (loading) return null;
+  if (!user || !isBilling) return <Navigate to="/login" replace state={{ from: '/facturacion' }} />;
   return children;
 }
 
@@ -92,6 +100,14 @@ export default function App() {
             <PrivateTecnico>
               <Suspense fallback={<PageLoader />}><TechnicalRepairs /></Suspense>
             </PrivateTecnico>
+          }
+        />
+        <Route
+          path="/facturacion"
+          element={
+            <PrivateBilling>
+              <Suspense fallback={<PageLoader />}><Invoicing /></Suspense>
+            </PrivateBilling>
           }
         />
       </Routes>

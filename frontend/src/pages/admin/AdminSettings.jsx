@@ -31,7 +31,7 @@ export default function AdminSettings() {
   return (
     <Box>
       <Heading size="lg" mb={2}>Configuración</Heading>
-      <Text color="fg.muted" mb={6}>Datos de la tienda y SMTP para emails de contacto / recuperación.</Text>
+      <Text color="fg.muted" mb={6}>Datos de la tienda, facturación y SMTP para emails de contacto / recuperación.</Text>
 
       <Box bg={bg} p={6} borderRadius="xl" borderWidth="1px" mb={6}>
         <Heading size="sm" mb={4}>Datos de la tienda</Heading>
@@ -40,6 +40,23 @@ export default function AdminSettings() {
           <FormControl><FormLabel>Email</FormLabel><Input value={settings.store_email || ''} onChange={e => set('store_email', e.target.value)} /></FormControl>
           <FormControl><FormLabel>Teléfono</FormLabel><Input value={settings.store_phone || ''} onChange={e => set('store_phone', e.target.value)} /></FormControl>
           <FormControl><FormLabel>Dirección</FormLabel><Input value={settings.store_address || ''} onChange={e => set('store_address', e.target.value)} /></FormControl>
+        </SimpleGrid>
+      </Box>
+
+      <Box bg={bg} p={6} borderRadius="xl" borderWidth="1px" mb={6}>
+        <Heading size="sm" mb={1}>Datos fiscales del emisor (facturación)</Heading>
+        <Text fontSize="sm" color="fg.muted" mb={4}>Se usan en los comprobantes emitidos.</Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
+          <FormControl><FormLabel>Razón social</FormLabel><Input value={settings.emisor_razon_social || ''} onChange={e => set('emisor_razon_social', e.target.value)} /></FormControl>
+          <FormControl><FormLabel>Nombre de fantasía</FormLabel><Input value={settings.emisor_nombre_fantasia || ''} onChange={e => set('emisor_nombre_fantasia', e.target.value)} /></FormControl>
+          <FormControl><FormLabel>CUIT</FormLabel><Input value={settings.emisor_cuit || ''} onChange={e => set('emisor_cuit', e.target.value)} /></FormControl>
+          <FormControl><FormLabel>Domicilio</FormLabel><Input value={settings.emisor_domicilio || ''} onChange={e => set('emisor_domicilio', e.target.value)} /></FormControl>
+          <FormControl><FormLabel>Condición frente al IVA</FormLabel><Input value={settings.emisor_condicion_iva || ''} onChange={e => set('emisor_condicion_iva', e.target.value)} placeholder="Responsable Inscripto / Monotributo / ..." /></FormControl>
+          <FormControl><FormLabel>Ingresos Brutos</FormLabel><Input value={settings.emisor_iibb || ''} onChange={e => set('emisor_iibb', e.target.value)} /></FormControl>
+          <FormControl><FormLabel>Inicio de actividades</FormLabel><Input value={settings.emisor_inicio_actividades || ''} onChange={e => set('emisor_inicio_actividades', e.target.value)} placeholder="DD/MM/AAAA" /></FormControl>
+          <FormControl><FormLabel>Teléfono</FormLabel><Input value={settings.emisor_telefono || ''} onChange={e => set('emisor_telefono', e.target.value)} /></FormControl>
+          <FormControl><FormLabel>Email</FormLabel><Input value={settings.emisor_email || ''} onChange={e => set('emisor_email', e.target.value)} /></FormControl>
+          <FormControl><FormLabel>Logo (URL)</FormLabel><Input value={settings.emisor_logo || ''} onChange={e => set('emisor_logo', e.target.value)} placeholder="https://..." /></FormControl>
         </SimpleGrid>
       </Box>
 

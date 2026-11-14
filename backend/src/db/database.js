@@ -37,6 +37,9 @@ const KNOWN_TABLES = [
   'repair_catalog_items',
   'repair_clients',
   'repair_parts',
+  'billing_clients',
+  'invoices',
+  'invoice_items',
 ];
 
 let pool = null;

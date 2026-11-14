@@ -38,6 +38,11 @@ const optionalMoney = z.preprocess((value) => {
   return Number(value);
 }, z.number().min(0, 'El precio no puede ser negativo').optional());
 
+const optionalPercent = z.preprocess((value) => {
+  if (value === null || value === '' || value === undefined) return undefined;
+  return Number(value);
+}, z.number().min(0, 'El porcentaje no puede ser negativo').max(100, 'El porcentaje no puede superar 100').optional());
+
 const partSchema = z.object({
   product_id: z.coerce.number().int().positive(),
   quantity: z.coerce.number().int().positive('La cantidad debe ser mayor a 0'),
@@ -71,6 +76,8 @@ const bodySchema = z.object({
   assigned_to: optionalAssignedTo,
   diagnosis: z.string().trim().max(4000).optional().nullable(),
   labor_price: optionalMoney,
+  labor_iva_enabled: z.boolean().optional(),
+  labor_iva_rate: optionalPercent,
   parts: partsSchema.optional(),
 });
 
