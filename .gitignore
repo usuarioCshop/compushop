@@ -38,3 +38,13 @@ dist-ssr
 
 # Archivos subidos por el admin en desarrollo (efimeros: se regeneran)
 backend/uploads/
+
+# Certificados/llaves ARCA (homologación/producción) - nunca commitear
+backend/certs/
+certs/
+*.key
+*.pem
+!*.example.pem
+temp/.env
+temp/certs/*.key
+temp/certs/*.crt

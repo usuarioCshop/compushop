@@ -11,6 +11,22 @@ import EmptyState from '../components/EmptyState';
 
 const STATUS_COLOR = { borrador: 'yellow', emitida: 'green', anulada: 'red' };
 const STATUS_LABEL = { borrador: 'Borrador', emitida: 'Emitida', anulada: 'Anulada' };
+const ARCA_STATUS_COLOR = { pending: 'yellow', approved: 'green', rejected: 'red' };
+const ARCA_STATUS_LABEL = { pending: 'Pendiente', approved: 'Aprobada', rejected: 'Rechazada' };
+const DOC_TIPOS = [
+  { value: 80, label: 'CUIT (80)' },
+  { value: 96, label: 'DNI (96)' },
+  { value: 99, label: 'Consumidor Final (99)' },
+];
+const COND_IVA = [
+  { value: 1, label: 'IVA Responsable Inscripto' },
+  { value: 4, label: 'IVA Sujeto Exento' },
+  { value: 5, label: 'Consumidor Final' },
+  { value: 6, label: 'Responsable Monotributo' },
+  { value: 13, label: 'Monotributista Social' },
+  { value: 15, label: 'IVA No Alcanzado' },
+  { value: 16, label: 'Monotributista Trab. Indep. Promovido' },
+];
 
 function round2(n) { return Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100; }
 function money(n) { return `$ ${round2(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
@@ -46,8 +62,11 @@ export default function Invoicing() {
   const detailDisc = useDisclosure();
   const formDisc = useDisclosure();
   const voidDisc = useDisclosure();
+  const arcaDisc = useDisclosure();
   const [voidReason, setVoidReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const [arcaForm, setArcaForm] = useState({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5, servicio: { desde: '', hasta: '', vtoPago: '' } });
+  const [arcaLoading, setArcaLoading] = useState(false);
 
   // form state
   const [editingId, setEditingId] = useState(null);
@@ -55,6 +74,26 @@ export default function Invoicing() {
   const [items, setItems] = useState([emptyItem()]);
   const [notes, setNotes] = useState('');
   const [billingClientId, setBillingClientId] = useState(null);
+  const [fiscalForm, setFiscalForm] = useState({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5 });
+
+  const inferFiscalFromReceiver = (r, prev = {}) => {
+    const docNum = String(r?.doc_number || r?.docNro || '').replace(/\D/g, '');
+    let docTipo = prev.docTipo || 99;
+    if (docNum.length === 11) docTipo = 80;
+    else if (docNum.length >= 7 && docNum.length <= 8) docTipo = 96;
+    else if (!docNum) docTipo = 99;
+    const docNro = docTipo === 99 ? '0' : (docNum || prev.docNro || '0');
+    const txt = String(r?.condicion_iva || '').toLowerCase();
+    let condIva = prev.condIva || 5;
+    if (txt.includes('inscripto') && !txt.includes('no')) condIva = 1;
+    else if (txt.includes('monotrib')) condIva = 6;
+    else if (txt.includes('exento')) condIva = 4;
+    else if (txt.includes('consumidor') || txt.includes('final')) condIva = 5;
+    let cbte_tipo = prev.cbte_tipo || 6;
+    if (condIva === 1) cbte_tipo = 1;
+    else if (cbte_tipo === 1 && ![1, 6, 13, 16].includes(condIva)) cbte_tipo = 6;
+    return { ...prev, cbte_tipo, docTipo, docNro, condIva };
+  };
 
   // search helpers
   const [clientSearch, setClientSearch] = useState('');
@@ -89,6 +128,7 @@ export default function Invoicing() {
     setItems([emptyItem()]);
     setNotes('');
     setBillingClientId(null);
+    setFiscalForm({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5 });
     formDisc.onOpen();
   };
 
@@ -97,7 +137,8 @@ export default function Invoicing() {
       const { data } = await api.get(`/invoices/${inv.id}`);
       const invoice = data.invoice;
       setEditingId(invoice.id);
-      setReceiver(invoice.receiver_snapshot || { ...emptyReceiver });
+      const rs = invoice.receiver_snapshot || { ...emptyReceiver };
+      setReceiver(rs);
       setItems((invoice.items || []).map((it) => ({
         source_type: it.source_type, product_id: it.product_id, repair_id: it.repair_id,
         description: it.description, quantity: Number(it.quantity), unit_price: Number(it.unit_price),
@@ -105,6 +146,13 @@ export default function Invoicing() {
       })));
       setNotes(invoice.notes || '');
       setBillingClientId(invoice.billing_client_id || null);
+      setFiscalForm(inferFiscalFromReceiver(rs, {
+        cbte_tipo: invoice.cbte_tipo || 6,
+        concepto: invoice.concepto || 1,
+        docTipo: invoice.receptor_doc_tipo || 99,
+        docNro: invoice.receptor_doc_nro || rs.doc_number || '0',
+        condIva: invoice.receptor_condicion_iva_id || 5,
+      }));
       formDisc.onOpen();
     } catch { toast({ title: 'No se pudo cargar la factura', status: 'error' }); }
   };
@@ -113,6 +161,15 @@ export default function Invoicing() {
     try {
       const { data } = await api.get(`/invoices/${inv.id}`);
       setSelected(data.invoice);
+      const rs = data.invoice.receiver_snapshot || {};
+      setArcaForm({
+        cbte_tipo: data.invoice.cbte_tipo || 6,
+        concepto: data.invoice.concepto || 1,
+        docTipo: data.invoice.receptor_doc_tipo || (rs.doc_number?.replace(/\D/g, '').length === 11 ? 80 : (rs.doc_number ? 96 : 99)),
+        docNro: data.invoice.receptor_doc_nro || rs.doc_number || '0',
+        condIva: data.invoice.receptor_condicion_iva_id || 5,
+        servicio: { desde: '', hasta: '', vtoPago: '' },
+      });
       detailDisc.onOpen();
     } catch { toast({ title: 'No se pudo cargar el detalle', status: 'error' }); }
   };
@@ -141,9 +198,33 @@ export default function Invoicing() {
         setEditingId(id);
       }
       if (issueAfter && id) {
-        await api.post(`/invoices/${id}/issue`);
-        toast({ title: 'Factura emitida', status: 'success' });
-        formDisc.onClose();
+        const fiscal = inferFiscalFromReceiver(receiver, fiscalForm);
+        try {
+          const { data } = await api.post(`/invoices/${id}/arca-authorize`, {
+            cbte_tipo: Number(fiscal.cbte_tipo || 6),
+            concepto: Number(fiscal.concepto || 1),
+            receptor: {
+              docTipo: Number(fiscal.docTipo || 99),
+              docNro: String(fiscal.docNro || (Number(fiscal.docTipo) === 99 ? '0' : '')),
+              condIva: Number(fiscal.condIva || 5),
+              name: receiver.name || '',
+              address: receiver.address || '',
+            },
+          });
+          toast({ title: data.message || 'Comprobante autorizado por ARCA', status: 'success', description: data.arca?.cae ? `CAE: ${data.arca.cae}` : undefined });
+          formDisc.onClose();
+        } catch (err) {
+          const details = err.response?.data?.details;
+          toast({
+            title: 'Borrador guardado, pero no se pudo autorizar en ARCA',
+            description: err.response?.data?.error || (Array.isArray(details) ? details.join(' | ') : details) || 'Podés reintentar desde el detalle (Autorizar ARCA).',
+            status: 'warning',
+            duration: 9000,
+          });
+          // queda guardado para reintento manual
+          formDisc.onClose();
+          try { await openDetail({ id }); } catch (_) {}
+        }
       } else {
         toast({ title: 'Borrador guardado', status: 'success' });
       }
@@ -168,6 +249,33 @@ export default function Invoicing() {
       toast({ title: 'Factura anulada', status: 'success' });
       setVoidReason(''); voidDisc.onClose(); detailDisc.onClose(); loadInvoices();
     } catch (err) { toast({ title: err.response?.data?.error || 'Error al anular', status: 'error' }); }
+  };
+
+  const authorizeArca = async () => {
+    if (!selected) return;
+    setArcaLoading(true);
+    try {
+      const payload = {
+        cbte_tipo: Number(arcaForm.cbte_tipo),
+        concepto: Number(arcaForm.concepto),
+        receptor: {
+          docTipo: Number(arcaForm.docTipo),
+          docNro: String(arcaForm.docNro || '0'),
+          condIva: Number(arcaForm.condIva),
+          name: selected.receiver_snapshot?.name || '',
+          address: selected.receiver_snapshot?.address || '',
+        },
+      };
+      if (Number(arcaForm.concepto) !== 1) payload.servicio = arcaForm.servicio;
+      const { data } = await api.post(`/invoices/${selected.id}/arca-authorize`, payload);
+      toast({ title: data.message || 'Comprobante autorizado', status: 'success', description: data.arca?.cae ? `CAE: ${data.arca.cae}` : undefined });
+      arcaDisc.onClose();
+      await openDetail({ id: selected.id });
+      loadInvoices();
+    } catch (err) {
+      const details = err.response?.data?.details;
+      toast({ title: err.response?.data?.error || 'Error al autorizar en ARCA', description: Array.isArray(details) ? details.join(' | ') : details, status: 'error', duration: 8000 });
+    } finally { setArcaLoading(false); }
   };
 
   const removeInvoice = async (id) => {
@@ -199,11 +307,13 @@ export default function Invoicing() {
   };
 
   const applyReceiver = (data, id = null) => {
-    setReceiver({
+    const next = {
       name: data.name || '', doc_type: data.doc_type || '', doc_number: data.doc_number || data.dni || '',
       condicion_iva: data.condicion_iva || '', address: data.address || '', email: data.email || '', phone: data.phone || '',
-    });
+    };
+    setReceiver(next);
     setBillingClientId(id);
+    setFiscalForm((prev) => inferFiscalFromReceiver(next, prev));
   };
 
   const searchProducts = async () => {
@@ -275,15 +385,24 @@ export default function Invoicing() {
             <TableContainer>
               <Table size="sm">
                 <Thead><Tr>
-                  <Th>Nº</Th><Th>Fecha</Th><Th>Cliente</Th><Th>Estado</Th><Th isNumeric>Total</Th><Th>Acciones</Th>
+                  <Th>Nº</Th><Th>Fiscal</Th><Th>Fecha</Th><Th>Cliente</Th><Th>Estado</Th><Th>ARCA</Th><Th isNumeric>Total</Th><Th>Acciones</Th>
                 </Tr></Thead>
                 <Tbody>
                   {invoices.map((inv) => (
                     <Tr key={inv.id}>
                       <Td fontWeight="semibold">{inv.number}</Td>
+                      <Td>{inv.cbte_numero ? `${String(inv.pto_vta || 0).padStart(4,'0')}-${String(inv.cbte_numero).padStart(8,'0')}` : '-'}</Td>
                       <Td>{fmtDate(inv.created_at)}</Td>
                       <Td>{inv.billing_client_name || inv.receiver_snapshot?.name || '-'}</Td>
                       <Td><Badge colorScheme={STATUS_COLOR[inv.status]}>{STATUS_LABEL[inv.status] || inv.status}</Badge></Td>
+                      <Td>
+                        {inv.arca_status ? (
+                          <VStack align="start" spacing={0}>
+                            <Badge colorScheme={ARCA_STATUS_COLOR[inv.arca_status]}>{ARCA_STATUS_LABEL[inv.arca_status] || inv.arca_status}</Badge>
+                            {inv.arca_cae && <Text fontSize="xs" color="fg.muted">CAE: {inv.arca_cae}</Text>}
+                          </VStack>
+                        ) : <Text color="fg.muted">-</Text>}
+                      </Td>
                       <Td isNumeric>{money(inv.total)}</Td>
                       <Td>
                         <HStack spacing={1}>
@@ -311,10 +430,27 @@ export default function Invoicing() {
           <ModalBody>
             {selected && (
               <VStack align="stretch" spacing={4}>
-                <HStack justify="space-between">
-                  <Badge colorScheme={STATUS_COLOR[selected.status]} fontSize="md">{STATUS_LABEL[selected.status]}</Badge>
-                  <Text color="fg.muted">{fmtDate(selected.issued_at || selected.created_at)}</Text>
+                <HStack justify="space-between" flexWrap="wrap" gap={2}>
+                  <HStack>
+                    <Badge colorScheme={STATUS_COLOR[selected.status]} fontSize="md">{STATUS_LABEL[selected.status]}</Badge>
+                    {selected.arca_status && <Badge colorScheme={ARCA_STATUS_COLOR[selected.arca_status]}>ARCA: {ARCA_STATUS_LABEL[selected.arca_status] || selected.arca_status}</Badge>}
+                  </HStack>
+                  <Text color="fg.muted">{fmtDate(selected.cbte_fecha || selected.issued_at || selected.created_at)}</Text>
                 </HStack>
+                {selected.arca_status && (
+                  <Box p={3} borderWidth="1px" borderRadius="md">
+                    <Text fontWeight="semibold" mb={1}>Datos fiscales electrónicos (ARCA)</Text>
+                    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={2} fontSize="sm">
+                      <Text>Tipo: {selected.cbte_tipo === 1 ? 'Factura A (1)' : selected.cbte_tipo === 6 ? 'Factura B (6)' : (selected.cbte_tipo || '-')}</Text>
+                      <Text>Pto. Vta.: {selected.pto_vta || '-'}</Text>
+                      <Text>Nº fiscal: {selected.cbte_numero ? `${String(selected.pto_vta || 0).padStart(4,'0')}-${String(selected.cbte_numero).padStart(8,'0')}` : '-'}</Text>
+                      <Text>Concepto: {selected.concepto || 1}</Text>
+                      <Text>CAE: {selected.arca_cae || '-'}</Text>
+                      <Text>Vto. CAE: {selected.arca_cae_vto ? fmtDate(selected.arca_cae_vto) : '-'}</Text>
+                    </SimpleGrid>
+                    {selected.arca_errors && <Text mt={2} color="red.500" fontSize="sm">Error: {selected.arca_errors}</Text>}
+                  </Box>
+                )}
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                   <Box><Text fontWeight="semibold">Emisor</Text><Text fontSize="sm">{selected.issuer_snapshot?.razon_social || '-'}</Text><Text fontSize="sm">CUIT: {selected.issuer_snapshot?.cuit || '-'}</Text></Box>
                   <Box><Text fontWeight="semibold">Receptor</Text><Text fontSize="sm">{selected.receiver_snapshot?.name || '-'}</Text><Text fontSize="sm">{selected.receiver_snapshot?.doc_type} {selected.receiver_snapshot?.doc_number}</Text></Box>
@@ -340,10 +476,13 @@ export default function Invoicing() {
             )}
           </ModalBody>
           <ModalFooter>
-            <HStack spacing={2}>
+            <HStack spacing={2} flexWrap="wrap">
               {selected && <Button leftIcon={<FiDownload />} onClick={() => downloadPdf(selected.id, selected.number)}>PDF</Button>}
-              {selected?.status === 'borrador' && <Button colorScheme="green" leftIcon={<FiCheckCircle />} onClick={() => issueInvoice(selected.id)}>Emitir</Button>}
+              {selected?.status === 'borrador' && <Button colorScheme="green" leftIcon={<FiCheckCircle />} onClick={() => issueInvoice(selected.id)}>Emitir (interna)</Button>}
               {selected?.status === 'borrador' && <Button leftIcon={<FiEdit2 />} onClick={() => { detailDisc.onClose(); openEdit(selected); }}>Editar</Button>}
+              {selected && selected.status !== 'anulada' && selected.arca_status !== 'approved' && (
+                <Button colorScheme="blue" onClick={() => arcaDisc.onOpen()}>Autorizar ARCA</Button>
+              )}
               {selected?.status === 'emitida' && <Button colorScheme="red" variant="outline" leftIcon={<FiXCircle />} onClick={() => voidDisc.onOpen()}>Anular</Button>}
               <Button variant="ghost" onClick={detailDisc.onClose}>Cerrar</Button>
             </HStack>
@@ -364,6 +503,72 @@ export default function Invoicing() {
           <ModalFooter>
             <Button mr={3} onClick={voidDisc.onClose}>Cancelar</Button>
             <Button colorScheme="red" onClick={confirmVoid}>Anular</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Autorizar ARCA */}
+      <Modal isOpen={arcaDisc.isOpen} onClose={arcaDisc.onClose} size="lg">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Autorizar comprobante en ARCA</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack align="stretch" spacing={4}>
+              <Text fontSize="sm" color="fg.muted">Se solicitará CAE en homologación/producción según configuración. Requiere CUIT emisor, punto de venta y certificados configurados.</Text>
+              <SimpleGrid columns={{ base: 1, md: 2 }} spacing={3}>
+                <FormControl>
+                  <FormLabel>Tipo comprobante</FormLabel>
+                  <Select value={arcaForm.cbte_tipo} onChange={(e) => setArcaForm({ ...arcaForm, cbte_tipo: Number(e.target.value) })}>
+                    <option value={6}>Factura B (6)</option>
+                    <option value={1}>Factura A (1)</option>
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Concepto</FormLabel>
+                  <Select value={arcaForm.concepto} onChange={(e) => setArcaForm({ ...arcaForm, concepto: Number(e.target.value) })}>
+                    <option value={1}>Productos (1)</option>
+                    <option value={2}>Servicios (2)</option>
+                    <option value={3}>Productos y servicios (3)</option>
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Tipo documento receptor</FormLabel>
+                  <Select value={arcaForm.docTipo} onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setArcaForm({ ...arcaForm, docTipo: v, docNro: v === 99 ? '0' : arcaForm.docNro });
+                  }}>
+                    {DOC_TIPOS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                  </Select>
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Nº documento</FormLabel>
+                  <Input value={arcaForm.docNro} onChange={(e) => setArcaForm({ ...arcaForm, docNro: e.target.value })} isDisabled={Number(arcaForm.docTipo) === 99} />
+                </FormControl>
+                <FormControl gridColumn={{ md: 'span 2' }}>
+                  <FormLabel>Condición IVA receptor (ARCA)</FormLabel>
+                  <Select value={arcaForm.condIva} onChange={(e) => setArcaForm({ ...arcaForm, condIva: Number(e.target.value) })}>
+                    {COND_IVA.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </Select>
+                </FormControl>
+              </SimpleGrid>
+              {Number(arcaForm.concepto) !== 1 && (
+                <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
+                  <FormControl isRequired><FormLabel>Servicio desde</FormLabel><Input type="date" value={arcaForm.servicio.desde} onChange={(e) => setArcaForm({ ...arcaForm, servicio: { ...arcaForm.servicio, desde: e.target.value } })} /></FormControl>
+                  <FormControl isRequired><FormLabel>Servicio hasta</FormLabel><Input type="date" value={arcaForm.servicio.hasta} onChange={(e) => setArcaForm({ ...arcaForm, servicio: { ...arcaForm.servicio, hasta: e.target.value } })} /></FormControl>
+                  <FormControl isRequired><FormLabel>Vto. pago</FormLabel><Input type="date" value={arcaForm.servicio.vtoPago} onChange={(e) => setArcaForm({ ...arcaForm, servicio: { ...arcaForm.servicio, vtoPago: e.target.value } })} /></FormControl>
+                </SimpleGrid>
+              )}
+              {selected?.arca_status === 'rejected' && selected?.arca_errors && (
+                <Box p={2} bg="red.50" _dark={{ bg: 'red.900' }} borderRadius="md">
+                  <Text fontSize="sm" color="red.600">Último rechazo: {selected.arca_errors}</Text>
+                </Box>
+              )}
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={arcaDisc.onClose}>Cancelar</Button>
+            <Button colorScheme="blue" onClick={authorizeArca} isLoading={arcaLoading}>Solicitar CAE</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
@@ -414,12 +619,80 @@ export default function Invoicing() {
                 <SimpleGrid columns={{ base: 1, md: 3 }} spacing={3}>
                   <FormControl isRequired><FormLabel>Nombre / Razón social</FormLabel><Input value={receiver.name} onChange={(e) => setReceiver({ ...receiver, name: e.target.value })} /></FormControl>
                   <FormControl><FormLabel>Tipo doc.</FormLabel><Input value={receiver.doc_type || ''} onChange={(e) => setReceiver({ ...receiver, doc_type: e.target.value })} placeholder="DNI / CUIT" /></FormControl>
-                  <FormControl><FormLabel>Nº documento</FormLabel><Input value={receiver.doc_number || ''} onChange={(e) => setReceiver({ ...receiver, doc_number: e.target.value })} /></FormControl>
-                  <FormControl><FormLabel>Condición IVA</FormLabel><Input value={receiver.condicion_iva || ''} onChange={(e) => setReceiver({ ...receiver, condicion_iva: e.target.value })} placeholder="Consumidor Final / RI / Monotributo..." /></FormControl>
+                  <FormControl><FormLabel>Nº documento</FormLabel><Input value={receiver.doc_number || ''} onChange={(e) => {
+                    const next = { ...receiver, doc_number: e.target.value };
+                    setReceiver(next);
+                    setFiscalForm((prev) => inferFiscalFromReceiver(next, prev));
+                  }} /></FormControl>
+                  <FormControl><FormLabel>Condición IVA</FormLabel><Input value={receiver.condicion_iva || ''} onChange={(e) => {
+                    const next = { ...receiver, condicion_iva: e.target.value };
+                    setReceiver(next);
+                    setFiscalForm((prev) => inferFiscalFromReceiver(next, prev));
+                  }} placeholder="Consumidor Final / RI / Monotributo..." /></FormControl>
                   <FormControl><FormLabel>Domicilio</FormLabel><Input value={receiver.address || ''} onChange={(e) => setReceiver({ ...receiver, address: e.target.value })} /></FormControl>
                   <FormControl><FormLabel>Email</FormLabel><Input value={receiver.email || ''} onChange={(e) => setReceiver({ ...receiver, email: e.target.value })} /></FormControl>
                   <FormControl><FormLabel>Teléfono</FormLabel><Input value={receiver.phone || ''} onChange={(e) => setReceiver({ ...receiver, phone: e.target.value })} /></FormControl>
                 </SimpleGrid>
+              </CardBody></Card>
+
+              <Card variant="outline"><CardBody>
+                <Heading size="sm" mb={1}>Datos fiscales ARCA (para “Guardar y emitir”)</Heading>
+                <Text fontSize="sm" color="fg.muted" mb={3}>Se usan para solicitar el CAE automáticamente. Si hay error o falta conexión, el borrador queda guardado para reintentar desde el detalle (Autorizar ARCA).</Text>
+                <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={3}>
+                  <FormControl>
+                    <FormLabel>Tipo comprobante</FormLabel>
+                    <Select value={fiscalForm.cbte_tipo} onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setFiscalForm((prev) => {
+                        const next = { ...prev, cbte_tipo: v };
+                        if (v === 1 && ![1, 6, 13, 16].includes(Number(next.condIva))) next.condIva = 1;
+                        if (v === 6 && Number(next.condIva) === 1) next.condIva = 5;
+                        return next;
+                      });
+                    }}>
+                      <option value={6}>Factura B (6)</option>
+                      <option value={1}>Factura A (1)</option>
+                    </Select>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Concepto</FormLabel>
+                    <Select value={fiscalForm.concepto} onChange={(e) => setFiscalForm({ ...fiscalForm, concepto: Number(e.target.value) })}>
+                      <option value={1}>Productos (1)</option>
+                      <option value={2}>Servicios (2)</option>
+                      <option value={3}>Productos y servicios (3)</option>
+                    </Select>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Tipo doc. receptor (ARCA)</FormLabel>
+                    <Select value={fiscalForm.docTipo} onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setFiscalForm((prev) => ({ ...prev, docTipo: v, docNro: v === 99 ? '0' : (prev.docNro === '0' ? String(receiver.doc_number || '').replace(/\D/g, '') : prev.docNro) }));
+                    }}>
+                      {DOC_TIPOS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                    </Select>
+                  </FormControl>
+                  <FormControl>
+                    <FormLabel>Nº doc. receptor</FormLabel>
+                    <Input value={fiscalForm.docNro} onChange={(e) => setFiscalForm({ ...fiscalForm, docNro: e.target.value })} isDisabled={Number(fiscalForm.docTipo) === 99} />
+                  </FormControl>
+                  <FormControl gridColumn={{ base: 'auto', lg: 'span 2' }}>
+                    <FormLabel>Condición IVA receptor (ARCA)</FormLabel>
+                    <Select value={fiscalForm.condIva} onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setFiscalForm((prev) => {
+                        const next = { ...prev, condIva: v };
+                        if (v === 1 && next.cbte_tipo === 6) next.cbte_tipo = 1;
+                        if (next.cbte_tipo === 1 && ![1, 6, 13, 16].includes(v)) next.cbte_tipo = 6;
+                        return next;
+                      });
+                    }}>
+                      {COND_IVA.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                    </Select>
+                  </FormControl>
+                </SimpleGrid>
+                {Number(fiscalForm.concepto) !== 1 && (
+                  <Text mt={2} fontSize="sm" color="orange.500">Para concepto Servicios/Productos y servicios, completá las fechas de servicio desde “Autorizar ARCA” si el envío automático las requiere.</Text>
+                )}
               </CardBody></Card>
 
               <Card variant="outline"><CardBody>
@@ -490,7 +763,7 @@ export default function Invoicing() {
           <ModalFooter>
             <Button variant="ghost" mr={3} onClick={formDisc.onClose}>Cancelar</Button>
             <Button mr={3} onClick={() => saveDraft(false)} isLoading={saving}>Guardar borrador</Button>
-            <Button colorScheme="green" onClick={() => saveDraft(true)} isLoading={saving} leftIcon={<FiCheckCircle />}>Guardar y emitir</Button>
+            <Button colorScheme="green" onClick={() => saveDraft(true)} isLoading={saving} leftIcon={<FiCheckCircle />}>Guardar y emitir (ARCA)</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
