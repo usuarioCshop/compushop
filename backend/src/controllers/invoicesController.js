@@ -463,142 +463,185 @@ async function getPdf(req, res) {
     const invoice = await fetchInvoiceWithItems(req.params.id);
     if (!invoice) return res.status(404).json({ error: 'Factura no encontrada' });
 
-    const issuer = invoice.issuer_snapshot || {};
-    const receiver = invoice.receiver_snapshot || {};
+    const issuerSnap = invoice.issuer_snapshot || {};
+    const receiverSnap = invoice.receiver_snapshot || {};
     const items = invoice.items || [];
     const isFiscalApproved = invoice.arca_status === 'approved' && invoice.arca_cae;
     const cbteTipo = Number(invoice.cbte_tipo || 0);
-    const tipoInfo = arcaConfig.TIPOS_CBTE[cbteTipo];
-    const letra = tipoInfo?.letra || '';
-    const fiscalTitle = isFiscalApproved ? `FACTURA ${letra}`.trim() : 'COMPROBANTE DE VENTA';
-    const fiscalNumber = isFiscalApproved
-      ? `${String(invoice.pto_vta || 0).padStart(4, '0')}-${String(invoice.cbte_numero || 0).padStart(8, '0')}`
-      : invoice.number;
+    const tipoInfo = arcaConfig.TIPOS_CBTE[cbteTipo] || {};
+    const letra = tipoInfo.letra || (isFiscalApproved ? '' : 'X');
+    const cod = tipoInfo.cod || '--';
+    const isA = letra === 'A';
 
+    const COND = { 1: 'IVA Responsable Inscripto', 4: 'IVA Sujeto Exento', 5: 'Consumidor Final', 6: 'Responsable Monotributo', 13: 'Monotributista Social', 15: 'IVA No Alcanzado', 16: 'Monotributista Trab. Indep. Promovido' };
+    const money = (n) => '$ ' + Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fdate = (d) => {
+      if (!d) return '-';
+      const s = String(d).slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.split('-').reverse().join('/');
+      const dt = new Date(d);
+      return Number.isNaN(dt.getTime()) ? String(d) : dt.toLocaleDateString('es-AR');
+    };
+
+    const fiscalNumber = isFiscalApproved && invoice.cbte_numero
+      ? `${String(invoice.pto_vta || 0).padStart(4, '0')}-${String(invoice.cbte_numero).padStart(8, '0')}`
+      : (invoice.number || String(invoice.id));
+    const displayDate = invoice.cbte_fecha || invoice.issued_at || invoice.created_at;
+    const emisorNombre = issuerSnap.razon_social || issuerSnap.nombre_fantasia || 'Compushop';
+    const emisorDomicilio = issuerSnap.domicilio || issuerSnap.address || '-';
+    const emisorCuit = issuerSnap.cuit || '';
+    const emisorIibb = issuerSnap.iibb || '-';
+    const emisorInicio = issuerSnap.inicio_actividades || '';
+    const emisorCondIva = issuerSnap.condicion_iva || 'Responsable Inscripto';
+
+    const recName = receiverSnap.name || invoice.receptor_nombre || '-';
+    const recDocNro = String(receiverSnap.doc_number || invoice.receptor_doc_nro || '').replace(/\D/g, '');
+    const recDocTipoNum = Number(invoice.receptor_doc_tipo || (recDocNro.length === 11 ? 80 : (recDocNro ? 96 : 99)));
+    const recCondId = Number(invoice.receptor_condicion_iva_id || 0);
+    const recCondText = COND[recCondId] || receiverSnap.condicion_iva || (recDocTipoNum === 99 ? 'Consumidor Final' : '-');
+    const recAddress = receiverSnap.address || invoice.receptor_domicilio || '-';
+
+    const filename = `factura-${fiscalNumber.replace(/[^0-9A-Za-z-]/g, '_')}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="factura-${fiscalNumber.replace(/[^0-9A-Za-z-]/g, '_')}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
 
-    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const doc = new PDFDocument({ size: 'A4', margin: 30 });
     doc.pipe(res);
+    const L = 30, R = 565, W = R - L;
 
     // Encabezado
-    doc.fontSize(18).text(fiscalTitle, { align: 'right' });
-    doc.fontSize(10).text(`Nº ${fiscalNumber}`, { align: 'right' });
-    doc.text(`Estado: ${String(invoice.status).toUpperCase()}${invoice.arca_status ? ` / ARCA: ${String(invoice.arca_status).toUpperCase()}` : ''}`, { align: 'right' });
-    doc.text(`Fecha: ${formatDate(invoice.cbte_fecha || invoice.issued_at || invoice.created_at)}`, { align: 'right' });
-    if (isFiscalApproved) {
-      doc.text(`CAE: ${invoice.arca_cae}`, { align: 'right' });
-      doc.text(`Vto. CAE: ${formatDate(invoice.arca_cae_vto)}`, { align: 'right' });
-    }
-    doc.moveDown(0.5);
+    doc.rect(L, 30, W, 100).stroke();
+    doc.moveTo(300, 80).lineTo(300, 130).stroke();
+    doc.rect(280, 30, 40, 44).fillAndStroke('#fff', '#000');
+    doc.fillColor('#000').font('Helvetica-Bold').fontSize(28).text(letra || '-', 280, 36, { width: 40, align: 'center' });
+    doc.fontSize(7).font('Helvetica').text(`COD. ${cod}`, 280, 66, { width: 40, align: 'center' });
+    doc.font('Helvetica-Bold').fontSize(14).text(emisorNombre, L + 10, 42, { width: 240 });
+    doc.font('Helvetica').fontSize(9).text(emisorDomicilio, L + 10, 68, { width: 240 });
+    doc.text(`Condición frente al IVA: ${emisorCondIva}`, L + 10, 104, { width: 240 });
 
-    if (invoice.status !== 'emitida' || (invoice.arca_status && invoice.arca_status !== 'approved')) {
-      const mark = invoice.status === 'anulada' || invoice.arca_status === 'rejected' ? (invoice.status === 'anulada' ? 'ANULADA' : 'RECHAZADA') : 'BORRADOR';
-      doc.fontSize(24).fillColor(mark === 'ANULADA' || mark === 'RECHAZADA' ? 'red' : 'gray')
-        .text(mark, 40, 120, { align: 'center' });
-      doc.fillColor('black');
-    }
+    doc.font('Helvetica-Bold').fontSize(16).text(isFiscalApproved ? 'FACTURA' : 'COMPROBANTE', 335, 40);
+    doc.fontSize(10).text(`Nº ${fiscalNumber}`, 335, 62);
+    doc.font('Helvetica').fontSize(9).text(`Fecha de emisión: ${fdate(displayDate)}`, 335, 80);
+    doc.text(`CUIT: ${emisorCuit || '-'}   Ing. Brutos: ${emisorIibb || '-'}`, 335, 93);
+    doc.text(`Inicio de actividades: ${fdate(emisorInicio)}`, 335, 106);
 
-    doc.fontSize(11).text('Emisor', { underline: true });
-    doc.fontSize(10).text(issuer.razon_social || issuer.nombre_fantasia || '-');
-    if (issuer.cuit) doc.text(`CUIT: ${issuer.cuit}`);
-    if (issuer.domicilio) doc.text(`Domicilio: ${issuer.domicilio}`);
-    if (issuer.condicion_iva) doc.text(`Condición IVA: ${issuer.condicion_iva}`);
-    if (issuer.iibb) doc.text(`IIBB: ${issuer.iibb}`);
-    if (issuer.inicio_actividades) doc.text(`Inicio actividades: ${issuer.inicio_actividades}`);
-    doc.moveDown(0.5);
-
-    doc.fontSize(11).text('Receptor', { underline: true });
-    doc.fontSize(10).text(receiver.name || invoice.receptor_nombre || '-');
-    const docNum = receiver.doc_number || invoice.receptor_doc_nro;
-    if (docNum) doc.text(`${receiver.doc_type || 'Doc'}: ${docNum}`);
-    if (receiver.condicion_iva) doc.text(`Condición IVA: ${receiver.condicion_iva}`);
-    const addr = receiver.address || invoice.receptor_domicilio;
-    if (addr) doc.text(`Domicilio: ${addr}`);
-    if (receiver.email) doc.text(`Email: ${receiver.email}`);
-    if (receiver.phone) doc.text(`Teléfono: ${receiver.phone}`);
-    doc.moveDown();
-
-    // Tabla ítems
-    const startY = doc.y;
-    const col = { desc: 40, qty: 280, price: 330, iva: 400, total: 470 };
-    doc.fontSize(9).font('Helvetica-Bold');
-    doc.text('Descripción', col.desc, startY, { width: 230 });
-    doc.text('Cant.', col.qty, startY, { width: 40, align: 'right' });
-    doc.text('P. Unit.', col.price, startY, { width: 60, align: 'right' });
-    doc.text('IVA %', col.iva, startY, { width: 50, align: 'right' });
-    doc.text('Total', col.total, startY, { width: 70, align: 'right' });
-    doc.moveDown(0.5);
-    doc.font('Helvetica').fontSize(9);
-    let y = doc.y;
-    doc.moveTo(40, y).lineTo(550, y).stroke();
-    y += 4;
-
-    for (const it of items) {
-      if (y > 680) { doc.addPage(); y = 40; }
-      doc.text(String(it.description || ''), col.desc, y, { width: 230 });
-      doc.text(String(it.quantity), col.qty, y, { width: 40, align: 'right' });
-      doc.text(formatMoneyPdf(it.unit_price), col.price, y, { width: 60, align: 'right' });
-      doc.text(`${Number(it.vat_rate || 0)}%`, col.iva, y, { width: 50, align: 'right' });
-      doc.text(formatMoneyPdf(it.line_total), col.total, y, { width: 70, align: 'right' });
-      y += 16;
-      if (Number(it.vat_amount) > 0) {
-        doc.fontSize(8).fillColor('gray').text(`  IVA: ${formatMoneyPdf(it.vat_amount)}`, col.desc, y - 2);
-        doc.fillColor('black').fontSize(9);
+    // Marca de agua estado
+    if (invoice.status !== 'emitida' || invoice.arca_status === 'rejected' || invoice.arca_status === 'pending') {
+      let mark = '';
+      if (invoice.status === 'anulada') mark = 'ANULADA';
+      else if (invoice.arca_status === 'rejected') mark = 'RECHAZADA';
+      else if (invoice.arca_status === 'pending') mark = 'PENDIENTE ARCA';
+      else if (invoice.status === 'borrador') mark = 'BORRADOR';
+      if (mark) {
+        doc.save();
+        doc.fontSize(40).fillColor(mark === 'BORRADOR' || mark === 'PENDIENTE ARCA' ? '#bbbbbb' : '#cc0000').opacity(0.2)
+          .text(mark, L, 300, { align: 'center', width: W });
+        doc.restore();
+        doc.fillColor('#000').opacity(1);
       }
     }
 
-    y += 8;
-    doc.moveTo(40, y).lineTo(550, y).stroke();
-    y += 8;
-    const rightX = 400;
-    doc.fontSize(10).text(`Subtotal: ${formatMoneyPdf(invoice.subtotal)}`, rightX, y, { align: 'right', width: 140 }); y += 14;
-    doc.text(`IVA: ${formatMoneyPdf(invoice.tax_total)}`, rightX, y, { align: 'right', width: 140 }); y += 14;
-    if (Number(invoice.discount_total) > 0) {
-      doc.text(`Descuento: ${formatMoneyPdf(invoice.discount_total)}`, rightX, y, { align: 'right', width: 140 }); y += 14;
-    }
-    doc.font('Helvetica-Bold').fontSize(12).text(`TOTAL: ${formatMoneyPdf(invoice.total)}`, rightX, y, { align: 'right', width: 140 });
-    doc.font('Helvetica').fontSize(10);
-    y += 20;
+    // Receptor
+    const docLabel = recDocTipoNum === 80 ? 'CUIT:' : recDocTipoNum === 96 ? 'DNI:' : 'Doc.:';
+    doc.rect(L, 138, W, 58).stroke();
+    doc.font('Helvetica-Bold').fontSize(9).text(docLabel, L + 8, 146);
+    doc.font('Helvetica').text(recDocTipoNum === 99 ? '-' : (recDocNro || '-'), L + 45, 146);
+    doc.font('Helvetica-Bold').text('Razón social:', 250, 146).font('Helvetica').text(recName, 320, 146, { width: 240 });
+    doc.font('Helvetica-Bold').text('Cond. IVA:', L + 8, 164).font('Helvetica').text(recCondText, L + 62, 164, { width: 180 });
+    doc.font('Helvetica-Bold').text('Domicilio:', 250, 164).font('Helvetica').text(recAddress, 320, 164, { width: 240 });
+    doc.font('Helvetica-Bold').text('Cond. de venta:', L + 8, 182).font('Helvetica').text('Contado', L + 90, 182);
 
+    // Ítems
+    let y = 210;
+    doc.rect(L, y, W, 18).fill('#e8e8e8').fillColor('#000');
+    doc.font('Helvetica-Bold').fontSize(8.5);
+    doc.text('Descripción', L + 6, y + 5).text('Cant.', 320, y + 5, { width: 40, align: 'right' })
+      .text(isA ? 'P. unit. neto' : 'P. unit.', 365, y + 5, { width: 70, align: 'right' })
+      .text('% IVA', 440, y + 5, { width: 40, align: 'right' })
+      .text('Subtotal', 485, y + 5, { width: 75, align: 'right' });
+    y += 24;
+    doc.font('Helvetica').fontSize(9);
+
+    const lines = items.map((it) => {
+      const qty = Number(it.quantity || 0);
+      const unitPrice = Number(it.unit_price || 0);
+      const ivaRate = Number(it.vat_rate || 0);
+      const discount = Number(it.discount || 0);
+      const subtotal = round2(qty * unitPrice - discount);
+      return { description: String(it.description || ''), qty, unitPrice, ivaRate, subtotal };
+    });
+
+    for (const it of lines) {
+      if (y > 620) { doc.addPage(); y = 40; }
+      const k = isA ? 1 : 1 + it.ivaRate / 100;
+      doc.text(it.description, L + 6, y, { width: 280 });
+      doc.text(String(it.qty), 320, y, { width: 40, align: 'right' });
+      doc.text(money(it.unitPrice * k), 365, y, { width: 70, align: 'right' });
+      doc.text(`${it.ivaRate}%`, 440, y, { width: 40, align: 'right' });
+      doc.text(money(it.subtotal * k), 485, y, { width: 75, align: 'right' });
+      y = Math.max(doc.y, y + 14) + 4;
+    }
+
+    // Totales
+    y = Math.max(y + 10, 620);
+    doc.moveTo(L, y).lineTo(R, y).stroke();
+    y += 8;
+    const row = (label, val, bold) => {
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 11 : 9)
+        .text(label, 360, y, { width: 100, align: 'right' })
+        .text(money(val), 465, y, { width: 95, align: 'right' });
+      y += bold ? 18 : 14;
+    };
+
+    if (isA) {
+      const groups = new Map();
+      for (const it of lines) groups.set(it.ivaRate, round2((groups.get(it.ivaRate) || 0) + it.subtotal));
+      row('Importe neto:', invoice.subtotal);
+      for (const [rate, base] of [...groups.entries()].sort((a,b)=>a[0]-b[0])) {
+        row(`IVA ${rate}%:`, round2(base * rate / 100));
+      }
+    }
+    row('TOTAL:', invoice.total, true);
+    if (!isA) {
+      doc.font('Helvetica').fontSize(8).text(
+        `Régimen de Transparencia Fiscal (Ley 27.743) - IVA contenido: ${money(invoice.tax_total)}`,
+        360, y, { width: 200, align: 'right' }
+      );
+      y += 14;
+    }
+
+    if (invoice.notes) {
+      doc.font('Helvetica').fontSize(9).text('Notas:', L, y + 4);
+      doc.fontSize(8.5).text(String(invoice.notes), L, y + 16, { width: 300 });
+    }
+
+    // QR + CAE
     if (isFiscalApproved) {
       try {
         const url = qrUrl({
-          fecha: invoice.cbte_fecha || invoice.issued_at || invoice.created_at,
-          cuit: cleanCuit(issuer.cuit),
+          fecha: invoice.cbte_fecha || displayDate,
+          cuit: cleanCuit(emisorCuit),
           ptoVta: invoice.pto_vta,
           tipoCmp: invoice.cbte_tipo,
           nroCmp: invoice.cbte_numero,
           importe: Number(invoice.total),
-          tipoDocRec: invoice.receptor_doc_tipo || 99,
-          nroDocRec: invoice.receptor_doc_nro || 0,
+          tipoDocRec: invoice.receptor_doc_tipo || recDocTipoNum || 99,
+          nroDocRec: invoice.receptor_doc_nro || recDocNro || 0,
           cae: invoice.arca_cae,
         });
-        const qr = await QRCode.toBuffer(url, { margin: 0, width: 180 });
-        const qrY = Math.min(y + 10, 720);
-        doc.image(qr, 40, qrY, { width: 90 });
-        doc.font('Helvetica-Bold').fontSize(9).text(`CAE Nº: ${invoice.arca_cae}`, 360, qrY + 10, { width: 180, align: 'right' });
-        doc.text(`Vto. CAE: ${formatDate(invoice.arca_cae_vto)}`, 360, qrY + 24, { width: 180, align: 'right' });
-        doc.font('Helvetica-Oblique').fontSize(8).text('Comprobante autorizado por ARCA', 360, qrY + 40, { width: 180, align: 'right' });
+        const qr = await QRCode.toBuffer(url, { margin: 0, width: 220 });
+        doc.image(qr, L, 745, { width: 90 });
+        doc.font('Helvetica-Bold').fontSize(9).text(`CAE Nº: ${invoice.arca_cae}`, 440, 760, { width: 125, align: 'right' })
+          .text(`Vto. CAE: ${fdate(invoice.arca_cae_vto)}`, 440, 775, { width: 125, align: 'right' });
+        doc.font('Helvetica-Oblique').fontSize(8).text('Comprobante Autorizado', 135, 760);
       } catch (e) {
         console.error('QR/PDF fiscal error:', e.message);
       }
-    }
-
-    if (invoice.notes) {
-      doc.moveDown(2);
-      doc.fontSize(10).text('Notas:', 40, doc.y);
-      doc.fontSize(9).text(String(invoice.notes), { width: 500 });
-    }
-
-    if (invoice.status === 'anulada') {
-      doc.moveDown(1);
-      doc.fillColor('red').fontSize(10).text(`ANULADA${invoice.void_reason ? ` - Motivo: ${invoice.void_reason}` : ''}`, { align: 'center' });
+    } else if (invoice.arca_status === 'rejected') {
+      doc.font('Helvetica').fontSize(8).fillColor('red').text(`ARCA rechazado: ${invoice.arca_errors || ''}`, L, 760, { width: 530 });
       doc.fillColor('black');
-    }
-    if (invoice.arca_status === 'rejected') {
-      doc.moveDown(1);
-      doc.fillColor('red').fontSize(9).text(`ARCA rechazado: ${invoice.arca_errors || ''}`, { align: 'left' });
+    } else if (invoice.status === 'anulada') {
+      doc.font('Helvetica').fontSize(8).fillColor('red').text(`ANULADA${invoice.void_reason ? ` - Motivo: ${invoice.void_reason}` : ''}`, L, 760, { width: 530 });
       doc.fillColor('black');
     }
 
