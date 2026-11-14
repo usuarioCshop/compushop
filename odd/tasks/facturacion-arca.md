@@ -19,8 +19,8 @@ S8. Homologación verificable end-to-end con cert/pto vta de prueba; runbook par
 ## Tasks
 - [x] T1 | S1 | inline | F1: deps (`fast-xml-parser`,`node-forge`,`qrcode`) y configuración ARCA (`config`, `.env.example`, gitignore certs). Commit: `e895e70`.
 - [x] T2 | S2,S4 | inline | F2: migraciones `arca_tokens` y campos/tablas fiscales en facturación + KNOWN_TABLES. Commit: `82a700a`.
-- [x] T3 | S2,S3,S5 | inline | F3: servicios WSAA/WSFE, mapeo alícuotas/cálculo fiscal, QR (port de `temp/src/arca` y `temp/src/invoice/calc` a CJS). Commit: pendiente (etapa verificada).
-- [ ] T4 | S4,S5,S7 | inline | F4: API de emisión electrónica (validación, numeración ARCA, pending/approved/rejected, idempotencia básica) y endpoints de consulta/PDF fiscal.
+- [x] T3 | S2,S3,S5 | inline | F3: servicios WSAA/WSFE, mapeo alícuotas/cálculo fiscal, QR (port de `temp/src/arca` y `temp/src/invoice/calc` a CJS). Commit: `2c8d6d6`.
+- [x] T4 | S4,S5,S7 | inline | F4: API de emisión electrónica (validación, numeración ARCA, pending/approved/rejected, idempotencia básica) y endpoints de consulta/PDF fiscal. Commit: pendiente (etapa verificada: endpoint + validaciones; requiere cert/CUIT/PTO para emisión real).
 - [ ] T5 | S6,S7 | inline | F5: PDF fiscal (A/B, CAE, QR) y UI `/facturacion` (tipo/concepto/receptor fiscal, emitir, estado, descarga).
 - [ ] T6 | S8 | inline | F6: verificación homologación, hardening y documentación/runbook.
 

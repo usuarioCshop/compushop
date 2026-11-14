@@ -279,6 +279,7 @@ router.get('/invoices/:id', authenticate, requireTecnico, validate(invoiceIdSche
 router.put('/invoices/:id', authenticate, requireTecnico, validate(invoiceUpdateSchema), invoicesCtrl.update);
 router.post('/invoices/:id/issue', authenticate, requireTecnico, validate(invoiceIdSchema), invoicesCtrl.issue);
 router.post('/invoices/:id/void', authenticate, requireTecnico, validate(invoiceVoidSchema), invoicesCtrl.voidInvoice);
+router.post('/invoices/:id/arca-authorize', authenticate, requireTecnico, invoicesCtrl.authorizeArca);
 router.delete('/invoices/:id', authenticate, requireTecnico, validate(invoiceIdSchema), invoicesCtrl.remove);
 
 module.exports = router;
