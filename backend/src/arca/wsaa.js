@@ -40,8 +40,8 @@ function signCms(xml) {
   return forge.util.encode64(forge.asn1.toDer(p7.toAsn1()).getBytes());
 }
 
-async function getAuth() {
-  const cached = await db.prepare(
+async function getAuth(runner = db) {
+  const cached = await runner.prepare(
     `SELECT token, sign FROM arca_tokens WHERE service = $1 AND expires_at > now() + interval '5 minutes'`
   ).get(SERVICE);
   if (cached && cached.token && cached.sign) return { token: cached.token, sign: cached.sign };
@@ -63,7 +63,7 @@ async function getAuth() {
   const ta = parser.parse(env.loginCmsResponse.loginCmsReturn).loginTicketResponse;
   const { token, sign } = ta.credentials;
 
-  await db.prepare(
+  await runner.prepare(
     `INSERT INTO arca_tokens (service, token, sign, expires_at, updated_at)
      VALUES ($1, $2, $3, $4, now())
      ON CONFLICT (service) DO UPDATE SET token = EXCLUDED.token, sign = EXCLUDED.sign, expires_at = EXCLUDED.expires_at, updated_at = now()`

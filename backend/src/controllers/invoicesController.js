@@ -697,7 +697,7 @@ async function authorizeArca(req, res) {
       const fecha = todayAr();
 
       // Obtener próximo número fiscal y reservar en pending dentro de la transacción
-      const ultimo = await ultimoAutorizado(ptoVta, v.tipo, issuer.cuit);
+      const ultimo = await ultimoAutorizado(ptoVta, v.tipo, issuer.cuit, tx);
       const numero = ultimo + 1;
 
       await tx.prepare(`
@@ -736,7 +736,7 @@ async function authorizeArca(req, res) {
           receptor,
           totals: fiscalTotals,
           servicio: v.servicio,
-        }, issuer.cuit);
+        }, issuer.cuit, tx);
       } catch (e) {
         await tx.prepare(`UPDATE invoices SET arca_status = 'rejected', arca_errors = $1 WHERE id = $2`)
           .run(String(e.message || e), invoice.id);

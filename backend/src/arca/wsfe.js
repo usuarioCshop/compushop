@@ -7,8 +7,8 @@ const parser = new XMLParser({ removeNSPrefix: true, parseTagValue: false });
 const arr = (v) => (v == null ? [] : [].concat(v));
 const ymd = (d) => String(d).replaceAll('-', '');
 
-async function call(method, inner, issuerCuit) {
-  const { token, sign } = await getAuth();
+async function call(method, inner, issuerCuit, runner) {
+  const { token, sign } = await getAuth(runner);
   const cuit = String(issuerCuit || arcaConfig.getIssuerConfig().cuit).replace(/\D/g, '');
   if (!cuit) throw new Error('Falta CUIT del emisor para ARCA');
   const body =
@@ -28,11 +28,12 @@ async function call(method, inner, issuerCuit) {
 
 const errs = (r) => arr(r?.Errors?.Err).map((e) => `${e.Code}: ${e.Msg}`);
 
-async function ultimoAutorizado(ptoVta, cbteTipo, issuerCuit) {
+async function ultimoAutorizado(ptoVta, cbteTipo, issuerCuit, runner) {
   const r = await call(
     'FECompUltimoAutorizado',
     `<PtoVta>${ptoVta}</PtoVta><CbteTipo>${cbteTipo}</CbteTipo>`,
-    issuerCuit
+    issuerCuit,
+    runner
   );
   const errors = errs(r);
   if (errors.length) throw new Error(errors.join(' | '));
@@ -43,7 +44,7 @@ async function ultimoAutorizado(ptoVta, cbteTipo, issuerCuit) {
  * Solicita CAE.
  * d = { tipo, numero, fecha (YYYY-MM-DD), concepto, ptoVta, receptor: {docTipo,docNro,condIva,name,address}, totals: {neto,ivaTotal,total,iva:[{id,base,amount}]}, servicio? }
  */
-async function solicitarCAE(d, issuerCuit) {
+async function solicitarCAE(d, issuerCuit, runner) {
   const { receptor: rc, totals: t } = d;
   const concepto = Number(d.concepto || 1);
   const serv =
@@ -67,7 +68,7 @@ async function solicitarCAE(d, issuerCuit) {
     `<MonId>PES</MonId><MonCotiz>1</MonCotiz><CondicionIVAReceptorId>${rc.condIva}</CondicionIVAReceptorId>` +
     `<Iva>${iva}</Iva></FECAEDetRequest></FeDetReq></FeCAEReq>`;
 
-  const r = await call('FECAESolicitar', inner, issuerCuit);
+  const r = await call('FECAESolicitar', inner, issuerCuit, runner);
   const det = arr(r?.FeDetResp?.FECAEDetResponse)[0] || {};
   const messages = [...errs(r), ...arr(det.Observaciones?.Obs).map((o) => `${o.Code}: ${o.Msg}`)];
   const approved = r?.FeCabResp?.Resultado === 'A' && !!det.CAE;
