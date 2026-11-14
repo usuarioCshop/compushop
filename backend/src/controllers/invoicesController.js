@@ -28,8 +28,9 @@ function toMoney(n) {
   return round2(n);
 }
 
-async function getIssuerSnapshot() {
-  const rows = await db.prepare('SELECT key, value FROM settings').all();
+async function getIssuerSnapshot(txOrDb) {
+  const runner = txOrDb || db;
+  const rows = await runner.prepare('SELECT key, value FROM settings').all();
   const s = {};
   rows.forEach((r) => { s[r.key] = r.value; });
   return {
@@ -289,7 +290,7 @@ async function issue(req, res) {
       // Recalcular por seguridad
       const normalized = items.map(normalizeItem);
       const totals = calculateTotals(normalized);
-      const issuer = await getIssuerSnapshot();
+      const issuer = await getIssuerSnapshot(tx);
 
       // Asegurar número único (ya asignado en borrador; mantenerlo)
       await tx.prepare(`
@@ -618,8 +619,9 @@ function cleanCuit(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
-async function getFiscalIssuer() {
-  const rows = await db.prepare('SELECT key, value FROM settings').all();
+async function getFiscalIssuer(txOrDb) {
+  const runner = txOrDb || db;
+  const rows = await runner.prepare('SELECT key, value FROM settings').all();
   const s = {};
   rows.forEach((r) => { s[r.key] = r.value; });
   return arcaConfig.getIssuerConfig({
