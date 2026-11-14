@@ -17,7 +17,8 @@ S7. API y UI en `/facturacion`: configuración/emisor fiscal, selección de tipo
 S8. Homologación verificable end-to-end con cert/pto vta de prueba; runbook para producción.
 
 ## Tasks
-- [x] T1 | S1 | inline | F1: deps (`fast-xml-parser`,`node-forge`,`qrcode`) y configuración ARCA (`config`, `.env.example`, gitignore certs). Commit: pendiente (etapa verificada).
+- [x] T1 | S1 | inline | F1: deps (`fast-xml-parser`,`node-forge`,`qrcode`) y configuración ARCA (`config`, `.env.example`, gitignore certs). Commit: `e895e70`.
+- [ ] T2 | S2,S4 | inline | F2: migraciones `arca_tokens` y campos/tablas fiscales en facturación + KNOWN_TABLES.
 - [ ] T2 | S2,S4 | inline | F2: migraciones `arca_tokens` y campos/tablas fiscales en facturación + KNOWN_TABLES.
 - [ ] T3 | S2,S3,S5 | inline | F3: servicios WSAA/WSFE, mapeo alícuotas/cálculo fiscal, QR (port de `temp/src/arca` y `temp/src/invoice/calc` a CJS).
 - [ ] T4 | S4,S5,S7 | inline | F4: API de emisión electrónica (validación, numeración ARCA, pending/approved/rejected, idempotencia básica) y endpoints de consulta/PDF fiscal.

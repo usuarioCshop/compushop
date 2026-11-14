@@ -40,6 +40,7 @@ const KNOWN_TABLES = [
   'billing_clients',
   'invoices',
   'invoice_items',
+  'arca_tokens',
 ];
 
 let pool = null;
