@@ -501,7 +501,8 @@ async function getPdf(req, res) {
     const recCondText = COND[recCondId] || receiverSnap.condicion_iva || (recDocTipoNum === 99 ? 'Consumidor Final' : '-');
     const recAddress = receiverSnap.address || invoice.receptor_domicilio || '-';
 
-    const filename = `factura-${fiscalNumber.replace(/[^0-9A-Za-z-]/g, '_')}.pdf`;
+    const caeId = invoice.arca_cae ? String(invoice.arca_cae).replace(/[^0-9A-Za-z-]/g, '_') : '';
+    const filename = caeId ? `factura-CAE-${caeId}.pdf` : `factura-${fiscalNumber.replace(/[^0-9A-Za-z-]/g, '_')}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
 
