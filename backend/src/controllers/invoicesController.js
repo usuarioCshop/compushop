@@ -740,9 +740,15 @@ async function authorizeArca(req, res) {
       const ptoVta = Number(payload.pto_vta || issuer.ptoVta || 1);
       const fecha = todayAr();
 
-      // Obtener próximo número fiscal y reservar en pending dentro de la transacción
-      const ultimo = await ultimoAutorizado(ptoVta, v.tipo, issuer.cuit, tx);
-      const numero = ultimo + 1;
+      let ultimo;
+      let numero;
+      try {
+        ultimo = await ultimoAutorizado(ptoVta, v.tipo, issuer.cuit, tx);
+        numero = ultimo + 1;
+      } catch (e) {
+        const msg = String(e.message || e);
+        throw httpError(502, msg.startsWith('WSAA:') || msg.startsWith('WSFE:') ? msg : `Error al consultar último comprobante en ARCA: ${msg}`);
+      }
 
       await tx.prepare(`
         UPDATE invoices SET
@@ -784,7 +790,8 @@ async function authorizeArca(req, res) {
       } catch (e) {
         await tx.prepare(`UPDATE invoices SET arca_status = 'rejected', arca_errors = $1 WHERE id = $2`)
           .run(String(e.message || e), invoice.id);
-        throw httpError(502, `Error al solicitar CAE: ${e.message || e}`);
+        const msg = String(e.message || e);
+        throw httpError(502, msg.startsWith('WSAA:') || msg.startsWith('WSFE:') || msg.startsWith('Error al solicitar CAE') ? msg : `Error al solicitar CAE: ${msg}`);
       }
 
       if (!arcaRes.approved) {
@@ -826,6 +833,12 @@ async function authorizeArca(req, res) {
     }
     res.json({ message: 'Comprobante autorizado por ARCA', invoice: result.invoice, arca: { cae: result.arca.cae, caeVto: result.arca.caeVto, messages: result.arca.messages } });
   } catch (error) {
+    if (error && !error.httpStatus) {
+      const msg = String(error.message || error);
+      if (msg.startsWith('WSAA:') || msg.startsWith('WSFE:') || msg.includes('ARCA')) {
+        return res.status(502).json({ error: msg });
+      }
+    }
     sendError(res, error, 'Error al autorizar comprobante en ARCA');
   }
 }
