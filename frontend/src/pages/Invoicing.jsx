@@ -35,6 +35,26 @@ function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return Number.
 const emptyReceiver = { name: '', doc_type: '', doc_number: '', condicion_iva: '', address: '', email: '', phone: '' };
 const emptyItem = () => ({ source_type: 'manual', product_id: null, repair_id: null, description: '', quantity: 1, unit_price: 0, vat_rate: 21, discount: 0 });
 
+function parseMeta(metadata) {
+  if (!metadata) return {};
+  if (typeof metadata === 'object') return metadata;
+  try { return JSON.parse(metadata); } catch { return {}; }
+}
+
+function getStockImpact(it) {
+  const pid = it.product_id ?? parseMeta(it.metadata)?.product_id;
+  const qty = Number(it.quantity || 0);
+  if (!pid || qty <= 0) return { label: 'Sin impacto', color: 'gray', canToggle: false, key: 'none' };
+  const meta = parseMeta(it.metadata);
+  if (it.source_type === 'repair' && meta.kind === 'part') {
+    return { label: 'Ya descontado en servicio técnico', color: 'blue', canToggle: false, key: 'repair_part' };
+  }
+  if (meta.stock_deducted === true || meta.stock_action === 'already_deducted' || meta.stock_action === 'none') {
+    return { label: 'Ya descontado', color: 'purple', canToggle: true, key: 'already' };
+  }
+  return { label: 'Descuenta al emitir', color: 'orange', canToggle: true, key: 'deduct' };
+}
+
 function calcItem(it) {
   const qty = round2(it.quantity || 0);
   const price = round2(it.unit_price || 0);
@@ -340,9 +360,16 @@ export default function Invoicing() {
   const addRepairItems = async (id) => {
     try {
       const { data } = await api.get(`/invoices/preload/repair/${id}`);
+      if (data.already_invoiced?.length) {
+        const refs = data.already_invoiced.map((i) => `#${i.number || i.id}`).join(', ');
+        const ok = window.confirm(`Esta reparación ya tiene comprobante(s) emitido(s): ${refs}. Agregarla puede generar doble facturación. ¿Continuar de todas formas?`);
+        if (!ok) return;
+      }
       setItems((prev) => [...prev.filter((i) => i.description?.trim() || prev.length === 1), ...(data.items || [])]);
       if (data.receiver?.name) {
-        setReceiver((r) => ({ ...r, ...Object.fromEntries(Object.entries(data.receiver).filter(([, v]) => v)) }));
+        const next = { ...receiver, ...Object.fromEntries(Object.entries(data.receiver).filter(([, v]) => v)) };
+        setReceiver(next);
+        setFiscalForm((prev) => inferFiscalFromReceiver(next, prev));
       }
     } catch { toast({ title: 'No se pudo precargar la reparación', status: 'error' }); }
   };
@@ -725,14 +752,35 @@ export default function Invoicing() {
 
                 <TableContainer>
                   <Table size="sm">
-                    <Thead><Tr><Th>Origen</Th><Th minW="260px">Descripción</Th><Th isNumeric>Cant.</Th><Th isNumeric>P. Unit.</Th><Th isNumeric>IVA %</Th><Th isNumeric>Dto.</Th><Th isNumeric>Total</Th><Th></Th></Tr></Thead>
+                    <Thead><Tr><Th>Origen</Th><Th minW="240px">Descripción</Th><Th>Impacto stock</Th><Th isNumeric>Cant.</Th><Th isNumeric>P. Unit.</Th><Th isNumeric>IVA %</Th><Th isNumeric>Dto.</Th><Th isNumeric>Total</Th><Th></Th></Tr></Thead>
                     <Tbody>
                       {items.map((it, idx) => {
                         const c = calcItem(it);
+                        const impact = getStockImpact(it);
                         return (
                           <Tr key={idx}>
                             <Td><Badge>{it.source_type}</Badge></Td>
                             <Td><Input size="sm" value={it.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} /></Td>
+                            <Td>
+                              <VStack align="start" spacing={1}>
+                                <Badge colorScheme={impact.color}>{impact.label}</Badge>
+                                {impact.canToggle && (
+                                  <Button size="xs" variant="link" onClick={() => {
+                                    const meta = { ...parseMeta(it.metadata) };
+                                    if (impact.key === 'deduct') {
+                                      meta.stock_deducted = true;
+                                      meta.stock_action = 'already_deducted';
+                                    } else {
+                                      delete meta.stock_deducted;
+                                      delete meta.stock_action;
+                                    }
+                                    updateItem(idx, 'metadata', meta);
+                                  }}>
+                                    {impact.key === 'deduct' ? 'Marcar ya descontado' : 'Descontar al emitir'}
+                                  </Button>
+                                )}
+                              </VStack>
+                            </Td>
                             <Td isNumeric><Input size="sm" type="number" min={0} step="0.01" w="80px" value={it.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} /></Td>
                             <Td isNumeric><Input size="sm" type="number" min={0} step="0.01" w="110px" value={it.unit_price} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} /></Td>
                             <Td isNumeric><Input size="sm" type="number" min={0} max={100} step="0.01" w="80px" value={it.vat_rate} onChange={(e) => updateItem(idx, 'vat_rate', e.target.value)} /></Td>
@@ -745,6 +793,7 @@ export default function Invoicing() {
                     </Tbody>
                   </Table>
                 </TableContainer>
+                <Text mt={2} fontSize="xs" color="fg.muted">Stock: los productos se descuentan al emitir/facturar, salvo repuestos ya consumidos en servicio técnico o ítems marcados como ya descontados (ej. compra online pagada con transferencia).</Text>
 
                 <Box mt={4} alignSelf="flex-end" ml="auto" maxW="320px">
                   <HStack justify="space-between"><Text>Subtotal</Text><Text>{money(totals.subtotal)}</Text></HStack>
