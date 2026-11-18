@@ -40,20 +40,20 @@ import {
 
 function toForm(repair) {
   return {
-    diagnosis: repair.diagnosis || '',
-    labor_price: repair.labor_price ?? 0,
-    labor_iva_enabled: Boolean(repair.labor_iva_enabled),
-    labor_iva_rate: repair.labor_iva_rate ?? 21,
-    notes: repair.notes || '',
-    status: repair.status || 'pendiente',
-    assigned_to: repair.assigned_to || '',
-    parts: (repair.parts || []).map((part) => ({
+    diagnosis: repair?.diagnosis || '',
+    labor_price: repair?.labor_price ?? 0,
+    labor_iva_enabled: Boolean(repair?.labor_iva_enabled),
+    labor_iva_rate: repair?.labor_iva_rate ?? 21,
+    notes: repair?.notes || '',
+    status: repair?.status || 'pendiente',
+    assigned_to: repair?.assigned_to || '',
+    parts: (Array.isArray(repair?.parts) ? repair.parts : []).map((part) => ({
       product_id: part.product_id,
-      product_name: part.product_name || part.description,
-      product_stock: part.product_stock ?? 0,
-      original_quantity: part.quantity,
-      quantity: part.quantity,
-      unit_price: part.unit_price,
+      product_name: part.product_name || part.description || `Producto #${part.product_id}`,
+      product_stock: Number(part.product_stock ?? 0),
+      original_quantity: Number(part.quantity ?? 0),
+      quantity: Number(part.quantity ?? 0),
+      unit_price: part.unit_price ?? 0,
     })),
   };
 }
@@ -221,9 +221,8 @@ export default function ReparacionTab({ onChanged }) {
         }),
       };
 
-      const { data } = await api.put(`/technical-repairs/${selectedId}`, payload);
-      setRepair(data.repair);
-      setForm(toForm(data.repair));
+      await api.put(`/technical-repairs/${selectedId}`, payload);
+      await loadDetail(selectedId);
       await fetchList();
       onChanged?.();
       toast({ title: 'Reparación guardada', status: 'success', duration: 3000, isClosable: true });

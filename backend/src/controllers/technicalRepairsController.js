@@ -1,14 +1,20 @@
 const db = require('../db/database');
 const bcrypt = require('bcryptjs');
 
-// Genera un numero de boleta unico tipo CSYYMMDD-####.
-function generateTicketNumber() {
-  const date = new Date();
-  const y = date.getFullYear().toString().slice(-2);
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  const rand = Math.floor(Math.random() * 9000) + 1000;
-  return `CS${y}${m}${d}-${rand}`;
+// Calcula el próximo número de boleta con formato AAAA-MM-####### (incremental por mes).
+async function computeNextTicketNumber(dbRunner = db) {
+  const now = new Date();
+  const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-`;
+  const last = await dbRunner.prepare(
+    'SELECT ticket_number FROM technical_repairs WHERE ticket_number LIKE $1 ORDER BY ticket_number DESC LIMIT 1'
+  ).get(`${prefix}%`);
+
+  let seq = 1;
+  if (last && last.ticket_number) {
+    const parsed = parseInt(String(last.ticket_number).slice(prefix.length), 10);
+    if (!Number.isNaN(parsed)) seq = parsed + 1;
+  }
+  return `${prefix}${String(seq).padStart(7, '0')}`;
 }
 
 // Toma un campo opcional del body: si no vino usa el valor actual y si vino
@@ -158,30 +164,16 @@ async function fetchRepairWithParts(id) {
     labor_iva_amount: ivaAmount,
     parts_total: partsTotal,
     total: Number(repair.labor_price || 0) + ivaAmount + partsTotal,
+    parts,
   };
 }
 
 // GET /api/technical-repairs/next-ticket  (solo tecnico/admin)
-// Devuelve el proximo numero de boleta del dia, con formato CSYYMMDD-####.
+// Devuelve el próximo número de boleta con formato AAAA-MM-#######.
 async function getNextTicket(req, res) {
   try {
-    const now = new Date();
-    const y = now.getFullYear().toString().slice(-2);
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const prefix = `CS${y}${m}${d}-`;
-
-    const last = await db.prepare(
-      'SELECT ticket_number FROM technical_repairs WHERE ticket_number LIKE $1 ORDER BY ticket_number DESC LIMIT 1'
-    ).get(`${prefix}%`);
-
-    let seq = 1;
-    if (last && last.ticket_number) {
-      const parsed = parseInt(last.ticket_number.slice(prefix.length), 10);
-      if (!Number.isNaN(parsed)) seq = parsed + 1;
-    }
-
-    res.json({ ticket_number: `${prefix}${String(seq).padStart(4, '0')}` });
+    const ticket_number = await computeNextTicketNumber();
+    res.json({ ticket_number });
   } catch (error) {
     sendError(res, error, 'Error al calcular el próximo número de boleta');
   }
@@ -207,7 +199,7 @@ async function createTechnician(req, res) {
   try {
     const { name, email, password, dni, phone } = req.body || {};
     const trimmedName = String(name || '').trim();
-    const trimmedEmail = String(email || '').trim().toLower();
+    const trimmedEmail = String(email || '').trim().toLowerCase();
     const pass = String(password || '');
 
     if (!trimmedName || !trimmedEmail || !pass) {
@@ -860,6 +852,8 @@ async function create(req, res) {
       return res.status(400).json({ error: 'Técnico asignado inválido' });
     }
 
+    const ticketNumber = body.ticket_number || (await computeNextTicketNumber());
+
     const repair = await db.transaction(async (tx) => {
       const inserted = await tx.prepare(`
         INSERT INTO technical_repairs (
@@ -870,7 +864,7 @@ async function create(req, res) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         RETURNING *
       `).run(
-        body.ticket_number || generateTicketNumber(),
+        ticketNumber,
         body.status || 'pendiente',
         body.client_name,
         body.client_address || null,
