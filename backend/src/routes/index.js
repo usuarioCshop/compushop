@@ -134,9 +134,11 @@ router.get('/technical-repairs', authenticate, requireTecnico, validate(technica
 router.post('/technical-repairs', authenticate, requireTecnico, validate(technicalRepairCreateSchema), technicalRepairsCtrl.create);
 router.get('/technical-repairs/next-ticket', authenticate, requireTecnico, technicalRepairsCtrl.getNextTicket);
 router.get('/technical-repairs/technicians', authenticate, requireTecnico, technicalRepairsCtrl.getTechnicians);
+router.post('/technical-repairs/technicians', authenticate, requireTecnico, technicalRepairsCtrl.createTechnician);
 router.get('/technical-repairs/export', authenticate, requireTecnico, validate(technicalRepairQuerySchema), technicalRepairsCtrl.exportCsv);
 router.get('/technical-repairs/stats', authenticate, requireTecnico, technicalRepairsCtrl.getStats);
 router.get('/technical-repairs/parts-catalog', authenticate, requireTecnico, validate(technicalPartsCatalogQuerySchema), technicalRepairsCtrl.getPartsCatalog);
+router.post('/technical-repairs/parts-catalog', authenticate, requireTecnico, technicalRepairsCtrl.createPartProduct);
 router.get('/technical-repairs/reports/export', authenticate, requireTecnico, validate(technicalReportQuerySchema), technicalRepairsCtrl.exportReportCsv);
 router.get('/technical-repairs/reports', authenticate, requireTecnico, validate(technicalReportQuerySchema), technicalRepairsCtrl.getReport);
 router.get('/technical-repairs/:id', authenticate, requireTecnico, validate(technicalRepairIdSchema), technicalRepairsCtrl.getOne);
