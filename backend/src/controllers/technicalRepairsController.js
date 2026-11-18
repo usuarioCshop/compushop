@@ -1,4 +1,5 @@
 const db = require('../db/database');
+const bcrypt = require('bcryptjs');
 
 // Genera un numero de boleta unico tipo CSYYMMDD-####.
 function generateTicketNumber() {
@@ -200,6 +201,56 @@ async function getTechnicians(req, res) {
   }
 }
 
+// POST /api/technical-repairs/technicians  (solo tecnico/admin)
+// Alta rápida de técnico desde el flujo de servicio.
+async function createTechnician(req, res) {
+  try {
+    const { name, email, password, dni, phone } = req.body || {};
+    const trimmedName = String(name || '').trim();
+    const trimmedEmail = String(email || '').trim().toLower();
+    const pass = String(password || '');
+
+    if (!trimmedName || !trimmedEmail || !pass) {
+      return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
+    }
+    if (trimmedName.length < 2) {
+      return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return res.status(400).json({ error: 'Email inválido' });
+    }
+    if (pass.length < 8) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
+    const hashed = bcrypt.hashSync(pass, 10);
+    const result = await db.prepare(`
+      INSERT INTO users (name, email, password, role, dni, phone)
+      VALUES ($1, $2, $3, 'tecnico', $4, $5)
+      RETURNING id, name, email, role
+    `).run(trimmedName, trimmedEmail, hashed, dni ? String(dni).trim() : null, phone ? String(phone).trim() : null);
+
+    res.status(201).json({ message: 'Técnico creado', technician: result.rows[0] });
+  } catch (error) {
+    if (db.isUniqueViolation && db.isUniqueViolation(error)) {
+      return res.status(409).json({ error: 'Email o DNI ya existe' });
+    }
+    sendError(res, error, 'Error al crear técnico');
+  }
+}
+
+
+function slugify(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]+/g, '')
+    .replace(/--+/g, '-');
+}
+
 // GET /api/technical-repairs/parts-catalog  (solo tecnico/admin)
 // Productos activos con stock para el selector de repuestos.
 async function getPartsCatalog(req, res) {
@@ -224,6 +275,37 @@ async function getPartsCatalog(req, res) {
     res.json({ products });
   } catch (error) {
     sendError(res, error, 'Error al obtener el catálogo de repuestos');
+  }
+}
+
+// POST /api/technical-repairs/parts-catalog  (solo tecnico/admin)
+// Alta rápida de producto/repuesto desde el flujo de reparación.
+async function createPartProduct(req, res) {
+  try {
+    const { name, brand, price, stock } = req.body || {};
+    const trimmedName = String(name || '').trim();
+    if (!trimmedName) return res.status(400).json({ error: 'El nombre del producto/repuesto es obligatorio' });
+    const numPrice = Number(price);
+    const numStock = Number(stock);
+    if (!Number.isFinite(numPrice) || numPrice < 0) return res.status(400).json({ error: 'El precio debe ser un número válido mayor o igual a 0' });
+    if (!Number.isInteger(numStock) || numStock < 0) return res.status(400).json({ error: 'El stock debe ser un entero mayor o igual a 0' });
+
+    let slug = slugify(trimmedName);
+    const existingSlug = await db.prepare('SELECT id FROM products WHERE slug = $1').get(slug);
+    if (existingSlug) slug = `${slug}-${Date.now()}`;
+
+    const inserted = await db.prepare(`
+      INSERT INTO products (name, slug, description, price, stock, brand, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, true)
+      RETURNING id, name, brand, price, stock
+    `).run(trimmedName, slug, 'Creado desde Servicio Técnico', numPrice, numStock, brand ? String(brand).trim() : null);
+
+    res.status(201).json({ message: 'Producto/repuesto creado', product: inserted.rows[0] });
+  } catch (error) {
+    if (db.isUniqueViolation && db.isUniqueViolation(error)) {
+      return res.status(409).json({ error: 'Ya existe un producto con datos conflictivos' });
+    }
+    sendError(res, error, 'Error al crear producto/repuesto');
   }
 }
 
@@ -976,7 +1058,9 @@ module.exports = {
   remove,
   getNextTicket,
   getTechnicians,
+  createTechnician,
   getPartsCatalog,
+  createPartProduct,
   getStats,
   getReport,
   exportReportCsv,

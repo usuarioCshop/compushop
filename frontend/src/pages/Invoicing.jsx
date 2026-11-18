@@ -4,7 +4,8 @@ import {
   ModalContent, ModalFooter, ModalHeader, ModalOverlay, Select, SimpleGrid, Spinner, Table,
   TableContainer, Tbody, Td, Text, Textarea, Th, Thead, Tr, VStack, useDisclosure, useToast,
 } from '@chakra-ui/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { FiDownload, FiEdit2, FiEye, FiFileText, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiXCircle, FiCheckCircle } from 'react-icons/fi';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
@@ -55,6 +56,8 @@ function calcTotals(items) {
 
 export default function Invoicing() {
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const preloadHandledRef = useRef(false);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', status: '' });
@@ -344,8 +347,34 @@ export default function Invoicing() {
       if (data.receiver?.name) {
         setReceiver((r) => ({ ...r, ...Object.fromEntries(Object.entries(data.receiver).filter(([, v]) => v)) }));
       }
-    } catch { toast({ title: 'No se pudo precargar la reparación', status: 'error' }); }
+      return data;
+    } catch {
+      toast({ title: 'No se pudo precargar la reparación', status: 'error' });
+      return null;
+    }
   };
+
+  useEffect(() => {
+    const repairId = searchParams.get('preloadRepair');
+    if (!repairId || preloadHandledRef.current) return;
+    preloadHandledRef.current = true;
+    (async () => {
+      openNew();
+      const data = await addRepairItems(repairId);
+      if (data?.receiver) {
+        const next = {
+          name: data.receiver.name || '', doc_type: data.receiver.doc_type || '', doc_number: data.receiver.doc_number || '',
+          condicion_iva: data.receiver.condicion_iva || '', address: data.receiver.address || '', email: data.receiver.email || '',
+          phone: data.receiver.phone || '',
+        };
+        setReceiver((prev) => ({ ...prev, ...next }));
+        setFiscalForm((prev) => inferFiscalFromReceiver(next, prev));
+      }
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('preloadRepair');
+      setSearchParams(nextParams, { replace: true });
+    })();
+  }, [searchParams, setSearchParams]);
 
   const updateItem = (idx, field, value) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
