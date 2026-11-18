@@ -90,6 +90,83 @@ function calculateTotals(items) {
   return { subtotal, tax_total: taxTotal, discount_total: discountTotal, total };
 }
 
+function parseItemMetadata(metadata) {
+  if (!metadata) return {};
+  if (typeof metadata === 'object') return metadata;
+  try { return JSON.parse(metadata); } catch { return {}; }
+}
+
+function shouldDeductStockOnIssue(item) {
+  const productId = Number(item.product_id || 0);
+  const qty = Number(item.quantity || 0);
+  if (!productId || qty <= 0) return false;
+  const meta = parseItemMetadata(item.metadata);
+  if (meta.stock_deducted === true || meta.stock_action === 'already_deducted' || meta.stock_action === 'none') return false;
+  // Repuestos de reparación: se descontaron al utilizarlos en el servicio técnico
+  if (item.source_type === 'repair' && meta.kind === 'part') return false;
+  return true;
+}
+
+async function getStockNeedsForInvoice(tx, invoiceId) {
+  const items = await tx.prepare('SELECT * FROM invoice_items WHERE invoice_id = $1').all(invoiceId);
+  const needed = new Map();
+  for (const it of items) {
+    if (!shouldDeductStockOnIssue(it)) continue;
+    const pid = Number(it.product_id);
+    const qty = Number(it.quantity || 0);
+    needed.set(pid, round2((needed.get(pid) || 0) + qty));
+  }
+  return needed;
+}
+
+async function validateInvoiceStockAvailability(tx, invoiceId, { lock = false } = {}) {
+  const needed = await getStockNeedsForInvoice(tx, invoiceId);
+  if (needed.size === 0) return needed;
+  const ids = [...needed.keys()].sort((a, b) => a - b);
+  const lockSql = lock ? ' FOR UPDATE' : '';
+  const result = await tx.query(
+    `SELECT id, name, stock FROM products WHERE id = ANY($1::int[]) ORDER BY id${lockSql}`,
+    [ids]
+  );
+  const productMap = new Map(result.rows.map((r) => [Number(r.id), r]));
+  for (const [pid, qty] of needed.entries()) {
+    const p = productMap.get(pid);
+    if (!p) throw httpError(400, `El producto ${pid} no existe para descontar stock`);
+    if (Number(p.stock) < qty) {
+      throw httpError(400, `Stock insuficiente para "${p.name}" (disponible: ${p.stock}, requerido: ${qty})`);
+    }
+  }
+  return needed;
+}
+
+async function deductInvoiceStock(tx, invoiceId) {
+  const needed = await validateInvoiceStockAvailability(tx, invoiceId, { lock: true });
+  if (needed.size === 0) return;
+  for (const [pid, qty] of needed.entries()) {
+    const info = await tx.prepare('UPDATE products SET stock = stock - $1 WHERE id = $2 AND stock >= $1').run(qty, pid);
+    if (info.changes === 0) {
+      throw httpError(400, `Stock insuficiente para el producto ${pid} al emitir la factura`);
+    }
+  }
+}
+
+async function assertNoDoubleRepairInvoicing(tx, invoiceId) {
+  const rows = await tx.prepare(`
+    SELECT DISTINCT ii.repair_id, i2.id AS other_invoice_id, i2.number AS other_number
+    FROM invoice_items ii
+    JOIN invoices i2 ON i2.id = ii.invoice_id
+    WHERE ii.invoice_id = $1
+      AND ii.repair_id IS NOT NULL
+      AND i2.status = 'emitida'
+      AND i2.id <> $1
+    LIMIT 1
+  `).all(invoiceId);
+  if (rows.length) {
+    const r = rows[0];
+    throw httpError(400, `La reparación #${r.repair_id} ya fue facturada en el comprobante ${r.other_number || '#' + r.other_invoice_id}`);
+  }
+}
+
 async function fetchInvoiceWithItems(id, txOrDb) {
   const runner = txOrDb || db;
   const invoice = await runner.prepare(`
@@ -288,17 +365,13 @@ async function issue(req, res) {
       }
 
       // Recalcular por seguridad
-      const normalized = items.map(normalizeItem);
+      const normalized = items.map((it) => {
+        const n = normalizeItem(it);
+        n.metadata = parseItemMetadata(it.metadata);
+        return n;
+      });
       const totals = calculateTotals(normalized);
       const issuer = await getIssuerSnapshot(tx);
-
-      // Asegurar número único (ya asignado en borrador; mantenerlo)
-      await tx.prepare(`
-        UPDATE invoices SET
-          status = 'emitida', issued_at = now(), issuer_snapshot = $1,
-          subtotal = $2, tax_total = $3, discount_total = $4, total = $5
-        WHERE id = $6
-      `).run(JSON.stringify(issuer), totals.subtotal, totals.tax_total, totals.discount_total, totals.total, req.params.id);
 
       // actualizar ítems recalculados
       await tx.prepare('DELETE FROM invoice_items WHERE invoice_id = $1').run(req.params.id);
@@ -307,8 +380,22 @@ async function issue(req, res) {
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
       `);
       for (const it of normalized) {
-        await insertItem.run(req.params.id, it.source_type, it.product_id, it.repair_id, it.description, it.quantity, it.unit_price, it.vat_rate, it.vat_amount, it.discount, it.line_subtotal, it.line_total, it.metadata ? (typeof it.metadata === 'string' ? it.metadata : JSON.stringify(it.metadata)) : null);
+        await insertItem.run(req.params.id, it.source_type, it.product_id, it.repair_id, it.description, it.quantity, it.unit_price, it.vat_rate, it.vat_amount, it.discount, it.line_subtotal, it.line_total, it.metadata && Object.keys(it.metadata).length ? JSON.stringify(it.metadata) : null);
       }
+
+      // Evitar doble facturación de reparaciones
+      await assertNoDoubleRepairInvoicing(tx, req.params.id);
+
+      // Descontar stock según reglas (F-D1/F-D2): al emitir, salvo ítems ya descontados
+      await deductInvoiceStock(tx, req.params.id);
+
+      // Asegurar número único (ya asignado en borrador; mantenerlo)
+      await tx.prepare(`
+        UPDATE invoices SET
+          status = 'emitida', issued_at = now(), issuer_snapshot = $1,
+          subtotal = $2, tax_total = $3, discount_total = $4, total = $5
+        WHERE id = $6
+      `).run(JSON.stringify(issuer), totals.subtotal, totals.tax_total, totals.discount_total, totals.total, req.params.id);
 
       return await fetchInvoiceWithItems(req.params.id, tx);
     });
@@ -403,7 +490,7 @@ async function preloadRepair(req, res) {
         metadata: { kind: 'labor', ticket_number: repair.ticket_number },
       }));
     }
-    // Repuestos
+    // Repuestos: stock ya descontado al utilizarlos en el servicio técnico
     for (const p of parts) {
       items.push(normalizeItem({
         source_type: 'repair',
@@ -413,7 +500,7 @@ async function preloadRepair(req, res) {
         quantity: Number(p.quantity || 1),
         unit_price: Number(p.unit_price || 0),
         vat_rate: Number(p.product_vat_rate || 0),
-        metadata: { kind: 'part', ticket_number: repair.ticket_number },
+        metadata: { kind: 'part', ticket_number: repair.ticket_number, stock_deducted: true, stock_action: 'already_deducted' },
       }));
     }
 
@@ -440,7 +527,16 @@ async function preloadRepair(req, res) {
       condicion_iva: '',
     };
 
-    res.json({ items, receiver, repair: { id: repair.id, ticket_number: repair.ticket_number, article: repair.article, brand: repair.brand, model: repair.model } });
+    const alreadyInvoiced = await db.prepare(`
+      SELECT DISTINCT i.id, i.number, i.status, i.arca_status
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoice_id
+      WHERE ii.repair_id = $1 AND i.status = 'emitida'
+      ORDER BY i.id DESC
+      LIMIT 5
+    `).all(req.params.id);
+
+    res.json({ items, receiver, repair: { id: repair.id, ticket_number: repair.ticket_number, article: repair.article, brand: repair.brand, model: repair.model }, already_invoiced: alreadyInvoiced });
   } catch (error) {
     sendError(res, error, 'Error al precargar reparación');
   }
@@ -775,6 +871,12 @@ async function authorizeArca(req, res) {
         address: v.receptorAddress || invoice.receiver_snapshot?.address || '',
       };
 
+      // Si autorizar implica emitir (borrador), validar doble facturación de reparaciones y stock antes de solicitar CAE.
+      if (invoice.status === 'borrador') {
+        await assertNoDoubleRepairInvoicing(tx, invoice.id);
+        await validateInvoiceStockAvailability(tx, invoice.id, { lock: true });
+      }
+
       let arcaRes;
       try {
         arcaRes = await solicitarCAE({
@@ -808,7 +910,10 @@ async function authorizeArca(req, res) {
         return { invoice: updated, arca: arcaRes, rejected: true };
       }
 
-      // Aprobado: guardar CAE y marcar emitida internamente si estaba borrador
+      // Aprobado: si estaba en borrador, descontar stock y marcar emitida internamente
+      if (invoice.status === 'borrador') {
+        await deductInvoiceStock(tx, invoice.id);
+      }
       const issuedAtUpdate = invoice.status === 'borrador' ? ', status = \'emitida\', issued_at = COALESCE(issued_at, now())' : '';
       await tx.prepare(`
         UPDATE invoices SET
