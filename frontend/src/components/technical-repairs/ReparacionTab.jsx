@@ -47,6 +47,7 @@ function toForm(repair) {
     notes: repair.notes || '',
     status: repair.status || 'pendiente',
     assigned_to: repair.assigned_to || '',
+    payment_method: '',
     parts: (repair.parts || []).map((part) => ({
       product_id: part.product_id,
       product_name: part.product_name || part.description,
@@ -198,6 +199,11 @@ export default function ReparacionTab({ onChanged }) {
     if (!selectedId || !form) return;
     setSaving(true);
     try {
+      if (form.status === 'cobrado s/facturacion' && !['efectivo', 'transferencia'].includes(form.payment_method)) {
+        toast({ title: 'Seleccioná la forma de cobro para "Cobrado s/facturación"', status: 'warning' });
+        setSaving(false);
+        return;
+      }
       const payload = {
         diagnosis: form.diagnosis,
         labor_price: form.labor_price === '' ? 0 : Number(form.labor_price),
@@ -220,6 +226,9 @@ export default function ReparacionTab({ onChanged }) {
           return part;
         }),
       };
+      if (form.status === 'cobrado s/facturacion') {
+        payload.payment_method = form.payment_method;
+      }
 
       const { data } = await api.put(`/technical-repairs/${selectedId}`, payload);
       setRepair(data.repair);
@@ -377,6 +386,20 @@ export default function ReparacionTab({ onChanged }) {
                       ))}
                     </Select>
                   </FormControl>
+                  {form.status === 'cobrado s/facturacion' && (
+                    <FormControl gridColumn={{ base: 'auto', md: 'span 2' }}>
+                      <FormLabel>Forma de cobro (sin factura)</FormLabel>
+                      <Select
+                        placeholder="Seleccionar forma de cobro"
+                        value={form.payment_method || ''}
+                        onChange={(event) => setForm({ ...form, payment_method: event.target.value })}
+                      >
+                        <option value="efectivo">Efectivo (se acredita al cobrar)</option>
+                        <option value="transferencia">Transferencia (pendiente de verificación bancaria)</option>
+                      </Select>
+                      <Text fontSize="xs" color="fg.muted" mt={1}>Requerida para registrar el ingreso en Caja al guardar con estado "Cobrado s/facturación".</Text>
+                    </FormControl>
+                  )}
                 </SimpleGrid>
 
                 <FormControl>

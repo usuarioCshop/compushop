@@ -1,4 +1,5 @@
 const db = require('../db/database');
+const { syncRepairCashMovement, voidMovementByOrigin } = require('./cashController');
 
 // Genera un numero de boleta unico tipo CSYYMMDD-####.
 function generateTicketNumber() {
@@ -779,6 +780,7 @@ async function create(req, res) {
     }
 
     const repair = await db.transaction(async (tx) => {
+      const status = body.status || 'pendiente';
       const inserted = await tx.prepare(`
         INSERT INTO technical_repairs (
           ticket_number, status, client_name, client_address, client_id, client_email, client_phone,
@@ -789,7 +791,7 @@ async function create(req, res) {
         RETURNING *
       `).run(
         body.ticket_number || generateTicketNumber(),
-        body.status || 'pendiente',
+        status,
         body.client_name,
         body.client_address || null,
         body.client_id || null,
@@ -819,6 +821,14 @@ async function create(req, res) {
           parts.map((part) => part.product_id)
         );
         await applyParts(tx, created.id, parts, productMap);
+      }
+
+      if (status === 'cobrado s/facturacion') {
+        const pm = body.payment_method || null;
+        if (!['efectivo', 'transferencia'].includes(pm)) {
+          throw httpError(400, 'Seleccioná la forma de cobro (efectivo o transferencia) para marcar la reparación como cobrada sin factura');
+        }
+        await syncRepairCashMovement(tx, { ...created, status }, { created_by: req.user?.id || null, payment_method: pm });
       }
 
       return created;
@@ -872,6 +882,8 @@ async function update(req, res) {
         throw httpError(404, 'Orden de reparación no encontrada');
       }
 
+      const newStatus = body.status !== undefined ? body.status : existing.status;
+
       await tx.prepare(`
         UPDATE technical_repairs SET
           ticket_number = $1, status = $2, client_name = $3, client_address = $4, client_id = $5,
@@ -882,7 +894,7 @@ async function update(req, res) {
         WHERE id = $21
       `).run(
         body.ticket_number || existing.ticket_number,
-        body.status !== undefined ? body.status : existing.status,
+        newStatus,
         body.client_name !== undefined ? body.client_name : existing.client_name,
         pick(body, 'client_address', existing.client_address),
         pick(body, 'client_id', existing.client_id),
@@ -921,6 +933,29 @@ async function update(req, res) {
         await tx.prepare('DELETE FROM repair_parts WHERE repair_id = $1').run(id);
         await applyParts(tx, id, newParts, productMap);
       }
+
+      const updatedRepair = await tx.prepare('SELECT * FROM technical_repairs WHERE id = $1').get(id);
+      if (newStatus === 'cobrado s/facturacion') {
+        const pm = body.payment_method || null;
+        if (!['efectivo', 'transferencia'].includes(pm)) {
+          throw httpError(400, 'Seleccioná la forma de cobro (efectivo o transferencia) para marcar la reparación como cobrada sin factura');
+        }
+        // evitar duplicado si ya existe ingreso activo por factura de esta reparación
+        const invoiced = await tx.prepare(`
+          SELECT 1 FROM cash_movements
+          WHERE movement_type = 'ingreso' AND origin_type = 'factura' AND status <> 'anulado'
+            AND origin_id IN (
+              SELECT invoice_id FROM invoice_items WHERE repair_id = $1 AND invoice_id IS NOT NULL
+            )
+          LIMIT 1
+        `).get(id);
+        if (invoiced) {
+          throw httpError(400, 'La reparación ya tiene un ingreso registrado por factura; no se puede registrar cobro directo sin duplicar');
+        }
+        await syncRepairCashMovement(tx, { ...updatedRepair, ticket_number: updatedRepair.ticket_number }, { created_by: req.user?.id || null, payment_method: pm });
+      } else if (existing.status === 'cobrado s/facturacion' && newStatus !== 'cobrado s/facturacion') {
+        await syncRepairCashMovement(tx, { ...updatedRepair, status: newStatus }, { created_by: req.user?.id || null });
+      }
     });
 
     const full = await fetchRepairWithParts(id);
@@ -958,6 +993,7 @@ async function remove(req, res) {
         await restoreStock(tx, parts, productMap);
       }
 
+      await voidMovementByOrigin(tx, 'reparacion', id, { reason: 'Reparación eliminada', voided_by: req.user?.id || null });
       await tx.prepare('DELETE FROM technical_repairs WHERE id = $1').run(id);
     });
 

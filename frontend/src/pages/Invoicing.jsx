@@ -74,6 +74,7 @@ export default function Invoicing() {
   const [items, setItems] = useState([emptyItem()]);
   const [notes, setNotes] = useState('');
   const [billingClientId, setBillingClientId] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('');
   const [fiscalForm, setFiscalForm] = useState({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5 });
 
   const inferFiscalFromReceiver = (r, prev = {}) => {
@@ -128,6 +129,7 @@ export default function Invoicing() {
     setItems([emptyItem()]);
     setNotes('');
     setBillingClientId(null);
+    setPaymentMethod('');
     setFiscalForm({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5 });
     formDisc.onOpen();
   };
@@ -146,6 +148,7 @@ export default function Invoicing() {
       })));
       setNotes(invoice.notes || '');
       setBillingClientId(invoice.billing_client_id || null);
+      setPaymentMethod(invoice.payment_method || '');
       setFiscalForm(inferFiscalFromReceiver(rs, {
         cbte_tipo: invoice.cbte_tipo || 6,
         concepto: invoice.concepto || 1,
@@ -177,12 +180,16 @@ export default function Invoicing() {
   const saveDraft = async (issueAfter = false) => {
     if (!receiver.name?.trim()) return toast({ title: 'Ingresá el nombre del receptor', status: 'warning' });
     if (!items.length || !items.some((i) => i.description?.trim())) return toast({ title: 'Agregá al menos un ítem con descripción', status: 'warning' });
+    if (issueAfter && !['efectivo', 'transferencia', 'cuenta_corriente'].includes(paymentMethod)) {
+      return toast({ title: 'Seleccioná la forma de cobro para emitir la factura', status: 'warning' });
+    }
     setSaving(true);
     try {
       const payload = {
         billing_client_id: billingClientId,
         receiver_snapshot: receiver,
         notes,
+        payment_method: paymentMethod || null,
         items: items.map(calcItem).map((i) => ({
           source_type: i.source_type, product_id: i.product_id, repair_id: i.repair_id,
           description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price),
@@ -203,6 +210,7 @@ export default function Invoicing() {
           const { data } = await api.post(`/invoices/${id}/arca-authorize`, {
             cbte_tipo: Number(fiscal.cbte_tipo || 6),
             concepto: Number(fiscal.concepto || 1),
+            payment_method: paymentMethod,
             receptor: {
               docTipo: Number(fiscal.docTipo || 99),
               docNro: String(fiscal.docNro || (Number(fiscal.docTipo) === 99 ? '0' : '')),
@@ -236,7 +244,21 @@ export default function Invoicing() {
 
   const issueInvoice = async (id) => {
     try {
-      await api.post(`/invoices/${id}/issue`);
+      const inv = selected?.id === id ? selected : null;
+      const pm = inv?.payment_method || '';
+      let body = {};
+      if (['efectivo', 'transferencia', 'cuenta_corriente'].includes(pm)) {
+        body.payment_method = pm;
+      } else {
+        const chosen = window.prompt('Forma de cobro (efectivo, transferencia, cuenta_corriente):', 'efectivo');
+        if (!chosen) return;
+        const norm = String(chosen).trim().toLowerCase().replace(/\s+/g, '_');
+        if (!['efectivo', 'transferencia', 'cuenta_corriente'].includes(norm)) {
+          return toast({ title: 'Forma de cobro inválida', status: 'warning' });
+        }
+        body.payment_method = norm;
+      }
+      await api.post(`/invoices/${id}/issue`, body);
       toast({ title: 'Factura emitida', status: 'success' });
       loadInvoices(); detailDisc.onClose();
     } catch (err) { toast({ title: err.response?.data?.error || 'Error al emitir', status: 'error' }); }
@@ -253,11 +275,16 @@ export default function Invoicing() {
 
   const authorizeArca = async () => {
     if (!selected) return;
+    const pm = selected.payment_method || '';
+    if (!['efectivo', 'transferencia', 'cuenta_corriente'].includes(pm)) {
+      return toast({ title: 'La factura debe tener forma de cobro. Editá el borrador y seleccionála.', status: 'warning' });
+    }
     setArcaLoading(true);
     try {
       const payload = {
         cbte_tipo: Number(arcaForm.cbte_tipo),
         concepto: Number(arcaForm.concepto),
+        payment_method: pm,
         receptor: {
           docTipo: Number(arcaForm.docTipo),
           docNro: String(arcaForm.docNro || '0'),
@@ -454,6 +481,7 @@ export default function Invoicing() {
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                   <Box><Text fontWeight="semibold">Emisor</Text><Text fontSize="sm">{selected.issuer_snapshot?.razon_social || '-'}</Text><Text fontSize="sm">CUIT: {selected.issuer_snapshot?.cuit || '-'}</Text></Box>
                   <Box><Text fontWeight="semibold">Receptor</Text><Text fontSize="sm">{selected.receiver_snapshot?.name || '-'}</Text><Text fontSize="sm">{selected.receiver_snapshot?.doc_type} {selected.receiver_snapshot?.doc_number}</Text></Box>
+                  <Box><Text fontWeight="semibold">Forma de cobro (Caja)</Text><Text fontSize="sm">{selected.payment_method === 'efectivo' ? 'Efectivo' : selected.payment_method === 'transferencia' ? 'Transferencia' : selected.payment_method === 'cuenta_corriente' ? 'Cuenta corriente' : '-'}</Text></Box>
                 </SimpleGrid>
                 <TableContainer>
                   <Table size="sm"><Thead><Tr><Th>Descripción</Th><Th isNumeric>Cant.</Th><Th isNumeric>P. Unit.</Th><Th isNumeric>IVA %</Th><Th isNumeric>Total</Th></Tr></Thead>
@@ -693,6 +721,19 @@ export default function Invoicing() {
                 {Number(fiscalForm.concepto) !== 1 && (
                   <Text mt={2} fontSize="sm" color="orange.500">Para concepto Servicios/Productos y servicios, completá las fechas de servicio desde “Autorizar ARCA” si el envío automático las requiere.</Text>
                 )}
+              </CardBody></Card>
+
+              <Card variant="outline"><CardBody>
+                <Heading size="sm" mb={3}>Cobro (Caja)</Heading>
+                <FormControl maxW="360px" isRequired={false}>
+                  <FormLabel>Forma de cobro</FormLabel>
+                  <Select placeholder="Seleccionar forma de cobro" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                    <option value="efectivo">Efectivo (se acredita al emitir)</option>
+                    <option value="transferencia">Transferencia (pendiente de verificación bancaria)</option>
+                    <option value="cuenta_corriente">Cuenta corriente (pendiente de cobro)</option>
+                  </Select>
+                  <Text fontSize="xs" color="fg.muted" mt={1}>Requerida para emitir/autorizar la factura y generar el movimiento en Caja.</Text>
+                </FormControl>
               </CardBody></Card>
 
               <Card variant="outline"><CardBody>

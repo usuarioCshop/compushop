@@ -22,6 +22,7 @@ const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const AdminProducts = lazy(() => import('./pages/admin/AdminProducts'));
 const AdminServices = lazy(() => import('./pages/admin/AdminServices'));
 const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
+const AdminCash = lazy(() => import('./pages/admin/AdminCash'));
 const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'));
 const AdminMessages = lazy(() => import('./pages/admin/AdminMessages'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="productos" element={<Suspense fallback={<PageLoader />}><AdminProducts /></Suspense>} />
           <Route path="servicios" element={<Suspense fallback={<PageLoader />}><AdminServices /></Suspense>} />
           <Route path="pedidos" element={<Suspense fallback={<PageLoader />}><AdminOrders /></Suspense>} />
+          <Route path="caja" element={<Suspense fallback={<PageLoader />}><AdminCash /></Suspense>} />
           <Route path="usuarios" element={<Suspense fallback={<PageLoader />}><AdminUsers /></Suspense>} />
           <Route path="mensajes" element={<Suspense fallback={<PageLoader />}><AdminMessages /></Suspense>} />
           <Route path="configuracion" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
