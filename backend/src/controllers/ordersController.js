@@ -1,5 +1,6 @@
 const db = require('../db/database');
 const { v4: uuidv4 } = require('uuid');
+const { syncOrderCashMovement } = require('./cashController');
 
 function generateOrderNumber() {
   const date = new Date();
@@ -250,7 +251,9 @@ async function updateStatus(req, res) {
         }
       }
 
-      return tx.prepare('SELECT * FROM orders WHERE id = $1').get(id);
+      const updatedOrder = await tx.prepare('SELECT * FROM orders WHERE id = $1').get(id);
+      await syncOrderCashMovement(tx, updatedOrder, { created_by: req.user?.id || null });
+      return updatedOrder;
     });
 
     res.json({ message: 'Estado actualizado', order: updated });

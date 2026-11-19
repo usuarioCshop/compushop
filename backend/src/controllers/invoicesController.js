@@ -5,6 +5,7 @@ const arcaConfig = require('../config/arca');
 const { ultimoAutorizado, solicitarCAE } = require('../arca/wsfe');
 const { calcFiscalTotals } = require('../arca/fiscalCalc');
 const { qrUrl } = require('../arca/qr');
+const { syncInvoiceCashMovement } = require('./cashController');
 
 function httpError(status, message) {
   const error = new Error(message);
@@ -269,9 +270,10 @@ async function create(req, res) {
 
     const invoice = await db.transaction(async (tx) => {
       const number = await getNextNumberValue(tx);
+      const paymentMethod = body.payment_method || null;
       const inserted = await tx.prepare(`
-        INSERT INTO invoices (number, status, billing_client_id, issuer_snapshot, receiver_snapshot, currency, subtotal, tax_total, discount_total, total, notes, created_by)
-        VALUES ($1, 'borrador', $2, $3, $4, 'ARS', $5, $6, $7, $8, $9, $10)
+        INSERT INTO invoices (number, status, billing_client_id, issuer_snapshot, receiver_snapshot, currency, subtotal, tax_total, discount_total, total, notes, created_by, payment_method)
+        VALUES ($1, 'borrador', $2, $3, $4, 'ARS', $5, $6, $7, $8, $9, $10, $11)
         RETURNING id
       `).run(
         number,
@@ -280,7 +282,8 @@ async function create(req, res) {
         JSON.stringify(receiver),
         totals.subtotal, totals.tax_total, totals.discount_total, totals.total,
         body.notes || null,
-        req.user?.id || null
+        req.user?.id || null,
+        paymentMethod
       );
       const id = inserted.rows[0].id;
       const insertItem = tx.prepare(`
@@ -317,16 +320,19 @@ async function update(req, res) {
       }
 
       const receiver = body.receiver_snapshot !== undefined ? body.receiver_snapshot : existing.receiver_snapshot;
+      const paymentMethod = body.payment_method !== undefined ? (body.payment_method || null) : existing.payment_method;
       await tx.prepare(`
         UPDATE invoices SET
           billing_client_id = $1, receiver_snapshot = $2, notes = $3,
-          subtotal = $4, tax_total = $5, discount_total = $6, total = $7
-        WHERE id = $8
+          subtotal = $4, tax_total = $5, discount_total = $6, total = $7,
+          payment_method = $8
+        WHERE id = $9
       `).run(
         body.billing_client_id !== undefined ? body.billing_client_id : existing.billing_client_id,
         typeof receiver === 'string' ? receiver : JSON.stringify(receiver || {}),
         body.notes !== undefined ? (body.notes || null) : existing.notes,
         totals.subtotal, totals.tax_total, totals.discount_total, totals.total,
+        paymentMethod,
         req.params.id
       );
 
@@ -364,6 +370,12 @@ async function issue(req, res) {
         throw httpError(400, 'El receptor debe tener nombre para emitir la factura');
       }
 
+      const body = req.body || {};
+      const paymentMethod = body.payment_method !== undefined ? (body.payment_method || null) : (existing.payment_method || null);
+      if (!['efectivo', 'transferencia', 'cuenta_corriente'].includes(paymentMethod)) {
+        throw httpError(400, 'Seleccioná la forma de cobro de la factura (efectivo, transferencia o cuenta corriente)');
+      }
+
       // Recalcular por seguridad
       const normalized = items.map((it) => {
         const n = normalizeItem(it);
@@ -389,14 +401,17 @@ async function issue(req, res) {
       // Descontar stock según reglas (F-D1/F-D2): al emitir, salvo ítems ya descontados
       await deductInvoiceStock(tx, req.params.id);
 
-      // Asegurar número único (ya asignado en borrador; mantenerlo)
+      // Asegurar número único (ya asignado en borrador; mantenerlo) y marcar emitida
       await tx.prepare(`
         UPDATE invoices SET
           status = 'emitida', issued_at = now(), issuer_snapshot = $1,
-          subtotal = $2, tax_total = $3, discount_total = $4, total = $5
-        WHERE id = $6
-      `).run(JSON.stringify(issuer), totals.subtotal, totals.tax_total, totals.discount_total, totals.total, req.params.id);
+          subtotal = $2, tax_total = $3, discount_total = $4, total = $5,
+          payment_method = $6
+        WHERE id = $7
+      `).run(JSON.stringify(issuer), totals.subtotal, totals.tax_total, totals.discount_total, totals.total, paymentMethod, req.params.id);
 
+      const emitted = await fetchInvoiceWithItems(req.params.id, tx);
+      await syncInvoiceCashMovement(tx, emitted, { created_by: req.user?.id || null });
       return await fetchInvoiceWithItems(req.params.id, tx);
     });
     res.json({ invoice });
@@ -417,6 +432,8 @@ async function voidInvoice(req, res) {
         UPDATE invoices SET status = 'anulada', voided_at = now(), void_reason = $1, voided_by = $2
         WHERE id = $3
       `).run(reason || null, req.user?.id || null, req.params.id);
+      const voided = await fetchInvoiceWithItems(req.params.id, tx);
+      await syncInvoiceCashMovement(tx, voided, { created_by: req.user?.id || null });
       return await fetchInvoiceWithItems(req.params.id, tx);
     });
     res.json({ invoice });
@@ -825,6 +842,11 @@ async function authorizeArca(req, res) {
       if (invoice.status === 'anulada') throw httpError(400, 'No se puede autorizar una factura anulada');
       if (invoice.arca_status === 'approved') throw httpError(400, 'La factura ya fue autorizada por ARCA');
 
+      const paymentMethod = payload.payment_method !== undefined ? (payload.payment_method || null) : (invoice.payment_method || null);
+      if (!['efectivo', 'transferencia', 'cuenta_corriente'].includes(paymentMethod)) {
+        throw httpError(400, 'Seleccioná la forma de cobro de la factura (efectivo, transferencia o cuenta corriente)');
+      }
+
       const items = (invoice.items || []).map((it) => ({
         description: it.description,
         qty: Number(it.quantity),
@@ -852,14 +874,15 @@ async function authorizeArca(req, res) {
           receptor_doc_tipo = $6, receptor_doc_nro = $7, receptor_condicion_iva_id = $8,
           receptor_nombre = $9, receptor_domicilio = $10,
           arca_status = 'pending', arca_errors = NULL, arca_observations = NULL, arca_result = NULL,
-          fiscal_totals = $11
-        WHERE id = $12
+          fiscal_totals = $11, payment_method = $12
+        WHERE id = $13
       `).run(
         ptoVta, v.tipo, numero, fecha, v.concepto,
         v.docTipo, v.docNro, v.condIva,
         v.receptorName || invoice.receiver_snapshot?.name || '',
         v.receptorAddress || invoice.receiver_snapshot?.address || '',
         JSON.stringify(fiscalTotals),
+        paymentMethod,
         invoice.id
       );
 
@@ -929,7 +952,11 @@ async function authorizeArca(req, res) {
         invoice.id
       );
 
-      const updated = await fetchInvoiceWithItems(invoice.id, tx);
+      let updated = await fetchInvoiceWithItems(invoice.id, tx);
+      if (updated && updated.status === 'emitida') {
+        await syncInvoiceCashMovement(tx, updated, { created_by: req.user?.id || null });
+        updated = await fetchInvoiceWithItems(invoice.id, tx);
+      }
       return { invoice: updated, arca: arcaRes, rejected: false };
     });
 

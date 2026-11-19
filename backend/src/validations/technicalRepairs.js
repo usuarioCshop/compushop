@@ -79,6 +79,7 @@ const bodySchema = z.object({
   labor_iva_enabled: z.boolean().optional(),
   labor_iva_rate: optionalPercent,
   parts: partsSchema.optional(),
+  payment_method: z.enum(['efectivo', 'transferencia']).optional().nullable(),
 });
 
 const technicalRepairCreateSchema = z.object({ body: bodySchema });

@@ -34,8 +34,21 @@ const repairCatalogsCtrl = require('../controllers/repairCatalogsController');
 const repairClientsCtrl = require('../controllers/repairClientsController');
 const billingClientsCtrl = require('../controllers/billingClientsController');
 const invoicesCtrl = require('../controllers/invoicesController');
+const cashCtrl = require('../controllers/cashController');
 const { billingClientSchema, billingClientUpdateSchema } = require('../validations/billingClients');
 const { invoiceCreateSchema, invoiceUpdateSchema, invoiceIdSchema, invoiceVoidSchema } = require('../validations/invoices');
+const {
+  openSessionSchema,
+  closeSessionSchema,
+  sessionIdSchema,
+  createCategorySchema,
+  updateCategorySchema,
+  createMovementSchema,
+  updateExpenseSchema,
+  movementIdSchema,
+  voidMovementSchema,
+  confirmMovementSchema,
+} = require('../validations/cash');
 
 const IS_VERCEL = !!process.env.VERCEL;
 const { uploadsDir: uploadDir } = require('../utils/uploads');
@@ -263,6 +276,25 @@ router.get('/health', async (req, res) => {
     res.status(503).json({ status: 'error', db: 'disconnected' });
   }
 });
+
+// ========== CASH (Caja, admin/superadmin) ==========
+router.get('/cash/session/current', authenticate, requireAdmin, cashCtrl.getCurrentSession);
+router.get('/cash/sessions', authenticate, requireAdmin, cashCtrl.listSessions);
+router.post('/cash/sessions/open', authenticate, requireAdmin, validate(openSessionSchema), cashCtrl.openSession);
+router.post('/cash/sessions/:id/close', authenticate, requireAdmin, validate(closeSessionSchema), cashCtrl.closeSession);
+
+router.get('/cash/categories', authenticate, requireAdmin, cashCtrl.listCategories);
+router.post('/cash/categories', authenticate, requireAdmin, validate(createCategorySchema), cashCtrl.createCategory);
+router.put('/cash/categories/:id', authenticate, requireAdmin, validate(updateCategorySchema), cashCtrl.updateCategory);
+
+router.get('/cash/movements', authenticate, requireAdmin, cashCtrl.listMovements);
+router.post('/cash/movements', authenticate, requireAdmin, validate(createMovementSchema), cashCtrl.createMovement);
+router.put('/cash/movements/:id', authenticate, requireAdmin, validate(updateExpenseSchema), cashCtrl.updateMovement);
+router.post('/cash/movements/:id/void', authenticate, requireAdmin, validate(voidMovementSchema), cashCtrl.voidMovement);
+router.post('/cash/movements/:id/confirm', authenticate, requireAdmin, validate(confirmMovementSchema), cashCtrl.confirmMovement);
+router.delete('/cash/movements/:id', authenticate, requireAdmin, validate(movementIdSchema), cashCtrl.deleteMovement);
+
+router.get('/cash/summary', authenticate, requireAdmin, cashCtrl.getSummary);
 
 
 // ========== BILLING CLIENTS (facturación) ==========

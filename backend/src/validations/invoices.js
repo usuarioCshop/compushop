@@ -22,12 +22,15 @@ const itemSchema = z.object({
   metadata: z.any().optional().nullable(),
 });
 
+const paymentMethodSchema = z.enum(['efectivo', 'transferencia', 'cuenta_corriente']);
+
 const invoiceCreateSchema = z.object({
   body: z.object({
     billing_client_id: z.coerce.number().int().positive().optional().nullable(),
     receiver_snapshot: receiverSnapshotSchema,
     notes: z.string().trim().max(2000).optional().nullable(),
     items: z.array(itemSchema).min(1, 'Debe incluir al menos un ítem'),
+    payment_method: paymentMethodSchema.optional().nullable(),
   }),
 });
 
@@ -38,6 +41,7 @@ const invoiceUpdateSchema = z.object({
     receiver_snapshot: receiverSnapshotSchema.optional(),
     notes: z.string().trim().max(2000).optional().nullable(),
     items: z.array(itemSchema).min(1).optional(),
+    payment_method: paymentMethodSchema.optional().nullable(),
   }),
 });
 
