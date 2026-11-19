@@ -4,8 +4,10 @@ import {
   useDisclosure, Drawer, DrawerBody, DrawerHeader, DrawerOverlay, DrawerContent, DrawerCloseButton, VStack, Text,
 } from '@chakra-ui/react';
 import { Link as RouterLink, useNavigate, useLocation } from 'react-router-dom';
-import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart, FiBriefcase, FiFileText } from 'react-icons/fi';
+import { FiShoppingCart, FiSun, FiMoon, FiMenu, FiUser, FiLogOut, FiSettings, FiHeart, FiBriefcase, FiFileText, FiBell } from 'react-icons/fi';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/client';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import logo from '../assets/logo-header.png';
@@ -18,6 +20,32 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setPendingOrdersCount(0);
+      return;
+    }
+    let cancelled = false;
+    const fetchPending = async () => {
+      try {
+        const { data } = await api.get('/orders/pending-count');
+        if (!cancelled) setPendingOrdersCount(Number(data?.count || 0));
+      } catch {
+        if (!cancelled) setPendingOrdersCount(0);
+      }
+    };
+    fetchPending();
+    const onPendingChanged = () => { fetchPending(); };
+    window.addEventListener('orders:pending-changed', onPendingChanged);
+    const intervalId = window.setInterval(fetchPending, 30000);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('orders:pending-changed', onPendingChanged);
+      window.clearInterval(intervalId);
+    };
+  }, [isAdmin, location.pathname]);
 
   const barBg = { base: 'rgba(241,245,249,0.88)', _dark: 'rgba(7,11,20,0.88)' };
   const borderColor = { base: 'border.subtle', _dark: 'border.subtle' };
@@ -107,6 +135,34 @@ export default function Navbar() {
           </HStack>
 
           <HStack spacing={2}>
+            {isAdmin && (
+              <Box position="relative">
+                <IconButton
+                  as={RouterLink}
+                  to="/admin/pedidos"
+                  icon={<FiBell />}
+                  variant="ghost"
+                  borderRadius="full"
+                  size="sm"
+                  aria-label="Pedidos pendientes"
+                  title={pendingOrdersCount > 0 ? `${pendingOrdersCount} pedido(s) pendiente(s)` : 'Pedidos'}
+                />
+                {pendingOrdersCount > 0 && (
+                  <Badge
+                    position="absolute"
+                    top="-1"
+                    right="-1"
+                    colorScheme="red"
+                    borderRadius="full"
+                    fontSize="xs"
+                    minW="18px"
+                    textAlign="center"
+                  >
+                    {pendingOrdersCount}
+                  </Badge>
+                )}
+              </Box>
+            )}
             <Box position="relative">
               <IconButton
                 as={RouterLink}

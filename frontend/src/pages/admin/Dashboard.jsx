@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   SimpleGrid, Box, Stat, StatLabel, StatNumber, Heading, Text, Table, Thead, Tbody, Tr, Th, Td,
   Spinner, Center, Badge, HStack, Input, Button, useToast, FormControl, FormLabel,
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [updating, setUpdating] = useState(false);
   const toast = useToast();
   const bg = 'bg.surface';
+  const navigate = useNavigate();
 
   useEffect(() => {
     api.get('/dashboard/stats').then(r => setData(r.data)).catch(console.error);
@@ -55,13 +57,13 @@ export default function Dashboard() {
   if (!data) return <Center py={20}><Spinner size="xl" color="brand.500" thickness="3px" /></Center>;
 
   const cards = [
-    { label: 'Productos', value: data.stats.productsCount },
-    { label: 'Servicios', value: data.stats.servicesCount },
-    { label: 'Clientes', value: data.stats.usersCount },
-    { label: 'Pedidos', value: data.stats.ordersCount },
-    { label: 'Pendientes', value: data.stats.pendingOrders },
-    { label: 'Mensajes sin leer', value: data.stats.unreadMessages },
-    { label: 'Ingresos', value: formatPrice(data.stats.revenue) },
+    { label: 'Productos', value: data.stats.productsCount, to: '/admin/productos' },
+    { label: 'Servicios', value: data.stats.servicesCount, to: '/admin/servicios' },
+    { label: 'Clientes', value: data.stats.usersCount, to: '/admin/usuarios' },
+    { label: 'Pedidos', value: data.stats.ordersCount, to: '/admin/pedidos' },
+    { label: 'Pendientes', value: data.stats.pendingOrders, to: '/admin/pedidos?status=pending,confirmed,processing' },
+    { label: 'Mensajes sin leer', value: data.stats.unreadMessages, to: '/admin/mensajes' },
+    { label: 'Ingresos', value: formatPrice(data.stats.revenue), to: '/admin/pedidos' },
   ];
 
   return (
@@ -87,7 +89,22 @@ export default function Dashboard() {
       </Box>
       <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={10}>
         {cards.map(c => (
-          <Box key={c.label} bg={bg} p={5} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card">
+          <Box
+            key={c.label}
+            bg={bg}
+            p={5}
+            borderRadius="lg"
+            borderWidth="1px"
+            borderColor="border.subtle"
+            boxShadow="shadow-card"
+            cursor={c.to ? 'pointer' : 'default'}
+            _hover={c.to ? { borderColor: 'brand.300', transform: 'translateY(-1px)' } : undefined}
+            transition="all 0.15s"
+            onClick={() => c.to && navigate(c.to)}
+            role={c.to ? 'button' : undefined}
+            tabIndex={c.to ? 0 : undefined}
+            onKeyDown={(e) => { if (c.to && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigate(c.to); } }}
+          >
             <Stat>
               <StatLabel color="fg.muted" fontSize="sm">{c.label}</StatLabel>
               <StatNumber fontSize="2xl" fontWeight="700" letterSpacing="-0.02em">{c.value}</StatNumber>
@@ -104,7 +121,7 @@ export default function Dashboard() {
           </Thead>
           <Tbody>
             {(data.recentOrders || []).map(o => (
-              <Tr key={o.id}>
+              <Tr key={o.id} cursor="pointer" _hover={{ bg: 'blackAlpha.50', _dark: { bg: 'whiteAlpha.50' } }} onClick={() => navigate('/admin/pedidos')}>
                 <Td fontWeight="500">{o.order_number}</Td>
                 <Td>{o.customer_name}</Td>
                 <Td fontWeight="600">{formatPrice(o.total)}</Td>
@@ -127,7 +144,12 @@ export default function Dashboard() {
               <Thead><Tr><Th>Producto</Th><Th>Stock</Th><Th>Precio</Th></Tr></Thead>
               <Tbody>
                 {data.lowStock.map(p => (
-                  <Tr key={p.id}>
+                  <Tr
+                    key={p.id}
+                    cursor="pointer"
+                    _hover={{ bg: 'blackAlpha.50', _dark: { bg: 'whiteAlpha.50' } }}
+                    onClick={() => navigate(`/admin/productos?edit=${p.id}`)}
+                  >
                     <Td>{p.name}</Td>
                     <Td><Badge colorScheme={p.stock === 0 ? 'red' : 'orange'} borderRadius="full">{p.stock}</Badge></Td>
                     <Td fontWeight="600">{formatPrice(p.price)}</Td>

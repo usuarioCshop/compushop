@@ -268,4 +268,20 @@ async function updateStatus(req, res) {
   }
 }
 
-module.exports = { create, getAll, getOne, updateStatus };
+// GET /api/orders/pending-count (admin) - contador para notificaciones navbar
+async function getPendingCount(req, res) {
+  try {
+    // D-3 (supuesto): pendientes/nuevos = pending, confirmed
+    const row = await db.prepare(`
+      SELECT COUNT(*)::int AS count
+      FROM orders
+      WHERE status IN ('pending', 'confirmed')
+    `).get();
+    res.json({ count: row?.count || 0 });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener pedidos pendientes' });
+  }
+}
+
+module.exports = { create, getAll, getOne, updateStatus, getPendingCount };
