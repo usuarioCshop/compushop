@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Select, Badge, Spinner, Center, useToast, Text,
   IconButton, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton,
@@ -33,6 +34,7 @@ export default function AdminOrders() {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const bg = 'bg.surface';
+  const [searchParams] = useSearchParams();
 
   const load = () => {
     setLoading(true);
@@ -49,6 +51,8 @@ export default function AdminOrders() {
       }
       toast({ title: 'Estado actualizado', status: 'success' });
       load();
+      window.dispatchEvent(new Event('orders:pending-changed'));
+      window.setTimeout(() => window.dispatchEvent(new Event('orders:pending-changed')), 300);
     } catch (err) {
       toast({ title: 'Error', status: 'error' });
     }
@@ -70,16 +74,31 @@ export default function AdminOrders() {
     }
   };
 
+  const statusFilter = useMemo(() => {
+    const raw = searchParams.get('status');
+    if (!raw) return null;
+    const set = new Set(raw.split(',').map((s) => s.trim()).filter(Boolean));
+    return set.size ? set : null;
+  }, [searchParams]);
+
+  const visibleOrders = useMemo(() => {
+    if (!statusFilter) return orders;
+    return orders.filter((o) => statusFilter.has(o.status));
+  }, [orders, statusFilter]);
+
   if (loading) return <Center py={10}><Spinner color="brand.500" /></Center>;
 
   return (
     <Box>
-      <Heading size="lg" mb={6} fontWeight="700" letterSpacing="-0.02em">Pedidos</Heading>
+      <HStack justify="space-between" mb={6} flexWrap="wrap" gap={2}>
+        <Heading size="lg" fontWeight="700" letterSpacing="-0.02em">Pedidos</Heading>
+        {statusFilter && <Text fontSize="sm" color="fg.muted">Filtro: {Array.from(statusFilter).join(', ')} ({visibleOrders.length})</Text>}
+      </HStack>
       <Box bg={bg} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" overflowX="auto">
         <Table size="sm">
           <Thead><Tr><Th>Nº</Th><Th>Cliente</Th><Th>Total</Th><Th>Estado</Th><Th>Fecha</Th><Th></Th></Tr></Thead>
           <Tbody>
-            {orders.map(o => (
+            {visibleOrders.map(o => (
               <Tr key={o.id}>
                 <Td fontFamily="mono" fontWeight="500">{o.order_number}</Td>
                 <Td>
@@ -98,7 +117,7 @@ export default function AdminOrders() {
                 </Td>
               </Tr>
             ))}
-            {orders.length === 0 && <Tr><Td colSpan={6}><Text textAlign="center" color="fg.muted" py={6}>Sin pedidos</Text></Td></Tr>}
+            {visibleOrders.length === 0 && <Tr><Td colSpan={6}><Text textAlign="center" color="fg.muted" py={6}>Sin pedidos</Text></Td></Tr>}
           </Tbody>
         </Table>
       </Box>

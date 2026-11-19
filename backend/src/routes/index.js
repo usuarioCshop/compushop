@@ -103,6 +103,7 @@ router.delete('/categories/:id', authenticate, requireAdmin, categoriesCtrl.remo
 
 // ========== PRODUCTS ==========
 router.get('/products', productsCtrl.getAll);
+router.get('/products/export', authenticate, requireAdmin, productsCtrl.exportProducts);
 router.post('/products/update-prices', authenticate, requireAdmin, productsCtrl.updatePricesByCost);
 router.post('/products/import', authenticate, requireAdmin, upload.single('file'), productsCtrl.importProducts);
 router.post('/products', authenticate, requireAdmin, productsCtrl.create);
@@ -120,6 +121,7 @@ router.delete('/services/:id', authenticate, requireAdmin, servicesCtrl.remove);
 // ========== ORDERS ==========
 router.post('/orders', optionalAuth, ordersCtrl.create);
 router.get('/orders', authenticate, ordersCtrl.getAll);
+router.get('/orders/pending-count', authenticate, requireAdmin, ordersCtrl.getPendingCount);
 router.get('/orders/:id', authenticate, ordersCtrl.getOne);
 router.put('/orders/:id/status', authenticate, requireAdmin, ordersCtrl.updateStatus);
 
