@@ -51,6 +51,19 @@ async function getOpenSession(txOrDb) {
   return runner.prepare("SELECT * FROM cash_sessions WHERE status = 'abierta' ORDER BY session_date DESC, id DESC LIMIT 1").get();
 }
 
+function isStaleOpenSession(session) {
+  if (!session || session.status !== 'abierta') return false;
+  return String(session.session_date || '').slice(0, 10) < todayYmd();
+}
+
+async function assertNoStaleOpenSession(txOrDb) {
+  const open = await getOpenSession(txOrDb);
+  if (isStaleOpenSession(open)) {
+    throw httpError(409, `Hay una sesión de caja abierta del día ${String(open.session_date).slice(0, 10)}. Debés cerrarla antes de realizar movimientos.`);
+  }
+  return open;
+}
+
 async function computeSessionCashState(txOrDb, session) {
   if (!session || !session.id) return null;
   const runner = txOrDb || db;
@@ -155,6 +168,8 @@ async function createIncomeMovement(txOrDb, data, { allowDuplicate = false } = {
     const existing = await getActiveIncomeMovementByOrigin(runner, origin_type, origin_id);
     if (existing) return existing;
   }
+
+  await assertNoStaleOpenSession(runner);
 
   const status = force_status || movementStatusForIncome(payment_method);
   const mDate = toYmd(movement_date);
@@ -365,14 +380,19 @@ async function listSessions(req, res) {
 async function openSession(req, res) {
   try {
     const body = req.body || {};
-    const sessionDate = body.session_date || todayYmd();
+    const sessionDate = todayYmd(); // siempre fecha actual
     const openingBalance = round2(body.opening_balance ?? 0);
     const session = await db.transaction(async (tx) => {
-      const open = await tx.prepare("SELECT id FROM cash_sessions WHERE status = 'abierta' FOR UPDATE").get();
-      if (open && open.id) throw httpError(400, 'Ya existe una sesión de caja abierta');
+      const open = await tx.prepare("SELECT id, session_date FROM cash_sessions WHERE status = 'abierta' FOR UPDATE").get();
+      if (open && open.id) {
+        if (String(open.session_date || '').slice(0, 10) < sessionDate) {
+          throw httpError(409, `Hay una sesión de caja abierta del día ${String(open.session_date).slice(0, 10)}. Debés cerrarla antes de abrir una nueva.`);
+        }
+        throw httpError(400, 'Ya existe una sesión de caja abierta');
+      }
       const existing = await tx.prepare('SELECT * FROM cash_sessions WHERE session_date = $1 FOR UPDATE').get(sessionDate);
       if (existing && existing.id) {
-        if (existing.status === 'cerrada') throw httpError(400, 'La sesión de esa fecha ya está cerrada');
+        if (existing.status === 'cerrada') throw httpError(400, 'La sesión de hoy ya está cerrada');
         return existing;
       }
       const inserted = await tx.prepare(`
@@ -548,6 +568,9 @@ async function createMovement(req, res) {
       if (!open) {
         throw httpError(400, 'No hay una sesión de caja abierta. Abrí la caja para registrar movimientos manuales.');
       }
+      if (isStaleOpenSession(open)) {
+        throw httpError(409, `Hay una sesión de caja abierta del día ${String(open.session_date).slice(0, 10)}. Debés cerrarla antes de realizar movimientos.`);
+      }
       // Los movimientos manuales se registran en la sesión abierta vigente
       const session = open;
 
@@ -625,6 +648,9 @@ async function updateMovement(req, res) {
       const open = await getOpenSession(tx);
       if (!open) {
         throw httpError(400, 'No hay una sesión de caja abierta. Abrí la caja para editar movimientos manuales.');
+      }
+      if (isStaleOpenSession(open)) {
+        throw httpError(409, `Hay una sesión de caja abierta del día ${String(open.session_date).slice(0, 10)}. Debés cerrarla antes de realizar movimientos.`);
       }
       const mDate = body.movement_date ? toYmd(body.movement_date) : toYmd(existing.movement_date);
       const updated = await tx.prepare(`
@@ -817,4 +843,9 @@ module.exports = {
   createIncomeMovement,
   voidMovementByOrigin,
   movementStatusForIncome,
+  // helpers
+  getOpenSession,
+  isStaleOpenSession,
+  assertNoStaleOpenSession,
+  todayYmd,
 };

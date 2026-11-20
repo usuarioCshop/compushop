@@ -5,7 +5,7 @@ const arcaConfig = require('../config/arca');
 const { ultimoAutorizado, solicitarCAE } = require('../arca/wsfe');
 const { calcFiscalTotals } = require('../arca/fiscalCalc');
 const { qrUrl } = require('../arca/qr');
-const { syncInvoiceCashMovement } = require('./cashController');
+const { syncInvoiceCashMovement, getOpenSession, isStaleOpenSession } = require('./cashController');
 
 function httpError(status, message) {
   const error = new Error(message);
@@ -149,6 +149,31 @@ async function deductInvoiceStock(tx, invoiceId) {
       throw httpError(400, `Stock insuficiente para el producto ${pid} al emitir la factura`);
     }
   }
+}
+
+async function restoreInvoiceStock(tx, invoiceId) {
+  const needed = await getStockNeedsForInvoice(tx, invoiceId);
+  if (needed.size === 0) return;
+  const ids = [...needed.keys()].sort((a, b) => a - b);
+  await tx.query(
+    `SELECT id FROM products WHERE id = ANY($1::int[]) ORDER BY id FOR UPDATE`,
+    [ids]
+  );
+  for (const [pid, qty] of needed.entries()) {
+    const info = await tx.prepare('UPDATE products SET stock = stock + $1 WHERE id = $2').run(qty, pid);
+    if (info.changes === 0) {
+      throw httpError(400, `No se pudo recomponer stock del producto ${pid} al anular la factura`);
+    }
+  }
+}
+
+async function assertCashOpenForInvoicing(txOrDb) {
+  const open = await getOpenSession(txOrDb);
+  if (!open) throw httpError(409, 'No hay una sesión de caja abierta. Abrí la caja para facturar.');
+  if (isStaleOpenSession(open)) {
+    throw httpError(409, `Hay una sesión de caja abierta del día ${String(open.session_date).slice(0, 10)}. Debés cerrarla antes de realizar movimientos.`);
+  }
+  return open;
 }
 
 async function assertNoDoubleRepairInvoicing(tx, invoiceId) {
@@ -359,6 +384,7 @@ async function update(req, res) {
 async function issue(req, res) {
   try {
     const invoice = await db.transaction(async (tx) => {
+      await assertCashOpenForInvoicing(tx);
       const existing = await tx.prepare('SELECT * FROM invoices WHERE id = $1 FOR UPDATE').get(req.params.id);
       if (!existing || !existing.id) throw httpError(404, 'Factura no encontrada');
       if (existing.status !== 'borrador') throw httpError(400, 'Solo se puede emitir una factura en borrador');
@@ -428,6 +454,10 @@ async function voidInvoice(req, res) {
       const existing = await tx.prepare('SELECT * FROM invoices WHERE id = $1 FOR UPDATE').get(req.params.id);
       if (!existing || !existing.id) throw httpError(404, 'Factura no encontrada');
       if (existing.status !== 'emitida') throw httpError(400, 'Solo se puede anular una factura emitida');
+
+      // Reponer stock descontado al emitir (según reglas de ítems)
+      await restoreInvoiceStock(tx, req.params.id);
+
       await tx.prepare(`
         UPDATE invoices SET status = 'anulada', voided_at = now(), void_reason = $1, voided_by = $2
         WHERE id = $3
@@ -837,6 +867,7 @@ async function authorizeArca(req, res) {
     if (!arcaConfig.hasArcaCredentials()) throw httpError(400, 'Faltan certificado y/o clave privada de ARCA');
 
     const result = await db.transaction(async (tx) => {
+      await assertCashOpenForInvoicing(tx);
       const invoice = await fetchInvoiceWithItems(req.params.id, tx);
       if (!invoice) throw httpError(404, 'Factura no encontrada');
       if (invoice.status === 'anulada') throw httpError(400, 'No se puede autorizar una factura anulada');
