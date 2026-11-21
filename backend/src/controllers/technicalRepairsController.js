@@ -1,13 +1,21 @@
 const db = require('../db/database');
+const bcrypt = require('bcryptjs');
+const { syncRepairCashMovement, voidMovementByOrigin } = require('./cashController');
 
-// Genera un numero de boleta unico tipo CSYYMMDD-####.
-function generateTicketNumber() {
-  const date = new Date();
-  const y = date.getFullYear().toString().slice(-2);
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  const rand = Math.floor(Math.random() * 9000) + 1000;
-  return `CS${y}${m}${d}-${rand}`;
+// Calcula el próximo número de boleta con formato AAAA-MM-####### (incremental por mes).
+async function computeNextTicketNumber(dbRunner = db) {
+  const now = new Date();
+  const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-`;
+  const last = await dbRunner.prepare(
+    'SELECT ticket_number FROM technical_repairs WHERE ticket_number LIKE $1 ORDER BY ticket_number DESC LIMIT 1'
+  ).get(`${prefix}%`);
+
+  let seq = 1;
+  if (last && last.ticket_number) {
+    const parsed = parseInt(String(last.ticket_number).slice(prefix.length), 10);
+    if (!Number.isNaN(parsed)) seq = parsed + 1;
+  }
+  return `${prefix}${String(seq).padStart(7, '0')}`;
 }
 
 // Toma un campo opcional del body: si no vino usa el valor actual y si vino
@@ -157,30 +165,16 @@ async function fetchRepairWithParts(id) {
     labor_iva_amount: ivaAmount,
     parts_total: partsTotal,
     total: Number(repair.labor_price || 0) + ivaAmount + partsTotal,
+    parts,
   };
 }
 
 // GET /api/technical-repairs/next-ticket  (solo tecnico/admin)
-// Devuelve el proximo numero de boleta del dia, con formato CSYYMMDD-####.
+// Devuelve el próximo número de boleta con formato AAAA-MM-#######.
 async function getNextTicket(req, res) {
   try {
-    const now = new Date();
-    const y = now.getFullYear().toString().slice(-2);
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const prefix = `CS${y}${m}${d}-`;
-
-    const last = await db.prepare(
-      'SELECT ticket_number FROM technical_repairs WHERE ticket_number LIKE $1 ORDER BY ticket_number DESC LIMIT 1'
-    ).get(`${prefix}%`);
-
-    let seq = 1;
-    if (last && last.ticket_number) {
-      const parsed = parseInt(last.ticket_number.slice(prefix.length), 10);
-      if (!Number.isNaN(parsed)) seq = parsed + 1;
-    }
-
-    res.json({ ticket_number: `${prefix}${String(seq).padStart(4, '0')}` });
+    const ticket_number = await computeNextTicketNumber();
+    res.json({ ticket_number });
   } catch (error) {
     sendError(res, error, 'Error al calcular el próximo número de boleta');
   }
@@ -198,6 +192,56 @@ async function getTechnicians(req, res) {
   } catch (error) {
     sendError(res, error, 'Error al obtener los técnicos');
   }
+}
+
+// POST /api/technical-repairs/technicians  (solo tecnico/admin)
+// Alta rápida de técnico desde el flujo de servicio.
+async function createTechnician(req, res) {
+  try {
+    const { name, email, password, dni, phone } = req.body || {};
+    const trimmedName = String(name || '').trim();
+    const trimmedEmail = String(email || '').trim().toLowerCase();
+    const pass = String(password || '');
+
+    if (!trimmedName || !trimmedEmail || !pass) {
+      return res.status(400).json({ error: 'Nombre, email y contraseña son obligatorios' });
+    }
+    if (trimmedName.length < 2) {
+      return res.status(400).json({ error: 'El nombre debe tener al menos 2 caracteres' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return res.status(400).json({ error: 'Email inválido' });
+    }
+    if (pass.length < 8) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+    }
+
+    const hashed = bcrypt.hashSync(pass, 10);
+    const result = await db.prepare(`
+      INSERT INTO users (name, email, password, role, dni, phone)
+      VALUES ($1, $2, $3, 'tecnico', $4, $5)
+      RETURNING id, name, email, role
+    `).run(trimmedName, trimmedEmail, hashed, dni ? String(dni).trim() : null, phone ? String(phone).trim() : null);
+
+    res.status(201).json({ message: 'Técnico creado', technician: result.rows[0] });
+  } catch (error) {
+    if (db.isUniqueViolation && db.isUniqueViolation(error)) {
+      return res.status(409).json({ error: 'Email o DNI ya existe' });
+    }
+    sendError(res, error, 'Error al crear técnico');
+  }
+}
+
+
+function slugify(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]+/g, '')
+    .replace(/--+/g, '-');
 }
 
 // GET /api/technical-repairs/parts-catalog  (solo tecnico/admin)
@@ -224,6 +268,37 @@ async function getPartsCatalog(req, res) {
     res.json({ products });
   } catch (error) {
     sendError(res, error, 'Error al obtener el catálogo de repuestos');
+  }
+}
+
+// POST /api/technical-repairs/parts-catalog  (solo tecnico/admin)
+// Alta rápida de producto/repuesto desde el flujo de reparación.
+async function createPartProduct(req, res) {
+  try {
+    const { name, brand, price, stock } = req.body || {};
+    const trimmedName = String(name || '').trim();
+    if (!trimmedName) return res.status(400).json({ error: 'El nombre del producto/repuesto es obligatorio' });
+    const numPrice = Number(price);
+    const numStock = Number(stock);
+    if (!Number.isFinite(numPrice) || numPrice < 0) return res.status(400).json({ error: 'El precio debe ser un número válido mayor o igual a 0' });
+    if (!Number.isInteger(numStock) || numStock < 0) return res.status(400).json({ error: 'El stock debe ser un entero mayor o igual a 0' });
+
+    let slug = slugify(trimmedName);
+    const existingSlug = await db.prepare('SELECT id FROM products WHERE slug = $1').get(slug);
+    if (existingSlug) slug = `${slug}-${Date.now()}`;
+
+    const inserted = await db.prepare(`
+      INSERT INTO products (name, slug, description, price, stock, brand, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, true)
+      RETURNING id, name, brand, price, stock
+    `).run(trimmedName, slug, 'Creado desde Servicio Técnico', numPrice, numStock, brand ? String(brand).trim() : null);
+
+    res.status(201).json({ message: 'Producto/repuesto creado', product: inserted.rows[0] });
+  } catch (error) {
+    if (db.isUniqueViolation && db.isUniqueViolation(error)) {
+      return res.status(409).json({ error: 'Ya existe un producto con datos conflictivos' });
+    }
+    sendError(res, error, 'Error al crear producto/repuesto');
   }
 }
 
@@ -778,7 +853,10 @@ async function create(req, res) {
       return res.status(400).json({ error: 'Técnico asignado inválido' });
     }
 
+    const ticketNumber = body.ticket_number || (await computeNextTicketNumber());
+
     const repair = await db.transaction(async (tx) => {
+      const status = body.status || 'pendiente';
       const inserted = await tx.prepare(`
         INSERT INTO technical_repairs (
           ticket_number, status, client_name, client_address, client_id, client_email, client_phone,
@@ -788,8 +866,8 @@ async function create(req, res) {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         RETURNING *
       `).run(
-        body.ticket_number || generateTicketNumber(),
-        body.status || 'pendiente',
+        ticketNumber,
+        status,
         body.client_name,
         body.client_address || null,
         body.client_id || null,
@@ -819,6 +897,14 @@ async function create(req, res) {
           parts.map((part) => part.product_id)
         );
         await applyParts(tx, created.id, parts, productMap);
+      }
+
+      if (status === 'cobrado s/facturacion') {
+        const pm = body.payment_method || null;
+        if (!['efectivo', 'transferencia'].includes(pm)) {
+          throw httpError(400, 'Seleccioná la forma de cobro (efectivo o transferencia) para marcar la reparación como cobrada sin factura');
+        }
+        await syncRepairCashMovement(tx, { ...created, status }, { created_by: req.user?.id || null, payment_method: pm });
       }
 
       return created;
@@ -872,6 +958,8 @@ async function update(req, res) {
         throw httpError(404, 'Orden de reparación no encontrada');
       }
 
+      const newStatus = body.status !== undefined ? body.status : existing.status;
+
       await tx.prepare(`
         UPDATE technical_repairs SET
           ticket_number = $1, status = $2, client_name = $3, client_address = $4, client_id = $5,
@@ -882,7 +970,7 @@ async function update(req, res) {
         WHERE id = $21
       `).run(
         body.ticket_number || existing.ticket_number,
-        body.status !== undefined ? body.status : existing.status,
+        newStatus,
         body.client_name !== undefined ? body.client_name : existing.client_name,
         pick(body, 'client_address', existing.client_address),
         pick(body, 'client_id', existing.client_id),
@@ -921,6 +1009,29 @@ async function update(req, res) {
         await tx.prepare('DELETE FROM repair_parts WHERE repair_id = $1').run(id);
         await applyParts(tx, id, newParts, productMap);
       }
+
+      const updatedRepair = await tx.prepare('SELECT * FROM technical_repairs WHERE id = $1').get(id);
+      if (newStatus === 'cobrado s/facturacion') {
+        const pm = body.payment_method || null;
+        if (!['efectivo', 'transferencia'].includes(pm)) {
+          throw httpError(400, 'Seleccioná la forma de cobro (efectivo o transferencia) para marcar la reparación como cobrada sin factura');
+        }
+        // evitar duplicado si ya existe ingreso activo por factura de esta reparación
+        const invoiced = await tx.prepare(`
+          SELECT 1 FROM cash_movements
+          WHERE movement_type = 'ingreso' AND origin_type = 'factura' AND status <> 'anulado'
+            AND origin_id IN (
+              SELECT invoice_id FROM invoice_items WHERE repair_id = $1 AND invoice_id IS NOT NULL
+            )
+          LIMIT 1
+        `).get(id);
+        if (invoiced) {
+          throw httpError(400, 'La reparación ya tiene un ingreso registrado por factura; no se puede registrar cobro directo sin duplicar');
+        }
+        await syncRepairCashMovement(tx, { ...updatedRepair, ticket_number: updatedRepair.ticket_number }, { created_by: req.user?.id || null, payment_method: pm });
+      } else if (existing.status === 'cobrado s/facturacion' && newStatus !== 'cobrado s/facturacion') {
+        await syncRepairCashMovement(tx, { ...updatedRepair, status: newStatus }, { created_by: req.user?.id || null });
+      }
     });
 
     const full = await fetchRepairWithParts(id);
@@ -958,6 +1069,7 @@ async function remove(req, res) {
         await restoreStock(tx, parts, productMap);
       }
 
+      await voidMovementByOrigin(tx, 'reparacion', id, { reason: 'Reparación eliminada', voided_by: req.user?.id || null });
       await tx.prepare('DELETE FROM technical_repairs WHERE id = $1').run(id);
     });
 
@@ -976,7 +1088,9 @@ module.exports = {
   remove,
   getNextTicket,
   getTechnicians,
+  createTechnician,
   getPartsCatalog,
+  createPartProduct,
   getStats,
   getReport,
   exportReportCsv,

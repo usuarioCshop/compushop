@@ -74,6 +74,10 @@ export default function EntradaTab({ onChanged, editRepair, onEditDone }) {
   const [clientForm, setClientForm] = useState({ name: '', address: '', dni: '', email: '', phone: '' });
   const [clientSaving, setClientSaving] = useState(false);
 
+  const [techModalOpen, setTechModalOpen] = useState(false);
+  const [techForm, setTechForm] = useState({ name: '', email: '', password: '', dni: '', phone: '' });
+  const [techSaving, setTechSaving] = useState(false);
+
   const fetchCatalogs = useCallback(async () => {
     try {
       const [articleRes, brandRes, statusRes] = await Promise.all([
@@ -345,6 +349,48 @@ export default function EntradaTab({ onChanged, editRepair, onEditDone }) {
       });
     } finally {
       setClientSearching(false);
+    }
+  };
+
+  const handleCreateTechnician = async () => {
+    const name = String(techForm.name || '').trim();
+    const email = String(techForm.email || '').trim().toLowerCase();
+    const password = String(techForm.password || '');
+    if (!name || !email || !password) {
+      toast({ title: 'Faltan datos', description: 'Nombre, email y contraseña son obligatorios.', status: 'warning', duration: 4000, isClosable: true });
+      return;
+    }
+    if (password.length < 8) {
+      toast({ title: 'Contraseña inválida', description: 'Debe tener al menos 8 caracteres.', status: 'warning', duration: 4000, isClosable: true });
+      return;
+    }
+    setTechSaving(true);
+    try {
+      const { data } = await api.post('/technical-repairs/technicians', {
+        name,
+        email,
+        password,
+        dni: techForm.dni?.trim() || undefined,
+        phone: techForm.phone?.trim() || undefined,
+      });
+      await fetchTechnicians();
+      if (data?.technician?.id) {
+        setForm((prev) => ({ ...prev, assigned_to: String(data.technician.id) }));
+      }
+      setTechModalOpen(false);
+      setTechForm({ name: '', email: '', password: '', dni: '', phone: '' });
+      toast({ title: 'Técnico creado', description: data?.technician?.name || name, status: 'success', duration: 3000, isClosable: true });
+    } catch (error) {
+      const detalles = error.response?.data?.detalles;
+      toast({
+        title: 'No se pudo crear el técnico',
+        description: detalles?.length ? detalles.map((d) => `${d.campo}: ${d.mensaje}`).join(' · ') : (error.response?.data?.error || 'Error al crear técnico'),
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setTechSaving(false);
     }
   };
 
@@ -620,17 +666,27 @@ export default function EntradaTab({ onChanged, editRepair, onEditDone }) {
 
                   <FormControl>
                     <FormLabel>Técnico asignado</FormLabel>
-                    <Select
-                      value={form.assigned_to}
-                      onChange={(e) => setForm({ ...form, assigned_to: e.target.value })}
-                      placeholder="Sin asignar"
-                    >
-                      {technicians.map((tech) => (
-                        <option key={tech.id} value={tech.id}>
-                          {tech.name} ({tech.role})
-                        </option>
-                      ))}
-                    </Select>
+                    <HStack spacing={2}>
+                      <Select
+                        value={form.assigned_to}
+                        onChange={(e) => setForm({ ...form, assigned_to: e.target.value })}
+                        placeholder="Sin asignar"
+                      >
+                        {technicians.map((tech) => (
+                          <option key={tech.id} value={tech.id}>
+                            {tech.name} ({tech.role})
+                          </option>
+                        ))}
+                      </Select>
+                      <IconButton
+                        type="button"
+                        aria-label="Crear técnico"
+                        icon={<FiPlus />}
+                        onClick={() => setTechModalOpen(true)}
+                        variant="outline"
+                        title="Crear técnico"
+                      />
+                    </HStack>
                   </FormControl>
 
                   <GridItem colSpan={{ base: 1, md: 2, lg: 3 }}>
@@ -866,6 +922,47 @@ export default function EntradaTab({ onChanged, editRepair, onEditDone }) {
               >
                 Guardar cliente
               </Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={techModalOpen} onClose={() => setTechModalOpen(false)} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Crear técnico</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={3} align="stretch">
+              <Text fontSize="sm" color="fg.muted">Se creará un usuario con rol técnico para asignarlo a reparaciones.</Text>
+              <FormControl isRequired>
+                <FormLabel>Nombre</FormLabel>
+                <Input value={techForm.name} onChange={(e) => setTechForm({ ...techForm, name: e.target.value })} />
+              </FormControl>
+              <FormControl isRequired>
+                <FormLabel>Email</FormLabel>
+                <Input type="email" value={techForm.email} onChange={(e) => setTechForm({ ...techForm, email: e.target.value })} />
+              </FormControl>
+              <FormControl isRequired>
+                <FormLabel>Contraseña (mín. 8 caracteres)</FormLabel>
+                <Input type="password" value={techForm.password} onChange={(e) => setTechForm({ ...techForm, password: e.target.value })} />
+              </FormControl>
+              <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={3}>
+                <FormControl>
+                  <FormLabel>DNI</FormLabel>
+                  <Input value={techForm.dni} onChange={(e) => setTechForm({ ...techForm, dni: e.target.value })} />
+                </FormControl>
+                <FormControl>
+                  <FormLabel>Teléfono</FormLabel>
+                  <Input value={techForm.phone} onChange={(e) => setTechForm({ ...techForm, phone: e.target.value })} />
+                </FormControl>
+              </Grid>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack>
+              <Button variant="outline" onClick={() => setTechModalOpen(false)}>Cancelar</Button>
+              <Button colorScheme="brand" isLoading={techSaving} onClick={handleCreateTechnician}>Crear técnico</Button>
             </HStack>
           </ModalFooter>
         </ModalContent>

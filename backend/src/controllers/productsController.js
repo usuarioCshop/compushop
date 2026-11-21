@@ -20,7 +20,7 @@ function slugify(text) {
 // GET /api/products
 async function getAll(req, res) {
   try {
-    const { category, search, active, page = 1, limit = 20, promo_first, minPrice, maxPrice, min_price, max_price } = req.query;
+    const { category, search, active, page = 1, limit = 20, promo_first, minPrice, maxPrice, min_price, max_price, no_image, no_stock, brand } = req.query;
     const take = parseInt(limit);
     const pageNum = parseInt(page);
 
@@ -48,6 +48,20 @@ async function getAll(req, res) {
         baseConditions.push(
           `(p.name ILIKE $${baseParams.length} OR p.description ILIKE $${baseParams.length} OR p.brand ILIKE $${baseParams.length})`
         );
+      }
+
+      if (brand && String(brand).trim()) {
+        baseParams.push(String(brand).trim());
+        baseConditions.push(`p.brand ILIKE $${baseParams.length}`);
+      }
+
+      const wantNoImage = no_image === '1' || no_image === 'true';
+      const wantNoStock = no_stock === '1' || no_stock === 'true';
+      if (wantNoImage) {
+        baseConditions.push("(p.image IS NULL OR BTRIM(p.image) = '')");
+      }
+      if (wantNoStock) {
+        baseConditions.push('COALESCE(p.stock, 0) <= 0');
       }
 
       const baseFrom = `
@@ -132,6 +146,20 @@ async function getAll(req, res) {
       baseConditions.push(
         `(p.name ILIKE $${baseParams.length} OR p.description ILIKE $${baseParams.length} OR p.brand ILIKE $${baseParams.length})`
       );
+    }
+
+    if (brand && String(brand).trim()) {
+      baseParams.push(String(brand).trim());
+      baseConditions.push(`p.brand ILIKE $${baseParams.length}`);
+    }
+
+    const wantNoImage = no_image === '1' || no_image === 'true';
+    const wantNoStock = no_stock === '1' || no_stock === 'true';
+    if (wantNoImage) {
+      baseConditions.push("(p.image IS NULL OR BTRIM(p.image) = '')");
+    }
+    if (wantNoStock) {
+      baseConditions.push('COALESCE(p.stock, 0) <= 0');
     }
 
     const baseFrom = `
@@ -777,4 +805,83 @@ async function updatePricesByCost(req, res) {
   }
 }
 
-module.exports = { getAll, getOne, create, update, remove, importProducts, updatePricesByCost };
+
+function buildProductsFilters(req) {
+  const { category, search, active, minPrice, maxPrice, min_price, max_price, no_image, no_stock, brand } = req.query;
+  const baseConditions = ['1=1'];
+  const baseParams = [];
+  const minPriceVal = minPrice ?? min_price;
+  const maxPriceVal = maxPrice ?? max_price;
+  const minNum = minPriceVal !== undefined && minPriceVal !== '' ? Number(minPriceVal) : NaN;
+  const maxNum = maxPriceVal !== undefined && maxPriceVal !== '' ? Number(maxPriceVal) : NaN;
+
+  if (active !== 'all') {
+    baseConditions.push('p.is_active = true');
+  }
+  if (category) {
+    baseParams.push(category);
+    baseConditions.push(`c.slug = $${baseParams.length}`);
+  }
+  if (search) {
+    baseParams.push(`%${search}%`);
+    baseConditions.push(`(p.name ILIKE $${baseParams.length} OR p.description ILIKE $${baseParams.length} OR p.brand ILIKE $${baseParams.length})`);
+  }
+  if (brand && String(brand).trim()) {
+    baseParams.push(String(brand).trim());
+    baseConditions.push(`p.brand ILIKE $${baseParams.length}`);
+  }
+  const wantNoImage = no_image === '1' || no_image === 'true';
+  const wantNoStock = no_stock === '1' || no_stock === 'true';
+  if (wantNoImage) baseConditions.push("(p.image IS NULL OR BTRIM(p.image) = '')");
+  if (wantNoStock) baseConditions.push('COALESCE(p.stock, 0) <= 0');
+
+  const conditions = [...baseConditions];
+  const params = [...baseParams];
+  if (Number.isFinite(minNum)) { params.push(minNum); conditions.push(`p.price >= $${params.length}`); }
+  if (Number.isFinite(maxNum)) { params.push(maxNum); conditions.push(`p.price <= $${params.length}`); }
+
+  return { conditions, params };
+}
+
+// GET /api/products/export (admin) - XLSX con todos los campos, respeta filtros
+async function exportProducts(req, res) {
+  try {
+    const { conditions, params } = buildProductsFilters(req);
+    const from = `
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE ${conditions.join(' AND ')}
+    `;
+    const products = await db.prepare(`
+      SELECT p.*, c.name as category_name, c.slug as category_slug
+      ${from}
+      ORDER BY p.created_at DESC
+    `).all(...params);
+
+    const headers = [
+      'id','name','slug','description','price','stock','category_id','category_name','category_slug','brand','image','specs','is_active','is_promo','flete','ganancia','gasto_variable','ingreso_bruto','purchase_price','vat_rate','created_at','updated_at'
+    ];
+
+    const rows = products.map((p) => headers.map((h) => {
+      const value = p[h];
+      if (value === null || value === undefined) return '';
+      if (h === 'specs' && typeof value === 'object') return JSON.stringify(value);
+      return value;
+    }));
+
+    const worksheet = xlsx.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, 'Productos');
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="productos-${stamp}.xlsx"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al exportar productos' });
+  }
+}
+
+module.exports = { getAll, getOne, create, update, remove, importProducts, updatePricesByCost, exportProducts };
