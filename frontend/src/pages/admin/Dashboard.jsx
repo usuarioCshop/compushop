@@ -61,7 +61,7 @@ export default function Dashboard() {
     { label: 'Servicios', value: data.stats.servicesCount, to: '/admin/servicios' },
     { label: 'Clientes', value: data.stats.usersCount, to: '/admin/usuarios' },
     { label: 'Pedidos', value: data.stats.ordersCount, to: '/admin/pedidos' },
-    { label: 'Pendientes', value: data.stats.pendingOrders, to: '/admin/pedidos?status=pending,confirmed,processing' },
+    { label: 'Pendientes', value: data.stats.pendingOrders, to: '/admin/pedidos?status=pendiente,confirmado,preparando' },
     { label: 'Mensajes sin leer', value: data.stats.unreadMessages, to: '/admin/mensajes' },
     { label: 'Ingresos', value: formatPrice(data.stats.revenue), to: '/admin/pedidos' },
   ];

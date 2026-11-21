@@ -1,5 +1,5 @@
 import {
-  Badge, Box, Button, Card, CardBody, Center, Container, Divider, FormControl, FormLabel,
+  Badge, Box, Button, Card, CardBody, Center, Checkbox, Container, Divider, FormControl, FormLabel,
   Grid, GridItem, Heading, HStack, IconButton, Input, Modal, ModalBody, ModalCloseButton,
   ModalContent, ModalFooter, ModalHeader, ModalOverlay, Select, SimpleGrid, Spinner, Table,
   TableContainer, Tbody, Td, Text, Textarea, Th, Thead, Tr, VStack, useDisclosure, useToast,
@@ -97,7 +97,9 @@ export default function Invoicing() {
   const [items, setItems] = useState([emptyItem()]);
   const [notes, setNotes] = useState('');
   const [billingClientId, setBillingClientId] = useState(null);
+  const [orderId, setOrderId] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [skipCashStockImpact, setSkipCashStockImpact] = useState(false);
   const [fiscalForm, setFiscalForm] = useState({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5 });
 
   const inferFiscalFromReceiver = (r, prev = {}) => {
@@ -144,6 +146,56 @@ export default function Invoicing() {
 
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
+  useEffect(() => {
+    const oid = searchParams.get('order_id');
+    if (!oid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/orders/${oid}`);
+        const order = data.order;
+        if (!order || cancelled) return;
+        if (order.status !== 'cobrado') {
+          toast({ title: 'Solo se puede facturar un pedido en estado cobrado', status: 'warning' });
+          return;
+        }
+        setEditingId(null);
+        setOrderId(order.id);
+        setBillingClientId(null);
+        setReceiver({
+          name: order.customer_name || '',
+          doc_type: '',
+          doc_number: '',
+          address: order.shipping_address || '',
+          email: order.customer_email || '',
+          phone: order.customer_phone || '',
+          condicion_iva: '',
+        });
+        setItems((order.items || []).map((it) => ({
+          source_type: it.type === 'product' ? 'product' : 'manual',
+          product_id: it.type === 'product' ? (it.product_id || it.id || null) : null,
+          repair_id: null,
+          description: it.name || '',
+          quantity: Number(it.quantity || 1),
+          unit_price: Number(it.price || 0),
+          vat_rate: 0,
+          discount: 0,
+          metadata: it.type === 'service' ? { order_service_id: it.service_id, order_item_id: it.id } : { order_item_id: it.id },
+        })));
+        setNotes(`Factura generada desde pedido ${order.order_number || order.id}`);
+        setPaymentMethod(order.payment_method || '');
+        setSkipCashStockImpact(true);
+        setFiscalForm(inferFiscalFromReceiver({ name: order.customer_name, address: order.shipping_address, doc_number: '' }, fiscalForm));
+        formDisc.onOpen();
+      } catch (err) {
+        if (!cancelled) toast({ title: err.response?.data?.error || 'No se pudo cargar el pedido para facturar', status: 'error' });
+      } finally {
+        if (!cancelled) setSearchParams((prev) => { const p = new URLSearchParams(prev); p.delete('order_id'); return p; }, { replace: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const totals = useMemo(() => calcTotals(items), [items]);
 
   const openNew = () => {
@@ -152,7 +204,9 @@ export default function Invoicing() {
     setItems([emptyItem()]);
     setNotes('');
     setBillingClientId(null);
+    setOrderId(null);
     setPaymentMethod('');
+    setSkipCashStockImpact(false);
     setFiscalForm({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5 });
     formDisc.onOpen();
   };
@@ -171,7 +225,9 @@ export default function Invoicing() {
       })));
       setNotes(invoice.notes || '');
       setBillingClientId(invoice.billing_client_id || null);
+      setOrderId(invoice.order_id || null);
       setPaymentMethod(invoice.payment_method || '');
+      setSkipCashStockImpact(!!invoice.skip_cash_stock_impact);
       setFiscalForm(inferFiscalFromReceiver(rs, {
         cbte_tipo: invoice.cbte_tipo || 6,
         concepto: invoice.concepto || 1,
@@ -210,9 +266,11 @@ export default function Invoicing() {
     try {
       const payload = {
         billing_client_id: billingClientId,
+        order_id: orderId || null,
         receiver_snapshot: receiver,
         notes,
         payment_method: paymentMethod || null,
+        skip_cash_stock_impact: !!skipCashStockImpact,
         items: items.map(calcItem).map((i) => ({
           source_type: i.source_type, product_id: i.product_id, repair_id: i.repair_id,
           description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price),
@@ -234,6 +292,7 @@ export default function Invoicing() {
             cbte_tipo: Number(fiscal.cbte_tipo || 6),
             concepto: Number(fiscal.concepto || 1),
             payment_method: paymentMethod,
+            skip_cash_stock_impact: !!skipCashStockImpact,
             receptor: {
               docTipo: Number(fiscal.docTipo || 99),
               docNro: String(fiscal.docNro || (Number(fiscal.docTipo) === 99 ? '0' : '')),
@@ -281,6 +340,7 @@ export default function Invoicing() {
         }
         body.payment_method = norm;
       }
+      body.skip_cash_stock_impact = !!inv?.skip_cash_stock_impact;
       await api.post(`/invoices/${id}/issue`, body);
       toast({ title: 'Factura emitida', status: 'success' });
       loadInvoices(); detailDisc.onClose();
@@ -308,6 +368,7 @@ export default function Invoicing() {
         cbte_tipo: Number(arcaForm.cbte_tipo),
         concepto: Number(arcaForm.concepto),
         payment_method: pm,
+        skip_cash_stock_impact: !!selected.skip_cash_stock_impact,
         receptor: {
           docTipo: Number(arcaForm.docTipo),
           docNro: String(arcaForm.docNro || '0'),
@@ -538,6 +599,8 @@ export default function Invoicing() {
                   <Box><Text fontWeight="semibold">Emisor</Text><Text fontSize="sm">{selected.issuer_snapshot?.razon_social || '-'}</Text><Text fontSize="sm">CUIT: {selected.issuer_snapshot?.cuit || '-'}</Text></Box>
                   <Box><Text fontWeight="semibold">Receptor</Text><Text fontSize="sm">{selected.receiver_snapshot?.name || '-'}</Text><Text fontSize="sm">{selected.receiver_snapshot?.doc_type} {selected.receiver_snapshot?.doc_number}</Text></Box>
                   <Box><Text fontWeight="semibold">Forma de cobro (Caja)</Text><Text fontSize="sm">{selected.payment_method === 'efectivo' ? 'Efectivo' : selected.payment_method === 'transferencia' ? 'Transferencia' : selected.payment_method === 'cuenta_corriente' ? 'Cuenta corriente' : '-'}</Text></Box>
+                  <Box><Text fontWeight="semibold">Impacto caja/stock</Text><Text fontSize="sm" color={selected.skip_cash_stock_impact ? 'orange.500' : 'fg.muted'}>{selected.skip_cash_stock_impact ? 'No afecta caja/stock (ya cobrado/registrado)' : 'Afecta caja/stock normalmente'}</Text></Box>
+                  {selected.order_id && <Box><Text fontWeight="semibold">Pedido vinculado</Text><Text fontSize="sm">#{selected.order_id}</Text></Box>}
                 </SimpleGrid>
                 <TableContainer>
                   <Table size="sm"><Thead><Tr><Th>Descripción</Th><Th isNumeric>Cant.</Th><Th isNumeric>P. Unit.</Th><Th isNumeric>IVA %</Th><Th isNumeric>Total</Th></Tr></Thead>
@@ -790,6 +853,14 @@ export default function Invoicing() {
                   </Select>
                   <Text fontSize="xs" color="fg.muted" mt={1}>Requerida para emitir/autorizar la factura y generar el movimiento en Caja.</Text>
                 </FormControl>
+                <Checkbox mt={3} isChecked={skipCashStockImpact} onChange={(e) => setSkipCashStockImpact(e.target.checked)}>
+                  No afectar caja/stock (ya cobrado/registrado)
+                </Checkbox>
+                {skipCashStockImpact && (
+                  <Text fontSize="xs" color="orange.500" mt={1}>
+                    Esta factura no descontará stock ni generará/corregirá movimientos de Caja al emitir o anular.
+                  </Text>
+                )}
               </CardBody></Card>
 
               <Card variant="outline"><CardBody>
@@ -826,7 +897,9 @@ export default function Invoicing() {
                     <Tbody>
                       {items.map((it, idx) => {
                         const c = calcItem(it);
-                        const impact = getStockImpact(it);
+                        const impact = skipCashStockImpact
+                          ? { label: 'SIN CAMBIO', color: 'gray', canToggle: false, key: 'skip' }
+                          : getStockImpact(it);
                         return (
                           <Tr key={idx}>
                             <Td><Badge>{it.source_type}</Badge></Td>

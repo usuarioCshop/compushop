@@ -1,16 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Box, Heading, Table, Thead, Tbody, Tr, Th, Td, Select, Badge, Spinner, Center, useToast, Text,
-  IconButton, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton,
-  VStack, HStack, Divider, useDisclosure, Checkbox, Link, Image,
+  Box, Button, Heading, Table, Thead, Tbody, Tr, Th, Td, Select, Badge, Spinner, Center, useToast, Text,
+  IconButton, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter,
+  VStack, HStack, Divider, useDisclosure, Checkbox, Link, Image, Textarea, FormControl, FormLabel,
 } from '@chakra-ui/react';
-import { FiEye } from 'react-icons/fi';
+import { FiEye, FiFileText, FiXCircle } from 'react-icons/fi';
 import api from '../../api/client';
 import { resolveUploadUrl } from '../../api/uploads';
 
 const formatPrice = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n);
-const statuses = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+const ORDER_STATUS_OPTIONS = [
+  { value: 'pendiente', label: 'Pendiente' },
+  { value: 'confirmado', label: 'Confirmado' },
+  { value: 'preparando', label: 'Preparando' },
+  { value: 'enviado', label: 'Enviado' },
+  { value: 'cobrado', label: 'Cobrado' },
+  { value: 'facturado', label: 'Facturado' },
+  { value: 'cancelado', label: 'Cancelado' },
+];
+const ORDER_STATUS_LABEL = Object.fromEntries(ORDER_STATUS_OPTIONS.map((s) => [s.value, s.label]));
 const prepKey = (orderId) => `compushop_order_prep_${orderId}`;
 
 function loadPrep(orderId) {
@@ -31,10 +40,15 @@ export default function AdminOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [prep, setPrep] = useState({});
+  const [voidOrder, setVoidOrder] = useState(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voiding, setVoiding] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const voidDisc = useDisclosure();
   const toast = useToast();
   const bg = 'bg.surface';
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const load = () => {
     setLoading(true);
@@ -45,7 +59,7 @@ export default function AdminOrders() {
   const changeStatus = async (id, status) => {
     try {
       await api.put(`/orders/${id}/status`, { status });
-      if (status === 'shipped') {
+      if (status === 'enviado') {
         localStorage.removeItem(prepKey(id));
         if (selectedOrder?.id === id) setPrep({});
       }
@@ -54,7 +68,36 @@ export default function AdminOrders() {
       window.dispatchEvent(new Event('orders:pending-changed'));
       window.setTimeout(() => window.dispatchEvent(new Event('orders:pending-changed')), 300);
     } catch (err) {
-      toast({ title: 'Error', status: 'error' });
+      toast({ title: 'Error', description: err.response?.data?.error, status: 'error' });
+    }
+  };
+
+  const openVoidModal = (order) => {
+    setVoidOrder(order);
+    setVoidReason('');
+    voidDisc.onOpen();
+  };
+
+  const confirmVoidLinkedInvoice = async () => {
+    if (!voidOrder) return;
+    setVoiding(true);
+    try {
+      const { data } = await api.post(`/orders/${voidOrder.id}/void-invoice`, { reason: voidReason });
+      const msg = data.cashAction === 'compensated'
+        ? 'Factura anulada. Se generó egreso compensatorio en caja de hoy.'
+        : data.cashAction === 'voided_original'
+          ? 'Factura anulada. Se corrigió el movimiento de caja original.'
+          : 'Factura anulada y pedido cancelado.';
+      toast({ title: msg, status: 'success', duration: 5000 });
+      voidDisc.onClose();
+      setVoidOrder(null);
+      setVoidReason('');
+      load();
+      window.dispatchEvent(new Event('orders:pending-changed'));
+    } catch (err) {
+      toast({ title: 'No se pudo anular la factura', description: err.response?.data?.error || err.message, status: 'error', duration: 6000 });
+    } finally {
+      setVoiding(false);
     }
   };
 
@@ -107,13 +150,48 @@ export default function AdminOrders() {
                 </Td>
                 <Td fontWeight="600">{formatPrice(o.total)}</Td>
                 <Td>
-                  <Select size="sm" value={o.status} onChange={e => changeStatus(o.id, e.target.value)} maxW="140px" bg="bg.surface">
-                    {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                  <Select
+                    size="sm"
+                    value={o.status}
+                    onChange={e => changeStatus(o.id, e.target.value)}
+                    maxW="160px"
+                    bg="bg.surface"
+                    isDisabled={o.status === 'facturado'}
+                  >
+                    {ORDER_STATUS_OPTIONS.filter((s) => s.value !== 'facturado' || o.status === 'facturado').map(s => (
+                      <option key={s.value} value={s.value} disabled={s.value === 'facturado' && o.status !== 'facturado'}>
+                        {s.label}
+                      </option>
+                    ))}
                   </Select>
                 </Td>
                 <Td color="fg.muted">{new Date(o.created_at).toLocaleString('es-AR')}</Td>
                 <Td>
-                  <IconButton aria-label="Ver detalle" icon={<FiEye />} size="sm" variant="ghost" onClick={() => openDetail(o.id)} />
+                  <HStack spacing={1}>
+                    <IconButton aria-label="Ver detalle" icon={<FiEye />} size="sm" variant="ghost" onClick={() => openDetail(o.id)} />
+                    {o.status === 'cobrado' && (
+                      <IconButton
+                        aria-label="Facturar pedido"
+                        icon={<FiFileText />}
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="green"
+                        onClick={() => navigate(`/facturacion?order_id=${o.id}`)}
+                        title="Facturar pedido (sin afectar caja/stock)"
+                      />
+                    )}
+                    {o.status === 'facturado' && (
+                      <IconButton
+                        aria-label="Anular factura del pedido"
+                        icon={<FiXCircle />}
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="red"
+                        onClick={() => openVoidModal(o)}
+                        title="Anular factura vinculada y cancelar pedido"
+                      />
+                    )}
+                  </HStack>
                 </Td>
               </Tr>
             ))}
@@ -170,7 +248,7 @@ export default function AdminOrders() {
                 <Divider />
                 <Box>
                   <Text fontWeight="600" mb={2}>Productos</Text>
-                  <Text fontSize="xs" color="fg.muted" mb={2}>Marcá los ítems preparados (se guarda en este navegador y se borra al pasar el pedido a <strong>shipped</strong>).</Text>
+                  <Text fontSize="xs" color="fg.muted" mb={2}>Marcá los ítems preparados (se guarda en este navegador y se borra al pasar el pedido a <strong>enviado</strong>).</Text>
                   <Table size="sm" variant="simple">
                     <Thead>
                       <Tr><Th w="40px">Listo</Th><Th>Ítem</Th><Th isNumeric>Cant.</Th><Th isNumeric>Precio</Th><Th isNumeric>Subtotal</Th></Tr>
@@ -184,10 +262,16 @@ export default function AdminOrders() {
                               <Checkbox
                                 isChecked={ready}
                                 colorScheme="green"
-                                onChange={(e) => {
+                                onChange={async (e) => {
                                   const next = { ...prep, [item.id]: e.target.checked };
                                   setPrep(next);
                                   savePrep(selectedOrder.id, next);
+                                  const allChecked = (selectedOrder.items || []).length > 0
+                                    && (selectedOrder.items || []).every((it) => !!next[it.id]);
+                                  if (e.target.checked && allChecked && selectedOrder.status === 'preparando') {
+                                    setSelectedOrder((prev) => (prev ? { ...prev, status: 'confirmado' } : prev));
+                                    await changeStatus(selectedOrder.id, 'confirmado');
+                                  }
                                 }}
                                 aria-label={`Marcar ${item.name} como preparado`}
                               />
@@ -215,6 +299,30 @@ export default function AdminOrders() {
               </VStack>
             )}
           </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      <Modal isOpen={voidDisc.isOpen} onClose={voidDisc.onClose} isCentered>
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Anular factura del pedido</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <Text mb={3}>
+              Vas a anular la factura vinculada al pedido <strong>{voidOrder?.order_number || voidOrder?.id}</strong>. El pedido pasará a <strong>cancelado</strong> y se repondrá el stock.
+            </Text>
+            <Text fontSize="sm" color="fg.muted" mb={3}>
+              Si la sesión de caja original está cerrada y hay caja abierta hoy, se generará un egreso compensatorio en la caja de hoy. Si no hay caja abierta hoy, la anulación se bloqueará.
+            </Text>
+            <FormControl>
+              <FormLabel>Motivo (opcional)</FormLabel>
+              <Textarea value={voidReason} onChange={(e) => setVoidReason(e.target.value)} placeholder="Motivo de anulación" />
+            </FormControl>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="ghost" mr={3} onClick={voidDisc.onClose}>Cancelar</Button>
+            <Button colorScheme="red" onClick={confirmVoidLinkedInvoice} isLoading={voiding}>Anular factura</Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </Box>

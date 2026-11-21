@@ -135,6 +135,7 @@ router.delete('/services/:id', authenticate, requireAdmin, servicesCtrl.remove);
 router.post('/orders', optionalAuth, ordersCtrl.create);
 router.get('/orders', authenticate, ordersCtrl.getAll);
 router.get('/orders/pending-count', authenticate, requireAdmin, ordersCtrl.getPendingCount);
+router.post('/orders/:id/void-invoice', authenticate, requireAdmin, ordersCtrl.voidLinkedInvoice);
 router.get('/orders/:id', authenticate, ordersCtrl.getOne);
 router.put('/orders/:id/status', authenticate, requireAdmin, ordersCtrl.updateStatus);
 

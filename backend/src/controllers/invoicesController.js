@@ -193,6 +193,19 @@ async function assertNoDoubleRepairInvoicing(tx, invoiceId) {
   }
 }
 
+async function markOrderFacturadoIfLinked(tx, invoice, { userId = null } = {}) {
+  const orderId = Number(invoice?.order_id || 0);
+  if (!orderId || !invoice?.skip_cash_stock_impact) return null;
+  const order = await tx.prepare('SELECT id, status FROM orders WHERE id = $1 FOR UPDATE').get(orderId);
+  if (!order) return null;
+  if (order.status === 'facturado') return order;
+  if (order.status !== 'cobrado') {
+    throw httpError(409, `El pedido #${orderId} no está en estado cobrado (estado actual: ${order.status})`);
+  }
+  await tx.prepare('UPDATE orders SET status = $1 WHERE id = $2 AND status = $3').run('facturado', orderId, 'cobrado');
+  return { ...order, status: 'facturado' };
+}
+
 async function fetchInvoiceWithItems(id, txOrDb) {
   const runner = txOrDb || db;
   const invoice = await runner.prepare(`
@@ -296,9 +309,16 @@ async function create(req, res) {
     const invoice = await db.transaction(async (tx) => {
       const number = await getNextNumberValue(tx);
       const paymentMethod = body.payment_method || null;
+      const skipCashStockImpact = !!body.skip_cash_stock_impact;
+      const orderId = body.order_id != null ? Number(body.order_id) : null;
+      if (orderId) {
+        const ord = await tx.prepare('SELECT id, status FROM orders WHERE id = $1').get(orderId);
+        if (!ord) throw httpError(400, 'El pedido indicado no existe');
+        if (ord.status !== 'cobrado') throw httpError(400, 'Solo se puede facturar un pedido en estado cobrado');
+      }
       const inserted = await tx.prepare(`
-        INSERT INTO invoices (number, status, billing_client_id, issuer_snapshot, receiver_snapshot, currency, subtotal, tax_total, discount_total, total, notes, created_by, payment_method)
-        VALUES ($1, 'borrador', $2, $3, $4, 'ARS', $5, $6, $7, $8, $9, $10, $11)
+        INSERT INTO invoices (number, status, billing_client_id, issuer_snapshot, receiver_snapshot, currency, subtotal, tax_total, discount_total, total, notes, created_by, payment_method, skip_cash_stock_impact, order_id)
+        VALUES ($1, 'borrador', $2, $3, $4, 'ARS', $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING id
       `).run(
         number,
@@ -308,7 +328,9 @@ async function create(req, res) {
         totals.subtotal, totals.tax_total, totals.discount_total, totals.total,
         body.notes || null,
         req.user?.id || null,
-        paymentMethod
+        paymentMethod,
+        skipCashStockImpact,
+        orderId
       );
       const id = inserted.rows[0].id;
       const insertItem = tx.prepare(`
@@ -346,18 +368,27 @@ async function update(req, res) {
 
       const receiver = body.receiver_snapshot !== undefined ? body.receiver_snapshot : existing.receiver_snapshot;
       const paymentMethod = body.payment_method !== undefined ? (body.payment_method || null) : existing.payment_method;
+      const skipCashStockImpact = body.skip_cash_stock_impact !== undefined ? !!body.skip_cash_stock_impact : !!existing.skip_cash_stock_impact;
+      const orderId = body.order_id !== undefined ? (body.order_id != null ? Number(body.order_id) : null) : (existing.order_id ?? null);
+      if (orderId) {
+        const ord = await tx.prepare('SELECT id, status FROM orders WHERE id = $1').get(orderId);
+        if (!ord) throw httpError(400, 'El pedido indicado no existe');
+        if (!['cobrado', 'facturado'].includes(ord.status)) throw httpError(400, 'Solo se puede vincular factura a un pedido cobrado/facturado');
+      }
       await tx.prepare(`
         UPDATE invoices SET
           billing_client_id = $1, receiver_snapshot = $2, notes = $3,
           subtotal = $4, tax_total = $5, discount_total = $6, total = $7,
-          payment_method = $8
-        WHERE id = $9
+          payment_method = $8, skip_cash_stock_impact = $9, order_id = $10
+        WHERE id = $11
       `).run(
         body.billing_client_id !== undefined ? body.billing_client_id : existing.billing_client_id,
         typeof receiver === 'string' ? receiver : JSON.stringify(receiver || {}),
         body.notes !== undefined ? (body.notes || null) : existing.notes,
         totals.subtotal, totals.tax_total, totals.discount_total, totals.total,
         paymentMethod,
+        skipCashStockImpact,
+        orderId,
         req.params.id
       );
 
@@ -384,10 +415,14 @@ async function update(req, res) {
 async function issue(req, res) {
   try {
     const invoice = await db.transaction(async (tx) => {
-      await assertCashOpenForInvoicing(tx);
+      const body = req.body || {};
       const existing = await tx.prepare('SELECT * FROM invoices WHERE id = $1 FOR UPDATE').get(req.params.id);
       if (!existing || !existing.id) throw httpError(404, 'Factura no encontrada');
       if (existing.status !== 'borrador') throw httpError(400, 'Solo se puede emitir una factura en borrador');
+      const skipCashStockImpact = body.skip_cash_stock_impact !== undefined ? !!body.skip_cash_stock_impact : !!existing.skip_cash_stock_impact;
+      if (!skipCashStockImpact) {
+        await assertCashOpenForInvoicing(tx);
+      }
       const items = await tx.prepare('SELECT * FROM invoice_items WHERE invoice_id = $1').all(req.params.id);
       if (!items.length) throw httpError(400, 'La factura debe tener al menos un ítem');
 
@@ -396,7 +431,6 @@ async function issue(req, res) {
         throw httpError(400, 'El receptor debe tener nombre para emitir la factura');
       }
 
-      const body = req.body || {};
       const paymentMethod = body.payment_method !== undefined ? (body.payment_method || null) : (existing.payment_method || null);
       if (!['efectivo', 'transferencia', 'cuenta_corriente'].includes(paymentMethod)) {
         throw httpError(400, 'Seleccioná la forma de cobro de la factura (efectivo, transferencia o cuenta corriente)');
@@ -425,19 +459,24 @@ async function issue(req, res) {
       await assertNoDoubleRepairInvoicing(tx, req.params.id);
 
       // Descontar stock según reglas (F-D1/F-D2): al emitir, salvo ítems ya descontados
-      await deductInvoiceStock(tx, req.params.id);
+      if (!skipCashStockImpact) {
+        await deductInvoiceStock(tx, req.params.id);
+      }
 
       // Asegurar número único (ya asignado en borrador; mantenerlo) y marcar emitida
       await tx.prepare(`
         UPDATE invoices SET
           status = 'emitida', issued_at = now(), issuer_snapshot = $1,
           subtotal = $2, tax_total = $3, discount_total = $4, total = $5,
-          payment_method = $6
-        WHERE id = $7
-      `).run(JSON.stringify(issuer), totals.subtotal, totals.tax_total, totals.discount_total, totals.total, paymentMethod, req.params.id);
+          payment_method = $6, skip_cash_stock_impact = $7
+        WHERE id = $8
+      `).run(JSON.stringify(issuer), totals.subtotal, totals.tax_total, totals.discount_total, totals.total, paymentMethod, skipCashStockImpact, req.params.id);
 
       const emitted = await fetchInvoiceWithItems(req.params.id, tx);
-      await syncInvoiceCashMovement(tx, emitted, { created_by: req.user?.id || null });
+      if (!skipCashStockImpact) {
+        await syncInvoiceCashMovement(tx, emitted, { created_by: req.user?.id || null });
+      }
+      await markOrderFacturadoIfLinked(tx, emitted, { userId: req.user?.id || null });
       return await fetchInvoiceWithItems(req.params.id, tx);
     });
     res.json({ invoice });
@@ -455,15 +494,27 @@ async function voidInvoice(req, res) {
       if (!existing || !existing.id) throw httpError(404, 'Factura no encontrada');
       if (existing.status !== 'emitida') throw httpError(400, 'Solo se puede anular una factura emitida');
 
+      if (existing.order_id) {
+        const ord = await tx.prepare('SELECT id, status, order_number FROM orders WHERE id = $1').get(existing.order_id);
+        if (ord && ord.status === 'facturado') {
+          throw httpError(409, `Esta factura está vinculada al pedido ${ord.order_number || ord.id}. Anulá la factura desde el pedido para corregir stock/caja correctamente.`);
+        }
+      }
+
+      const skipCashStockImpact = !!existing.skip_cash_stock_impact;
       // Reponer stock descontado al emitir (según reglas de ítems)
-      await restoreInvoiceStock(tx, req.params.id);
+      if (!skipCashStockImpact) {
+        await restoreInvoiceStock(tx, req.params.id);
+      }
 
       await tx.prepare(`
         UPDATE invoices SET status = 'anulada', voided_at = now(), void_reason = $1, voided_by = $2
         WHERE id = $3
       `).run(reason || null, req.user?.id || null, req.params.id);
       const voided = await fetchInvoiceWithItems(req.params.id, tx);
-      await syncInvoiceCashMovement(tx, voided, { created_by: req.user?.id || null });
+      if (!skipCashStockImpact) {
+        await syncInvoiceCashMovement(tx, voided, { created_by: req.user?.id || null });
+      }
       return await fetchInvoiceWithItems(req.params.id, tx);
     });
     res.json({ invoice });
@@ -867,11 +918,14 @@ async function authorizeArca(req, res) {
     if (!arcaConfig.hasArcaCredentials()) throw httpError(400, 'Faltan certificado y/o clave privada de ARCA');
 
     const result = await db.transaction(async (tx) => {
-      await assertCashOpenForInvoicing(tx);
       const invoice = await fetchInvoiceWithItems(req.params.id, tx);
       if (!invoice) throw httpError(404, 'Factura no encontrada');
       if (invoice.status === 'anulada') throw httpError(400, 'No se puede autorizar una factura anulada');
       if (invoice.arca_status === 'approved') throw httpError(400, 'La factura ya fue autorizada por ARCA');
+      const skipCashStockImpact = payload.skip_cash_stock_impact !== undefined ? !!payload.skip_cash_stock_impact : !!invoice.skip_cash_stock_impact;
+      if (!skipCashStockImpact) {
+        await assertCashOpenForInvoicing(tx);
+      }
 
       const paymentMethod = payload.payment_method !== undefined ? (payload.payment_method || null) : (invoice.payment_method || null);
       if (!['efectivo', 'transferencia', 'cuenta_corriente'].includes(paymentMethod)) {
@@ -905,8 +959,8 @@ async function authorizeArca(req, res) {
           receptor_doc_tipo = $6, receptor_doc_nro = $7, receptor_condicion_iva_id = $8,
           receptor_nombre = $9, receptor_domicilio = $10,
           arca_status = 'pending', arca_errors = NULL, arca_observations = NULL, arca_result = NULL,
-          fiscal_totals = $11, payment_method = $12
-        WHERE id = $13
+          fiscal_totals = $11, payment_method = $12, skip_cash_stock_impact = $13
+        WHERE id = $14
       `).run(
         ptoVta, v.tipo, numero, fecha, v.concepto,
         v.docTipo, v.docNro, v.condIva,
@@ -914,6 +968,7 @@ async function authorizeArca(req, res) {
         v.receptorAddress || invoice.receiver_snapshot?.address || '',
         JSON.stringify(fiscalTotals),
         paymentMethod,
+        skipCashStockImpact,
         invoice.id
       );
 
@@ -928,7 +983,9 @@ async function authorizeArca(req, res) {
       // Si autorizar implica emitir (borrador), validar doble facturación de reparaciones y stock antes de solicitar CAE.
       if (invoice.status === 'borrador') {
         await assertNoDoubleRepairInvoicing(tx, invoice.id);
-        await validateInvoiceStockAvailability(tx, invoice.id, { lock: true });
+        if (!skipCashStockImpact) {
+          await validateInvoiceStockAvailability(tx, invoice.id, { lock: true });
+        }
       }
 
       let arcaRes;
@@ -965,27 +1022,33 @@ async function authorizeArca(req, res) {
       }
 
       // Aprobado: si estaba en borrador, descontar stock y marcar emitida internamente
-      if (invoice.status === 'borrador') {
+      if (invoice.status === 'borrador' && !skipCashStockImpact) {
         await deductInvoiceStock(tx, invoice.id);
       }
       const issuedAtUpdate = invoice.status === 'borrador' ? ', status = \'emitida\', issued_at = COALESCE(issued_at, now())' : '';
       await tx.prepare(`
         UPDATE invoices SET
           arca_status = 'approved', arca_cae = $1, arca_cae_vto = $2,
-          arca_observations = $3, arca_result = $4, arca_errors = NULL
+          arca_observations = $3, arca_result = $4, arca_errors = NULL,
+          skip_cash_stock_impact = $5
           ${issuedAtUpdate}
-        WHERE id = $5
+        WHERE id = $6
       `).run(
         arcaRes.cae,
         arcaRes.caeVto,
         JSON.stringify(arcaRes.messages || []),
         JSON.stringify(arcaRes.raw || {}),
+        skipCashStockImpact,
         invoice.id
       );
 
       let updated = await fetchInvoiceWithItems(invoice.id, tx);
       if (updated && updated.status === 'emitida') {
-        await syncInvoiceCashMovement(tx, updated, { created_by: req.user?.id || null });
+        if (!skipCashStockImpact) {
+          await syncInvoiceCashMovement(tx, updated, { created_by: req.user?.id || null });
+          updated = await fetchInvoiceWithItems(invoice.id, tx);
+        }
+        await markOrderFacturadoIfLinked(tx, updated, { userId: req.user?.id || null });
         updated = await fetchInvoiceWithItems(invoice.id, tx);
       }
       return { invoice: updated, arca: arcaRes, rejected: false };

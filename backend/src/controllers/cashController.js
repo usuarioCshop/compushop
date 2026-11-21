@@ -275,10 +275,10 @@ async function syncInvoiceCashMovement(txOrDb, invoice, { created_by = null } = 
 
 async function syncOrderCashMovement(txOrDb, order, { created_by = null } = {}) {
   if (!order || !order.id) return null;
-  if (order.status === 'cancelled') {
+  if (order.status === 'cancelado') {
     return voidMovementByOrigin(txOrDb, 'pedido', order.id, { reason: 'Pedido cancelado', voided_by: created_by });
   }
-  if (order.status !== 'delivered') return null;
+  if (order.status !== 'cobrado') return null;
   const pm = order.payment_method;
   if (!['efectivo', 'transferencia'].includes(pm)) return null;
   return createIncomeMovement(txOrDb, {
@@ -286,7 +286,7 @@ async function syncOrderCashMovement(txOrDb, order, { created_by = null } = {}) 
     origin_id: order.id,
     amount: round2(order.total),
     payment_method: pm,
-    description: `Pedido ${order.order_number || order.id} entregado`,
+    description: `Pedido ${order.order_number || order.id} cobrado`,
     movement_date: toYmd(new Date()),
     created_by,
     reference: order.order_number || null,
