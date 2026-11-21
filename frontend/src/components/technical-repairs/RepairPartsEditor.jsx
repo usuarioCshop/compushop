@@ -2,10 +2,18 @@ import {
   Button,
   FormControl,
   FormLabel,
+  Grid,
   HStack,
   Icon,
   IconButton,
   Input,
+  Modal,
+  ModalBody,
+  ModalCloseButton,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  ModalOverlay,
   Select,
   Spinner,
   Table,
@@ -17,9 +25,11 @@ import {
   Thead,
   Tr,
   VStack,
+  useToast,
 } from '@chakra-ui/react';
 import { useState } from 'react';
 import { FiPlus, FiSearch, FiTrash2 } from 'react-icons/fi';
+import api from '../../api/client';
 import { formatCurrency } from './constants';
 
 // Devuelve el stock maximo que puede tener una linea: el stock actual del
@@ -42,8 +52,12 @@ export default function RepairPartsEditor({
   onSearch,
   disabled,
 }) {
+  const toast = useToast();
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newPart, setNewPart] = useState({ name: '', brand: '', price: '', stock: '' });
 
   const handleSearch = () => {
     onSearch(search.trim());
@@ -87,6 +101,60 @@ export default function RepairPartsEditor({
     setSelectedId('');
   };
 
+  const handleCreatePart = async () => {
+    const name = String(newPart.name || '').trim();
+    const price = Number(newPart.price);
+    const stock = Number(newPart.stock);
+    if (!name) {
+      toast({ title: 'Falta el nombre', status: 'warning', duration: 3000, isClosable: true });
+      return;
+    }
+    if (!Number.isFinite(price) || price < 0) {
+      toast({ title: 'Precio inválido', description: 'Ingresá un precio válido (>= 0).', status: 'warning', duration: 3000, isClosable: true });
+      return;
+    }
+    if (!Number.isInteger(stock) || stock < 0) {
+      toast({ title: 'Stock inválido', description: 'Ingresá un stock entero (>= 0).', status: 'warning', duration: 3000, isClosable: true });
+      return;
+    }
+    setCreating(true);
+    try {
+      const { data } = await api.post('/technical-repairs/parts-catalog', {
+        name,
+        brand: newPart.brand?.trim() || undefined,
+        price,
+        stock,
+      });
+      const product = data.product;
+      onSearch(name); // refresca catálogo con el nombre creado
+      onChange([
+        ...parts,
+        {
+          product_id: product.id,
+          product_name: product.name,
+          product_stock: product.stock,
+          original_quantity: 0,
+          quantity: 1,
+          unit_price: product.price,
+        },
+      ]);
+      setSelectedId(String(product.id));
+      setNewPart({ name: '', brand: '', price: '', stock: '' });
+      setCreateOpen(false);
+      toast({ title: 'Repuesto creado', description: product.name, status: 'success', duration: 3000, isClosable: true });
+    } catch (error) {
+      toast({
+        title: 'No se pudo crear el repuesto',
+        description: error.response?.data?.error || 'Error al crear producto/repuesto',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <VStack align="stretch" spacing={3}>
       <HStack justify="space-between" align="baseline" flexWrap="wrap" gap={2}>
@@ -120,16 +188,17 @@ export default function RepairPartsEditor({
         </Button>
       </HStack>
 
-      <FormControl isDisabled={disabled || catalogLoading || catalog.length === 0}>
+      <FormControl isDisabled={disabled || catalogLoading}>
         <FormLabel fontSize="sm">Agregar del catálogo</FormLabel>
         <HStack spacing={2} flexWrap="wrap">
           <Select
             placeholder={
-              catalog.length === 0 ? 'Sin productos con stock' : 'Elegí un producto'
+              catalog.length === 0 ? 'Sin productos con stock (buscá o creá uno)' : 'Elegí un producto'
             }
             value={selectedId}
             onChange={(event) => setSelectedId(event.target.value)}
             maxW={{ base: 'full', md: '460px' }}
+            isDisabled={disabled || catalogLoading || catalog.length === 0}
           >
             {catalog.map((product) => (
               <option key={product.id} value={product.id}>
@@ -145,6 +214,14 @@ export default function RepairPartsEditor({
             isDisabled={!selectedId || disabled || catalogLoading}
           >
             Agregar
+          </Button>
+          <Button
+            variant="outline"
+            leftIcon={<Icon as={FiPlus} />}
+            onClick={() => setCreateOpen(true)}
+            isDisabled={disabled}
+          >
+            Crear repuesto
           </Button>
           {catalogLoading && <Spinner size="sm" />}
         </HStack>
@@ -239,6 +316,43 @@ export default function RepairPartsEditor({
           </Table>
         </TableContainer>
       )}
+
+      <Modal isOpen={createOpen} onClose={() => setCreateOpen(false)} size="md">
+        <ModalOverlay />
+        <ModalContent>
+          <ModalHeader>Crear producto/repuesto</ModalHeader>
+          <ModalCloseButton />
+          <ModalBody>
+            <VStack spacing={3} align="stretch">
+              <Text fontSize="sm" color="fg.muted">Se creará un producto activo disponible para usar como repuesto en la reparación.</Text>
+              <FormControl isRequired>
+                <FormLabel>Nombre</FormLabel>
+                <Input value={newPart.name} onChange={(e) => setNewPart({ ...newPart, name: e.target.value })} placeholder="Ej: Batería iPhone 11" />
+              </FormControl>
+              <FormControl>
+                <FormLabel>Marca</FormLabel>
+                <Input value={newPart.brand} onChange={(e) => setNewPart({ ...newPart, brand: e.target.value })} placeholder="Opcional" />
+              </FormControl>
+              <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={3}>
+                <FormControl isRequired>
+                  <FormLabel>Precio (ARS)</FormLabel>
+                  <Input type="number" min={0} step="0.01" value={newPart.price} onChange={(e) => setNewPart({ ...newPart, price: e.target.value })} />
+                </FormControl>
+                <FormControl isRequired>
+                  <FormLabel>Stock</FormLabel>
+                  <Input type="number" min={0} step="1" value={newPart.stock} onChange={(e) => setNewPart({ ...newPart, stock: e.target.value })} />
+                </FormControl>
+              </Grid>
+            </VStack>
+          </ModalBody>
+          <ModalFooter>
+            <HStack>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+              <Button colorScheme="brand" isLoading={creating} onClick={handleCreatePart}>Crear y agregar</Button>
+            </HStack>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </VStack>
   );
 }

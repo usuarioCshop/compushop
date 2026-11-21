@@ -41,6 +41,9 @@ const KNOWN_TABLES = [
   'invoices',
   'invoice_items',
   'arca_tokens',
+  'cash_sessions',
+  'cash_categories',
+  'cash_movements',
 ];
 
 let pool = null;

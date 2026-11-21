@@ -22,12 +22,17 @@ const itemSchema = z.object({
   metadata: z.any().optional().nullable(),
 });
 
+const paymentMethodSchema = z.enum(['efectivo', 'transferencia', 'cuenta_corriente']);
+
 const invoiceCreateSchema = z.object({
   body: z.object({
     billing_client_id: z.coerce.number().int().positive().optional().nullable(),
+    order_id: z.coerce.number().int().positive().optional().nullable(),
     receiver_snapshot: receiverSnapshotSchema,
     notes: z.string().trim().max(2000).optional().nullable(),
     items: z.array(itemSchema).min(1, 'Debe incluir al menos un ítem'),
+    payment_method: paymentMethodSchema.optional().nullable(),
+    skip_cash_stock_impact: z.boolean().optional().default(false),
   }),
 });
 
@@ -35,9 +40,12 @@ const invoiceUpdateSchema = z.object({
   params: z.object({ id: z.string().regex(/^\d+$/) }),
   body: z.object({
     billing_client_id: z.coerce.number().int().positive().optional().nullable(),
+    order_id: z.coerce.number().int().positive().optional().nullable(),
     receiver_snapshot: receiverSnapshotSchema.optional(),
     notes: z.string().trim().max(2000).optional().nullable(),
     items: z.array(itemSchema).min(1).optional(),
+    payment_method: paymentMethodSchema.optional().nullable(),
+    skip_cash_stock_impact: z.boolean().optional(),
   }),
 });
 

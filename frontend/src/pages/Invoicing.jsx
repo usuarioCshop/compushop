@@ -1,10 +1,11 @@
 import {
-  Badge, Box, Button, Card, CardBody, Center, Container, Divider, FormControl, FormLabel,
+  Badge, Box, Button, Card, CardBody, Center, Checkbox, Container, Divider, FormControl, FormLabel,
   Grid, GridItem, Heading, HStack, IconButton, Input, Modal, ModalBody, ModalCloseButton,
   ModalContent, ModalFooter, ModalHeader, ModalOverlay, Select, SimpleGrid, Spinner, Table,
   TableContainer, Tbody, Td, Text, Textarea, Th, Thead, Tr, VStack, useDisclosure, useToast,
 } from '@chakra-ui/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { FiDownload, FiEdit2, FiEye, FiFileText, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiXCircle, FiCheckCircle } from 'react-icons/fi';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
@@ -35,6 +36,26 @@ function fmtDate(d) { if (!d) return '-'; const dt = new Date(d); return Number.
 const emptyReceiver = { name: '', doc_type: '', doc_number: '', condicion_iva: '', address: '', email: '', phone: '' };
 const emptyItem = () => ({ source_type: 'manual', product_id: null, repair_id: null, description: '', quantity: 1, unit_price: 0, vat_rate: 21, discount: 0 });
 
+function parseMeta(metadata) {
+  if (!metadata) return {};
+  if (typeof metadata === 'object') return metadata;
+  try { return JSON.parse(metadata); } catch { return {}; }
+}
+
+function getStockImpact(it) {
+  const pid = it.product_id ?? parseMeta(it.metadata)?.product_id;
+  const qty = Number(it.quantity || 0);
+  if (!pid || qty <= 0) return { label: 'Sin impacto', color: 'gray', canToggle: false, key: 'none' };
+  const meta = parseMeta(it.metadata);
+  if (it.source_type === 'repair' && meta.kind === 'part') {
+    return { label: 'Ya descontado en servicio técnico', color: 'blue', canToggle: false, key: 'repair_part' };
+  }
+  if (meta.stock_deducted === true || meta.stock_action === 'already_deducted' || meta.stock_action === 'none') {
+    return { label: 'Ya descontado', color: 'purple', canToggle: true, key: 'already' };
+  }
+  return { label: 'Descuenta al emitir', color: 'orange', canToggle: true, key: 'deduct' };
+}
+
 function calcItem(it) {
   const qty = round2(it.quantity || 0);
   const price = round2(it.unit_price || 0);
@@ -55,6 +76,8 @@ function calcTotals(items) {
 
 export default function Invoicing() {
   const toast = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const preloadHandledRef = useRef(false);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ search: '', status: '' });
@@ -74,6 +97,9 @@ export default function Invoicing() {
   const [items, setItems] = useState([emptyItem()]);
   const [notes, setNotes] = useState('');
   const [billingClientId, setBillingClientId] = useState(null);
+  const [orderId, setOrderId] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [skipCashStockImpact, setSkipCashStockImpact] = useState(false);
   const [fiscalForm, setFiscalForm] = useState({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5 });
 
   const inferFiscalFromReceiver = (r, prev = {}) => {
@@ -120,6 +146,56 @@ export default function Invoicing() {
 
   useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
+  useEffect(() => {
+    const oid = searchParams.get('order_id');
+    if (!oid) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/orders/${oid}`);
+        const order = data.order;
+        if (!order || cancelled) return;
+        if (order.status !== 'cobrado') {
+          toast({ title: 'Solo se puede facturar un pedido en estado cobrado', status: 'warning' });
+          return;
+        }
+        setEditingId(null);
+        setOrderId(order.id);
+        setBillingClientId(null);
+        setReceiver({
+          name: order.customer_name || '',
+          doc_type: '',
+          doc_number: '',
+          address: order.shipping_address || '',
+          email: order.customer_email || '',
+          phone: order.customer_phone || '',
+          condicion_iva: '',
+        });
+        setItems((order.items || []).map((it) => ({
+          source_type: it.type === 'product' ? 'product' : 'manual',
+          product_id: it.type === 'product' ? (it.product_id || it.id || null) : null,
+          repair_id: null,
+          description: it.name || '',
+          quantity: Number(it.quantity || 1),
+          unit_price: Number(it.price || 0),
+          vat_rate: 0,
+          discount: 0,
+          metadata: it.type === 'service' ? { order_service_id: it.service_id, order_item_id: it.id } : { order_item_id: it.id },
+        })));
+        setNotes(`Factura generada desde pedido ${order.order_number || order.id}`);
+        setPaymentMethod(order.payment_method || '');
+        setSkipCashStockImpact(true);
+        setFiscalForm(inferFiscalFromReceiver({ name: order.customer_name, address: order.shipping_address, doc_number: '' }, fiscalForm));
+        formDisc.onOpen();
+      } catch (err) {
+        if (!cancelled) toast({ title: err.response?.data?.error || 'No se pudo cargar el pedido para facturar', status: 'error' });
+      } finally {
+        if (!cancelled) setSearchParams((prev) => { const p = new URLSearchParams(prev); p.delete('order_id'); return p; }, { replace: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const totals = useMemo(() => calcTotals(items), [items]);
 
   const openNew = () => {
@@ -128,6 +204,9 @@ export default function Invoicing() {
     setItems([emptyItem()]);
     setNotes('');
     setBillingClientId(null);
+    setOrderId(null);
+    setPaymentMethod('');
+    setSkipCashStockImpact(false);
     setFiscalForm({ cbte_tipo: 6, concepto: 1, docTipo: 99, docNro: '0', condIva: 5 });
     formDisc.onOpen();
   };
@@ -146,6 +225,9 @@ export default function Invoicing() {
       })));
       setNotes(invoice.notes || '');
       setBillingClientId(invoice.billing_client_id || null);
+      setOrderId(invoice.order_id || null);
+      setPaymentMethod(invoice.payment_method || '');
+      setSkipCashStockImpact(!!invoice.skip_cash_stock_impact);
       setFiscalForm(inferFiscalFromReceiver(rs, {
         cbte_tipo: invoice.cbte_tipo || 6,
         concepto: invoice.concepto || 1,
@@ -177,12 +259,18 @@ export default function Invoicing() {
   const saveDraft = async (issueAfter = false) => {
     if (!receiver.name?.trim()) return toast({ title: 'Ingresá el nombre del receptor', status: 'warning' });
     if (!items.length || !items.some((i) => i.description?.trim())) return toast({ title: 'Agregá al menos un ítem con descripción', status: 'warning' });
+    if (issueAfter && !['efectivo', 'transferencia', 'cuenta_corriente'].includes(paymentMethod)) {
+      return toast({ title: 'Seleccioná la forma de cobro para emitir la factura', status: 'warning' });
+    }
     setSaving(true);
     try {
       const payload = {
         billing_client_id: billingClientId,
+        order_id: orderId || null,
         receiver_snapshot: receiver,
         notes,
+        payment_method: paymentMethod || null,
+        skip_cash_stock_impact: !!skipCashStockImpact,
         items: items.map(calcItem).map((i) => ({
           source_type: i.source_type, product_id: i.product_id, repair_id: i.repair_id,
           description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price),
@@ -203,6 +291,8 @@ export default function Invoicing() {
           const { data } = await api.post(`/invoices/${id}/arca-authorize`, {
             cbte_tipo: Number(fiscal.cbte_tipo || 6),
             concepto: Number(fiscal.concepto || 1),
+            payment_method: paymentMethod,
+            skip_cash_stock_impact: !!skipCashStockImpact,
             receptor: {
               docTipo: Number(fiscal.docTipo || 99),
               docNro: String(fiscal.docNro || (Number(fiscal.docTipo) === 99 ? '0' : '')),
@@ -236,7 +326,22 @@ export default function Invoicing() {
 
   const issueInvoice = async (id) => {
     try {
-      await api.post(`/invoices/${id}/issue`);
+      const inv = selected?.id === id ? selected : null;
+      const pm = inv?.payment_method || '';
+      let body = {};
+      if (['efectivo', 'transferencia', 'cuenta_corriente'].includes(pm)) {
+        body.payment_method = pm;
+      } else {
+        const chosen = window.prompt('Forma de cobro (efectivo, transferencia, cuenta_corriente):', 'efectivo');
+        if (!chosen) return;
+        const norm = String(chosen).trim().toLowerCase().replace(/\s+/g, '_');
+        if (!['efectivo', 'transferencia', 'cuenta_corriente'].includes(norm)) {
+          return toast({ title: 'Forma de cobro inválida', status: 'warning' });
+        }
+        body.payment_method = norm;
+      }
+      body.skip_cash_stock_impact = !!inv?.skip_cash_stock_impact;
+      await api.post(`/invoices/${id}/issue`, body);
       toast({ title: 'Factura emitida', status: 'success' });
       loadInvoices(); detailDisc.onClose();
     } catch (err) { toast({ title: err.response?.data?.error || 'Error al emitir', status: 'error' }); }
@@ -253,11 +358,17 @@ export default function Invoicing() {
 
   const authorizeArca = async () => {
     if (!selected) return;
+    const pm = selected.payment_method || '';
+    if (!['efectivo', 'transferencia', 'cuenta_corriente'].includes(pm)) {
+      return toast({ title: 'La factura debe tener forma de cobro. Editá el borrador y seleccionála.', status: 'warning' });
+    }
     setArcaLoading(true);
     try {
       const payload = {
         cbte_tipo: Number(arcaForm.cbte_tipo),
         concepto: Number(arcaForm.concepto),
+        payment_method: pm,
+        skip_cash_stock_impact: !!selected.skip_cash_stock_impact,
         receptor: {
           docTipo: Number(arcaForm.docTipo),
           docNro: String(arcaForm.docNro || '0'),
@@ -340,12 +451,45 @@ export default function Invoicing() {
   const addRepairItems = async (id) => {
     try {
       const { data } = await api.get(`/invoices/preload/repair/${id}`);
+      if (data.already_invoiced?.length) {
+        const refs = data.already_invoiced.map((i) => `#${i.number || i.id}`).join(', ');
+        const ok = window.confirm(`Esta reparación ya tiene comprobante(s) emitido(s): ${refs}. Agregarla puede generar doble facturación. ¿Continuar de todas formas?`);
+        if (!ok) return;
+      }
       setItems((prev) => [...prev.filter((i) => i.description?.trim() || prev.length === 1), ...(data.items || [])]);
       if (data.receiver?.name) {
-        setReceiver((r) => ({ ...r, ...Object.fromEntries(Object.entries(data.receiver).filter(([, v]) => v)) }));
+        const next = { ...receiver, ...Object.fromEntries(Object.entries(data.receiver).filter(([, v]) => v)) };
+        setReceiver(next);
+        setFiscalForm((prev) => inferFiscalFromReceiver(next, prev));
       }
-    } catch { toast({ title: 'No se pudo precargar la reparación', status: 'error' }); }
+      return data;
+    } catch {
+      toast({ title: 'No se pudo precargar la reparación', status: 'error' });
+      return null;
+    }
   };
+
+  useEffect(() => {
+    const repairId = searchParams.get('preloadRepair');
+    if (!repairId || preloadHandledRef.current) return;
+    preloadHandledRef.current = true;
+    (async () => {
+      openNew();
+      const data = await addRepairItems(repairId);
+      if (data?.receiver) {
+        const next = {
+          name: data.receiver.name || '', doc_type: data.receiver.doc_type || '', doc_number: data.receiver.doc_number || '',
+          condicion_iva: data.receiver.condicion_iva || '', address: data.receiver.address || '', email: data.receiver.email || '',
+          phone: data.receiver.phone || '',
+        };
+        setReceiver((prev) => ({ ...prev, ...next }));
+        setFiscalForm((prev) => inferFiscalFromReceiver(next, prev));
+      }
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('preloadRepair');
+      setSearchParams(nextParams, { replace: true });
+    })();
+  }, [searchParams, setSearchParams]);
 
   const updateItem = (idx, field, value) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, [field]: value } : it)));
@@ -454,6 +598,9 @@ export default function Invoicing() {
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                   <Box><Text fontWeight="semibold">Emisor</Text><Text fontSize="sm">{selected.issuer_snapshot?.razon_social || '-'}</Text><Text fontSize="sm">CUIT: {selected.issuer_snapshot?.cuit || '-'}</Text></Box>
                   <Box><Text fontWeight="semibold">Receptor</Text><Text fontSize="sm">{selected.receiver_snapshot?.name || '-'}</Text><Text fontSize="sm">{selected.receiver_snapshot?.doc_type} {selected.receiver_snapshot?.doc_number}</Text></Box>
+                  <Box><Text fontWeight="semibold">Forma de cobro (Caja)</Text><Text fontSize="sm">{selected.payment_method === 'efectivo' ? 'Efectivo' : selected.payment_method === 'transferencia' ? 'Transferencia' : selected.payment_method === 'cuenta_corriente' ? 'Cuenta corriente' : '-'}</Text></Box>
+                  <Box><Text fontWeight="semibold">Impacto caja/stock</Text><Text fontSize="sm" color={selected.skip_cash_stock_impact ? 'orange.500' : 'fg.muted'}>{selected.skip_cash_stock_impact ? 'No afecta caja/stock (ya cobrado/registrado)' : 'Afecta caja/stock normalmente'}</Text></Box>
+                  {selected.order_id && <Box><Text fontWeight="semibold">Pedido vinculado</Text><Text fontSize="sm">#{selected.order_id}</Text></Box>}
                 </SimpleGrid>
                 <TableContainer>
                   <Table size="sm"><Thead><Tr><Th>Descripción</Th><Th isNumeric>Cant.</Th><Th isNumeric>P. Unit.</Th><Th isNumeric>IVA %</Th><Th isNumeric>Total</Th></Tr></Thead>
@@ -696,6 +843,27 @@ export default function Invoicing() {
               </CardBody></Card>
 
               <Card variant="outline"><CardBody>
+                <Heading size="sm" mb={3}>Cobro (Caja)</Heading>
+                <FormControl maxW="360px" isRequired={false}>
+                  <FormLabel>Forma de cobro</FormLabel>
+                  <Select placeholder="Seleccionar forma de cobro" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                    <option value="efectivo">Efectivo (se acredita al emitir)</option>
+                    <option value="transferencia">Transferencia (pendiente de verificación bancaria)</option>
+                    <option value="cuenta_corriente">Cuenta corriente (pendiente de cobro)</option>
+                  </Select>
+                  <Text fontSize="xs" color="fg.muted" mt={1}>Requerida para emitir/autorizar la factura y generar el movimiento en Caja.</Text>
+                </FormControl>
+                <Checkbox mt={3} isChecked={skipCashStockImpact} onChange={(e) => setSkipCashStockImpact(e.target.checked)}>
+                  No afectar caja/stock (ya cobrado/registrado)
+                </Checkbox>
+                {skipCashStockImpact && (
+                  <Text fontSize="xs" color="orange.500" mt={1}>
+                    Esta factura no descontará stock ni generará/corregirá movimientos de Caja al emitir o anular.
+                  </Text>
+                )}
+              </CardBody></Card>
+
+              <Card variant="outline"><CardBody>
                 <Heading size="sm" mb={3}>Agregar ítems</Heading>
                 <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={4}>
                   <Box>
@@ -725,14 +893,37 @@ export default function Invoicing() {
 
                 <TableContainer>
                   <Table size="sm">
-                    <Thead><Tr><Th>Origen</Th><Th minW="260px">Descripción</Th><Th isNumeric>Cant.</Th><Th isNumeric>P. Unit.</Th><Th isNumeric>IVA %</Th><Th isNumeric>Dto.</Th><Th isNumeric>Total</Th><Th></Th></Tr></Thead>
+                    <Thead><Tr><Th>Origen</Th><Th minW="240px">Descripción</Th><Th>Impacto stock</Th><Th isNumeric>Cant.</Th><Th isNumeric>P. Unit.</Th><Th isNumeric>IVA %</Th><Th isNumeric>Dto.</Th><Th isNumeric>Total</Th><Th></Th></Tr></Thead>
                     <Tbody>
                       {items.map((it, idx) => {
                         const c = calcItem(it);
+                        const impact = skipCashStockImpact
+                          ? { label: 'SIN CAMBIO', color: 'gray', canToggle: false, key: 'skip' }
+                          : getStockImpact(it);
                         return (
                           <Tr key={idx}>
                             <Td><Badge>{it.source_type}</Badge></Td>
                             <Td><Input size="sm" value={it.description} onChange={(e) => updateItem(idx, 'description', e.target.value)} /></Td>
+                            <Td>
+                              <VStack align="start" spacing={1}>
+                                <Badge colorScheme={impact.color}>{impact.label}</Badge>
+                                {impact.canToggle && (
+                                  <Button size="xs" variant="link" onClick={() => {
+                                    const meta = { ...parseMeta(it.metadata) };
+                                    if (impact.key === 'deduct') {
+                                      meta.stock_deducted = true;
+                                      meta.stock_action = 'already_deducted';
+                                    } else {
+                                      delete meta.stock_deducted;
+                                      delete meta.stock_action;
+                                    }
+                                    updateItem(idx, 'metadata', meta);
+                                  }}>
+                                    {impact.key === 'deduct' ? 'Marcar ya descontado' : 'Descontar al emitir'}
+                                  </Button>
+                                )}
+                              </VStack>
+                            </Td>
                             <Td isNumeric><Input size="sm" type="number" min={0} step="0.01" w="80px" value={it.quantity} onChange={(e) => updateItem(idx, 'quantity', e.target.value)} /></Td>
                             <Td isNumeric><Input size="sm" type="number" min={0} step="0.01" w="110px" value={it.unit_price} onChange={(e) => updateItem(idx, 'unit_price', e.target.value)} /></Td>
                             <Td isNumeric><Input size="sm" type="number" min={0} max={100} step="0.01" w="80px" value={it.vat_rate} onChange={(e) => updateItem(idx, 'vat_rate', e.target.value)} /></Td>
@@ -745,6 +936,7 @@ export default function Invoicing() {
                     </Tbody>
                   </Table>
                 </TableContainer>
+                <Text mt={2} fontSize="xs" color="fg.muted">Stock: los productos se descuentan al emitir/facturar, salvo repuestos ya consumidos en servicio técnico o ítems marcados como ya descontados (ej. compra online pagada con transferencia).</Text>
 
                 <Box mt={4} alignSelf="flex-end" ml="auto" maxW="320px">
                   <HStack justify="space-between"><Text>Subtotal</Text><Text>{money(totals.subtotal)}</Text></HStack>

@@ -34,8 +34,21 @@ const repairCatalogsCtrl = require('../controllers/repairCatalogsController');
 const repairClientsCtrl = require('../controllers/repairClientsController');
 const billingClientsCtrl = require('../controllers/billingClientsController');
 const invoicesCtrl = require('../controllers/invoicesController');
+const cashCtrl = require('../controllers/cashController');
 const { billingClientSchema, billingClientUpdateSchema } = require('../validations/billingClients');
 const { invoiceCreateSchema, invoiceUpdateSchema, invoiceIdSchema, invoiceVoidSchema } = require('../validations/invoices');
+const {
+  openSessionSchema,
+  closeSessionSchema,
+  sessionIdSchema,
+  createCategorySchema,
+  updateCategorySchema,
+  createMovementSchema,
+  updateExpenseSchema,
+  movementIdSchema,
+  voidMovementSchema,
+  confirmMovementSchema,
+} = require('../validations/cash');
 
 const IS_VERCEL = !!process.env.VERCEL;
 const { uploadsDir: uploadDir } = require('../utils/uploads');
@@ -103,6 +116,7 @@ router.delete('/categories/:id', authenticate, requireAdmin, categoriesCtrl.remo
 
 // ========== PRODUCTS ==========
 router.get('/products', productsCtrl.getAll);
+router.get('/products/export', authenticate, requireAdmin, productsCtrl.exportProducts);
 router.post('/products/update-prices', authenticate, requireAdmin, productsCtrl.updatePricesByCost);
 router.post('/products/import', authenticate, requireAdmin, upload.single('file'), productsCtrl.importProducts);
 router.post('/products', authenticate, requireAdmin, productsCtrl.create);
@@ -120,6 +134,8 @@ router.delete('/services/:id', authenticate, requireAdmin, servicesCtrl.remove);
 // ========== ORDERS ==========
 router.post('/orders', optionalAuth, ordersCtrl.create);
 router.get('/orders', authenticate, ordersCtrl.getAll);
+router.get('/orders/pending-count', authenticate, requireAdmin, ordersCtrl.getPendingCount);
+router.post('/orders/:id/void-invoice', authenticate, requireAdmin, ordersCtrl.voidLinkedInvoice);
 router.get('/orders/:id', authenticate, ordersCtrl.getOne);
 router.put('/orders/:id/status', authenticate, requireAdmin, ordersCtrl.updateStatus);
 
@@ -134,9 +150,11 @@ router.get('/technical-repairs', authenticate, requireTecnico, validate(technica
 router.post('/technical-repairs', authenticate, requireTecnico, validate(technicalRepairCreateSchema), technicalRepairsCtrl.create);
 router.get('/technical-repairs/next-ticket', authenticate, requireTecnico, technicalRepairsCtrl.getNextTicket);
 router.get('/technical-repairs/technicians', authenticate, requireTecnico, technicalRepairsCtrl.getTechnicians);
+router.post('/technical-repairs/technicians', authenticate, requireTecnico, technicalRepairsCtrl.createTechnician);
 router.get('/technical-repairs/export', authenticate, requireTecnico, validate(technicalRepairQuerySchema), technicalRepairsCtrl.exportCsv);
 router.get('/technical-repairs/stats', authenticate, requireTecnico, technicalRepairsCtrl.getStats);
 router.get('/technical-repairs/parts-catalog', authenticate, requireTecnico, validate(technicalPartsCatalogQuerySchema), technicalRepairsCtrl.getPartsCatalog);
+router.post('/technical-repairs/parts-catalog', authenticate, requireTecnico, technicalRepairsCtrl.createPartProduct);
 router.get('/technical-repairs/reports/export', authenticate, requireTecnico, validate(technicalReportQuerySchema), technicalRepairsCtrl.exportReportCsv);
 router.get('/technical-repairs/reports', authenticate, requireTecnico, validate(technicalReportQuerySchema), technicalRepairsCtrl.getReport);
 router.get('/technical-repairs/:id', authenticate, requireTecnico, validate(technicalRepairIdSchema), technicalRepairsCtrl.getOne);
@@ -259,6 +277,25 @@ router.get('/health', async (req, res) => {
     res.status(503).json({ status: 'error', db: 'disconnected' });
   }
 });
+
+// ========== CASH (Caja, admin/superadmin) ==========
+router.get('/cash/session/current', authenticate, requireAdmin, cashCtrl.getCurrentSession);
+router.get('/cash/sessions', authenticate, requireAdmin, cashCtrl.listSessions);
+router.post('/cash/sessions/open', authenticate, requireAdmin, validate(openSessionSchema), cashCtrl.openSession);
+router.post('/cash/sessions/:id/close', authenticate, requireAdmin, validate(closeSessionSchema), cashCtrl.closeSession);
+
+router.get('/cash/categories', authenticate, requireAdmin, cashCtrl.listCategories);
+router.post('/cash/categories', authenticate, requireAdmin, validate(createCategorySchema), cashCtrl.createCategory);
+router.put('/cash/categories/:id', authenticate, requireAdmin, validate(updateCategorySchema), cashCtrl.updateCategory);
+
+router.get('/cash/movements', authenticate, requireAdmin, cashCtrl.listMovements);
+router.post('/cash/movements', authenticate, requireAdmin, validate(createMovementSchema), cashCtrl.createMovement);
+router.put('/cash/movements/:id', authenticate, requireAdmin, validate(updateExpenseSchema), cashCtrl.updateMovement);
+router.post('/cash/movements/:id/void', authenticate, requireAdmin, validate(voidMovementSchema), cashCtrl.voidMovement);
+router.post('/cash/movements/:id/confirm', authenticate, requireAdmin, validate(confirmMovementSchema), cashCtrl.confirmMovement);
+router.delete('/cash/movements/:id', authenticate, requireAdmin, validate(movementIdSchema), cashCtrl.deleteMovement);
+
+router.get('/cash/summary', authenticate, requireAdmin, cashCtrl.getSummary);
 
 
 // ========== BILLING CLIENTS (facturación) ==========

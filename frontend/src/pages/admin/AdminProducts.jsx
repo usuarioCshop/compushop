@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box, Heading, Button, Table, Thead, Tbody, Tr, Th, Td, IconButton, useToast, useDisclosure,
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, FormControl, FormLabel,
+  Checkbox,
   Input, Textarea, NumberInput, NumberInputField, Select, Switch, HStack, Spinner, Center, Badge,
   VStack, Text, List, ListItem, Image,
 } from '@chakra-ui/react';
-import { FiPlus, FiEdit, FiTrash2, FiUpload, FiSearch } from 'react-icons/fi';
+import { FiPlus, FiEdit, FiTrash2, FiUpload, FiSearch, FiDownload } from 'react-icons/fi';
 import api from '../../api/client';
 import { resolveUploadUrl } from '../../api/uploads';
 
@@ -28,9 +30,13 @@ export default function AdminProducts() {
   const [filterCat, setFilterCat] = useState('');
   const [filterBrand, setFilterBrand] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterNoImage, setFilterNoImage] = useState(false);
+  const [filterNoStock, setFilterNoStock] = useState(false);
   const [settings, setSettings] = useState({});
   const toast = useToast();
   const bg = 'bg.surface';
+  const [searchParams, setSearchParams] = useSearchParams();
+  const editHandledRef = useRef(false);
 
   useEffect(() => {
     api.get('/settings').then(r => setSettings(r.data.settings || {})).catch(() => {});
@@ -175,8 +181,53 @@ export default function AdminProducts() {
     const matchSearch = term
       ? (p.name?.toLowerCase().includes(term) || p.brand?.toLowerCase().includes(term) || p.slug?.toLowerCase().includes(term))
       : true;
-    return matchCat && matchBrand && matchSearch;
+    const hasImage = Boolean(p.image && String(p.image).trim());
+    const matchNoImage = filterNoImage ? !hasImage : true;
+    const matchNoStock = filterNoStock ? Number(p.stock || 0) <= 0 : true;
+    return matchCat && matchBrand && matchSearch && matchNoImage && matchNoStock;
   });
+
+  const exportProducts = async () => {
+    try {
+      const params = { active: 'all' };
+      if (filterCat) {
+        const cat = categories.find((c) => String(c.id) === String(filterCat));
+        if (cat?.slug) params.category = cat.slug;
+      }
+      if (searchTerm.trim()) params.search = searchTerm.trim();
+      if (filterBrand) params.brand = filterBrand;
+      if (filterNoImage) params.no_image = '1';
+      if (filterNoStock) params.no_stock = '1';
+      const response = await api.get('/products/export', { params, responseType: 'blob' });
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `productos-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'Exportación iniciada', status: 'success', duration: 3000 });
+    } catch (err) {
+      toast({ title: 'Error al exportar', description: err.response?.data?.error || err.message, status: 'error' });
+    }
+  };
+
+  useEffect(() => {
+    const editIdParam = searchParams.get('edit');
+    if (!editIdParam || editHandledRef.current || loading) return;
+    const product = products.find((p) => String(p.id) === String(editIdParam));
+    if (product) {
+      editHandledRef.current = true;
+      openEdit(product);
+      const next = new URLSearchParams(searchParams);
+      next.delete('edit');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, products, loading]);
 
   if (loading) return <Center py={10}><Spinner color="brand.500" /></Center>;
 
@@ -186,11 +237,12 @@ export default function AdminProducts() {
         <Heading size="lg" fontWeight="700" letterSpacing="-0.02em">Productos</Heading>
         <HStack>
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" hidden onChange={onSelectFile} />
+          <Button leftIcon={<FiDownload />} variant="outline" onClick={exportProducts}>Exportar</Button>
           <Button leftIcon={<FiUpload />} variant="outline" onClick={() => fileRef.current?.click()} isLoading={importing}>Importar Productos</Button>
           <Button leftIcon={<FiPlus />} colorScheme="brand" onClick={openCreate} borderRadius="full">Nuevo</Button>
         </HStack>
       </HStack>
-      <HStack mb={4} flexWrap="wrap" gap={3}>
+      <HStack mb={4} flexWrap="wrap" gap={3} align="center">
         <HStack maxW="320px" w="full">
           <Input placeholder="Buscar por nombre, marca o slug..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} bg={bg} />
         </HStack>
@@ -200,6 +252,8 @@ export default function AdminProducts() {
         <Select maxW="240px" placeholder="Todas las marcas" value={filterBrand} onChange={(e) => setFilterBrand(e.target.value)} bg={bg}>
           {brands.map((b) => <option key={b} value={b}>{b}</option>)}
         </Select>
+        <Checkbox isChecked={filterNoImage} onChange={(e) => setFilterNoImage(e.target.checked)}>Sin imágenes</Checkbox>
+        <Checkbox isChecked={filterNoStock} onChange={(e) => setFilterNoStock(e.target.checked)}>Sin stock</Checkbox>
         <Text fontSize="sm" color="fg.muted">Mostrando {filtered.length} de {products.length}</Text>
       </HStack>
       <Box bg={bg} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" overflowX="auto">

@@ -1,5 +1,6 @@
 const db = require('../db/database');
 const { v4: uuidv4 } = require('uuid');
+const { syncOrderCashMovement, getOpenSession, isStaleOpenSession, voidMovementByOrigin } = require('./cashController');
 
 function generateOrderNumber() {
   const date = new Date();
@@ -61,7 +62,7 @@ async function create(req, res) {
     const orderId = await db.transaction(async (tx) => {
       const insertedOrder = await tx.prepare(`
         INSERT INTO orders (order_number, status, total, shipping_address, notes, customer_name, customer_email, customer_phone, user_id, payment_method, payment_receipt_url, payment_receipt_pending)
-        VALUES ($1, 'confirmed', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, 'confirmado', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING id
       `).run(orderNumber, total, shipping_address || null, notes || null, customer_name, customer_email, customer_phone || null, userId, payment_method, receiptUrl, receiptPending);
 
@@ -185,7 +186,7 @@ async function updateStatus(req, res) {
     const { id } = req.params;
     const { status } = req.body;
 
-    const valid = ['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
+    const valid = ['pendiente', 'confirmado', 'preparando', 'enviado', 'cobrado', 'cancelado', 'facturado'];
     if (!valid.includes(status)) {
       return res.status(400).json({ error: 'Estado inválido' });
     }
@@ -201,16 +202,24 @@ async function updateStatus(req, res) {
       return res.json({ message: 'Estado actualizado', order });
     }
 
+    // facturado/cancelado desde facturado se gestionan por flujo de facturación/anulación.
+    if (order.status === 'facturado') {
+      return res.status(409).json({ error: 'Un pedido facturado no permite cambios manuales de estado' });
+    }
+    if (status === 'facturado') {
+      return res.status(409).json({ error: 'El estado facturado se asigna al emitir la factura del pedido' });
+    }
+
     // Transferencia/legado: el stock se descuenta al crear y se ajusta al cancelar/reabrir.
-    // Efectivo: no se descuenta al crear; se descuenta al pasar a "delivered" y se devuelve
-    // si un pedido entregado se cancela.
+    // Efectivo: no se descuenta al crear; se descuenta al pasar a "cobrado" y se devuelve
+    // si un pedido cobrado se cancela.
     const isEfectivo = order.payment_method === 'efectivo';
     const doDecrement = isEfectivo
-      ? (status === 'delivered' && order.status !== 'delivered')
-      : (order.status === 'cancelled' && status !== 'cancelled');
+      ? (status === 'cobrado' && order.status !== 'cobrado')
+      : (order.status === 'cancelado' && status !== 'cancelado');
     const doRestore = isEfectivo
-      ? (order.status === 'delivered' && status === 'cancelled')
-      : (status === 'cancelled' && order.status !== 'cancelled');
+      ? (order.status === 'cobrado' && status === 'cancelado')
+      : (status === 'cancelado' && order.status !== 'cancelado');
 
     const updated = await db.transaction(async (tx) => {
       // Compare-and-swap sobre el estado anterior: dos admins cambiando a la
@@ -250,7 +259,9 @@ async function updateStatus(req, res) {
         }
       }
 
-      return tx.prepare('SELECT * FROM orders WHERE id = $1').get(id);
+      const updatedOrder = await tx.prepare('SELECT * FROM orders WHERE id = $1').get(id);
+      await syncOrderCashMovement(tx, updatedOrder, { created_by: req.user?.id || null });
+      return updatedOrder;
     });
 
     res.json({ message: 'Estado actualizado', order: updated });
@@ -268,4 +279,133 @@ async function updateStatus(req, res) {
   }
 }
 
-module.exports = { create, getAll, getOne, updateStatus };
+// GET /api/orders/pending-count (admin) - contador para notificaciones navbar
+async function getPendingCount(req, res) {
+  try {
+    // D-3 (supuesto): pendientes/nuevos = pendiente, confirmado
+    const row = await db.prepare(`
+      SELECT COUNT(*)::int AS count
+      FROM orders
+      WHERE status IN ('pendiente', 'confirmado')
+    `).get();
+    res.json({ count: row?.count || 0 });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener pedidos pendientes' });
+  }
+}
+
+// POST /api/orders/:id/void-invoice (admin) - anula factura vinculada al pedido facturado
+async function voidLinkedInvoice(req, res) {
+  try {
+    const orderId = Number(req.params.id);
+    const reason = (req.body?.reason || '').trim();
+    const result = await db.transaction(async (tx) => {
+      const order = await tx.prepare('SELECT * FROM orders WHERE id = $1 FOR UPDATE').get(orderId);
+      if (!order) { const e = new Error('Pedido no encontrado'); e.httpStatus = 404; throw e; }
+      if (order.status !== 'facturado') {
+        const e = new Error('Solo se puede anular la factura desde un pedido en estado facturado');
+        e.httpStatus = 409; throw e;
+      }
+
+      const invoice = await tx.prepare(`
+        SELECT * FROM invoices
+        WHERE order_id = $1 AND status = 'emitida'
+        ORDER BY id DESC LIMIT 1
+        FOR UPDATE
+      `).get(orderId);
+      if (!invoice) {
+        const e = new Error('No se encontró una factura emitida vinculada a este pedido');
+        e.httpStatus = 404; throw e;
+      }
+
+      // Movimiento de caja original del pedido (creado al cobrar)
+      const originalMovement = await tx.prepare(`
+        SELECT * FROM cash_movements
+        WHERE movement_type = 'ingreso' AND origin_type = 'pedido' AND origin_id = $1 AND status <> 'anulado'
+        ORDER BY id DESC LIMIT 1
+        FOR UPDATE
+      `).get(orderId);
+
+      let cashAction = 'none';
+      let compensatingMovement = null;
+
+      if (originalMovement) {
+        const originalSession = originalMovement.cash_session_id
+          ? await tx.prepare('SELECT * FROM cash_sessions WHERE id = $1').get(originalMovement.cash_session_id)
+          : null;
+        const sameDayOpen = originalSession && originalSession.status === 'abierta';
+
+        if (sameDayOpen) {
+          await voidMovementByOrigin(tx, 'pedido', orderId, {
+            reason: reason || `Anulación factura pedido ${order.order_number || orderId}`,
+            voided_by: req.user?.id || null,
+          });
+          cashAction = 'voided_original';
+        } else {
+          const todayOpen = await getOpenSession(tx);
+          if (!todayOpen || isStaleOpenSession(todayOpen)) {
+            const e = new Error('Abrí caja para registrar el egreso compensatorio antes de anular esta factura.');
+            e.httpStatus = 409; throw e;
+          }
+          // egreso compensatorio en caja de hoy
+          const cat = await tx.prepare("SELECT id FROM cash_categories WHERE lower(btrim(name)) = 'otros' AND is_active = true ORDER BY id LIMIT 1").get()
+            || await tx.prepare('SELECT id FROM cash_categories WHERE is_active = true ORDER BY id LIMIT 1').get();
+          if (!cat) { const e = new Error('No hay categoría de egreso disponible para el egreso compensatorio'); e.httpStatus = 400; throw e; }
+
+          const pm = ['efectivo', 'transferencia', 'otro'].includes(originalMovement.payment_method)
+            ? originalMovement.payment_method : 'efectivo';
+          const cobradoDate = String(originalMovement.movement_date || order.created_at || '').slice(0, 10);
+          const concept = `Anulación pedido ${order.order_number || orderId} (cobrado el ${cobradoDate || 'fecha original'})`;
+          const todayYmd = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+          const amount = Math.round((Number(originalMovement.amount || 0) + Number.EPSILON) * 100) / 100;
+          const ins = await tx.prepare(`
+            INSERT INTO cash_movements (
+              movement_type, origin_type, origin_id, cash_session_id, movement_date, amount, status,
+              payment_method, description, category_id, reference, notes, created_by
+            ) VALUES ('egreso','egreso_manual',NULL,$1,$2,$3,'registrado',$4,$5,$6,$7,$8,$9)
+            RETURNING *
+          `).run(todayOpen.id, todayYmd, amount, pm, concept, cat.id, order.order_number || String(orderId), reason || null, req.user?.id || null);
+          compensatingMovement = ins.rows ? ins.rows[0] : null;
+
+          // marcar original como anulado/compensado (no recalcula sesiones cerradas)
+          await tx.prepare(`
+            UPDATE cash_movements
+            SET status = 'anulado', voided_at = now(), voided_by = $1, void_reason = $2, accredited_at = NULL, accredited_by = NULL
+            WHERE id = $3
+          `).run(req.user?.id || null, `Compensado por egreso ${compensatingMovement?.id || ''} en caja ${todayYmd}`, originalMovement.id);
+          cashAction = 'compensated';
+        }
+      }
+
+      // Anular factura (sin tocar caja/stock por el flag; nosotros manejamos stock/caja del pedido)
+      await tx.prepare(`
+        UPDATE invoices SET status = 'anulada', voided_at = now(), void_reason = $1, voided_by = $2
+        WHERE id = $3
+      `).run(reason || `Anulación desde pedido ${order.order_number || orderId}`, req.user?.id || null, invoice.id);
+
+      // Reponer stock del pedido (se descontó al cobrar)
+      const items = await tx.prepare(
+        "SELECT product_id, quantity FROM order_items WHERE order_id = $1 AND type = 'product' AND product_id IS NOT NULL"
+      ).all(orderId);
+      for (const item of items) {
+        await tx.prepare('UPDATE products SET stock = stock + $1 WHERE id = $2').run(item.quantity, item.product_id);
+      }
+
+      // Pedido a cancelado
+      const updatedOrder = await tx.prepare(
+        "UPDATE orders SET status = 'cancelado' WHERE id = $1 RETURNING *"
+      ).get(orderId);
+
+      return { order: updatedOrder, invoiceId: invoice.id, cashAction, compensatingMovementId: compensatingMovement?.id || null };
+    });
+
+    res.json({ message: 'Factura anulada y pedido cancelado', ...result });
+  } catch (error) {
+    console.error(error);
+    if (error.httpStatus) return res.status(error.httpStatus).json({ error: error.message });
+    res.status(500).json({ error: 'Error al anular factura del pedido' });
+  }
+}
+
+module.exports = { create, getAll, getOne, updateStatus, getPendingCount, voidLinkedInvoice };

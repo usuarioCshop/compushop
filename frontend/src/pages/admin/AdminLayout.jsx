@@ -3,7 +3,7 @@ import {
   Box, Flex, VStack, Text, Button, Container, Heading, Icon,
 } from '@chakra-ui/react';
 import {
-  FiHome, FiPackage, FiTool, FiShoppingBag, FiUsers, FiMail, FiSettings, FiArrowLeft,
+  FiHome, FiPackage, FiTool, FiShoppingBag, FiUsers, FiMail, FiSettings, FiArrowLeft, FiDollarSign,
 } from 'react-icons/fi';
 
 const links = [
@@ -11,6 +11,7 @@ const links = [
   { to: '/admin/productos', label: 'Productos', icon: FiPackage },
   { to: '/admin/servicios', label: 'Servicios', icon: FiTool },
   { to: '/admin/pedidos', label: 'Pedidos', icon: FiShoppingBag },
+  { to: '/admin/caja', label: 'Caja', icon: FiDollarSign },
   { to: '/admin/usuarios', label: 'Usuarios', icon: FiUsers },
   { to: '/admin/mensajes', label: 'Mensajes', icon: FiMail },
   { to: '/admin/configuracion', label: 'Configuración', icon: FiSettings },

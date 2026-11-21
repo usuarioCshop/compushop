@@ -39,12 +39,14 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FiChevronDown,
   FiChevronUp,
   FiClipboard,
   FiDownload,
   FiEdit,
+  FiFileText,
   FiRefreshCw,
   FiSearch,
   FiTrash2,
@@ -68,6 +70,7 @@ import {
 // Listado historico de boletas con filtros, detalle, exportacion y acciones.
 export default function HistoricoTab({ onChanged, onEdit }) {
   const toast = useToast();
+  const navigate = useNavigate();
   const [repairs, setRepairs] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
@@ -368,6 +371,18 @@ export default function HistoricoTab({ onChanged, onEdit }) {
                           </Td>
                           <Td>
                             <HStack spacing={1}>
+                              <IconButton
+                                aria-label="Facturar servicio"
+                                icon={<FiFileText />}
+                                size="sm"
+                                variant="ghost"
+                                colorScheme="green"
+                                title="Facturar servicio"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/facturacion?preloadRepair=${r.id}`);
+                                }}
+                              />
                               <IconButton
                                 aria-label="Editar"
                                 icon={<FiEdit />}
