@@ -20,7 +20,7 @@ Cuando el usuario diga **"hasta mañana"**:
 Cuando el usuario diga **"buen día"**:
 
 1. **Ubicación y git:** trabajar en `/mnt/d/2026/aplicacion negocio/compushop`; verificar `git branch --show-current`, `git status --short` y (si aporta) `git log --oneline -5`.
-2. **Recuperar contexto (Engram):** usar `mem_context`/`mem_search` para el proyecto `compushop` y revisar el ODD/tarea activa (actualmente `odd/tasks/caja-mejoras1.md`: Sección 1 OK, pendientes Secciones 2–4 y T10 — vista/listado dedicado de ingresos pendientes con confirmación por botón, opción A).
+2. **Recuperar contexto (Engram):** usar `mem_context`/`mem_search` para el proyecto `compushop` y revisar el ODD/tarea activa (`odd/tasks/caja-mejoras1.md`, S10/T11-T15: implementado y commit `1343d73` en `test` pusheado; migraciones 018-021 aplicadas en prod; pendiente validación manual T14 — anulación factura desde pedido con 3 escenarios de caja — y resto de Sección 3/4 según checklist).
 3. **Prerrequisitos (sin leer secretos):** confirmar `backend/node_modules` y `frontend/node_modules`; recordar que backend requiere `.env` con `DATABASE_URL` (BD de prueba/local para validación) y que migraciones deben estar al día (`npm run migrate`/`migrate:status` si hace falta).
 4. **Levantar entorno (manual, en terminales del usuario):**
    - Backend: `cd backend && npm run dev` (puerto 4000).

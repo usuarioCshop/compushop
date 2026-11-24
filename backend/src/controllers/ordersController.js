@@ -1,6 +1,7 @@
 const db = require('../db/database');
 const { v4: uuidv4 } = require('uuid');
 const { syncOrderCashMovement, getOpenSession, isStaleOpenSession, voidMovementByOrigin } = require('./cashController');
+const { restoreRepairsStatusIfLinked } = require('./invoicesController');
 
 function generateOrderNumber() {
   const date = new Date();
@@ -383,6 +384,7 @@ async function voidLinkedInvoice(req, res) {
         UPDATE invoices SET status = 'anulada', voided_at = now(), void_reason = $1, voided_by = $2
         WHERE id = $3
       `).run(reason || `Anulación desde pedido ${order.order_number || orderId}`, req.user?.id || null, invoice.id);
+      await restoreRepairsStatusIfLinked(tx, { id: invoice.id });
 
       // Reponer stock del pedido (se descontó al cobrar)
       const items = await tx.prepare(

@@ -363,6 +363,7 @@ export default function ReparacionTab({ onChanged }) {
                     <Select
                       value={form.status}
                       onChange={(event) => setForm({ ...form, status: event.target.value })}
+                      isDisabled={form.status === 'facturado'}
                     >
                       {statuses.map((item) => (
                         <option key={item.id || item.name} value={item.name}>
@@ -370,6 +371,11 @@ export default function ReparacionTab({ onChanged }) {
                         </option>
                       ))}
                     </Select>
+                    {form.status === 'facturado' && (
+                      <Text fontSize="xs" color="fg.muted" mt={1}>
+                        La reparación está facturada. Para cambiar el estado, anulá la factura vinculada.
+                      </Text>
+                    )}
                   </FormControl>
                   <FormControl>
                     <FormLabel>Técnico asignado</FormLabel>
