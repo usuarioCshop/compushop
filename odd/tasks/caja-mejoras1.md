@@ -35,7 +35,7 @@
 - [x] T12 (S10) | S10 | inline | Opción general factura “No afectar caja/stock” (flag persistido `skip_cash_stock_impact`, migración 020, UI, emisión/ARCA/void respetan flag). **Implementado, pendiente validación usuario.**
 - [x] T13 (S10) | S10 | inline | Flujo facturar desde pedido `cobrado`: precarga factura con `order_id`, flag premarcado, emisión OK pasa pedido a `facturado`, deshabilita cambios manuales en `facturado` (migración 021). **Implementado, pendiente validación usuario.**
 - [x] T14 (S10) | S10 | inline | Anular factura desde pedido: endpoint `POST /orders/:id/void-invoice`, pedido a `cancelado`, repone stock, corrección caja misma-sesión/compensatorio/bloqueo. **Validado OK por el usuario.**
-- [ ] T15 (S10) | S10 | inline | Validación técnica OK (`node --check`, `vite build`, migraciones 019-021 aplicadas en BD test). Checklist manual Sección 3/T11-T14 pendiente usuario.
+- [x] T15 (S10) | S10 | inline | Validación técnica OK (`node --check`, `vite build`, migraciones 019-021 aplicadas en BD test). Checklist manual Sección 3/4 y T14 validado OK por usuario.
 
 ## Log
 L1 (2026-11-19): inicio Punto 0 (Bloque 3 Caja) a pedido del usuario. Rama `caja` creada desde `origin/dev2` (HEAD `6597f9d`).
@@ -233,3 +233,5 @@ L38 (2026-11-24): Sección 3 Factura emitir/anular/doble facturación reparació
 L39 (2026-11-25): Sección 3 pedido cobrado/cancelado: usuario probó cobrado con caja cerrada y detectó que cambiaba estado pero no exigía caja abierta; fix aplicado en `ordersController.updateStatus` (bloquea transición a `cobrado` sin sesión de caja abierta/no vencida, 409). Backend reiniciado. Usuario dio **Sección 3 OK**. Nota: pedido #7 (CS251105-3485) quedó cobrado con movimiento 33 sin sesión por la prueba previa al fix; queda como dato de test DB si se quiere limpiar. Pendiente: Sección 4.
 
 L40 (2026-11-25): Sección 4 validada OK por usuario. Ajustes realizados durante validación: paginación Movimientos a 20; pestaña "Ingresos pendientes" renombrada a "Ingresos por transferencia" con historial solo transferencias (cualquier estado), detalle por ingreso, columnas Medio/Origen quitadas, acciones con iconos+tooltip y menor espaciado; Resumen muestra "Ingresos por transferencia (cobrados)" y "Transferencias pendientes" con métricas específicas de transferencia (backend summary). Facturación UI payment_method y Reparación UI forma de cobro en `cobrado s/facturacion` validados OK. Pendiente: commit/push si usuario lo pide; merge a main lo maneja usuario.
+
+L41 (2026-11-25): Usuario pidió actualizar ODD y limpiar ruido BD test. T15 marcado OK. Limpieza BD test realizada: pedido #7 ya estaba cancelado/mov 33 anulado (sin cambios); facturas 11,27,28 anuladas con restauración de stock y anulación de movimientos de caja asociados (29,30); reparación 15 restaurada a `cobrado s/facturacion`; facturas anuladas 12,14,15,16 eliminadas. Pendiente: commit/push si usuario lo pide; merge a main lo maneja usuario.
