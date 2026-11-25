@@ -223,6 +223,19 @@ async function updateStatus(req, res) {
       : (status === 'cancelado' && order.status !== 'cancelado');
 
     const updated = await db.transaction(async (tx) => {
+      if (status === 'cobrado' && order.status !== 'cobrado') {
+        const open = await getOpenSession(tx);
+        if (!open) {
+          const err = new Error('No hay una sesión de caja abierta. Abrí la caja para registrar el cobro.');
+          err.httpStatus = 409;
+          throw err;
+        }
+        if (isStaleOpenSession(open)) {
+          const err = new Error(`Hay una sesión de caja abierta del día ${String(open.session_date).slice(0, 10)}. Debés cerrarla antes de realizar movimientos.`);
+          err.httpStatus = 409;
+          throw err;
+        }
+      }
       // Compare-and-swap sobre el estado anterior: dos admins cambiando a la
       // vez sólo uno gana, así el stock se mueve UNA sola vez.
       const claimed = await tx.prepare(
