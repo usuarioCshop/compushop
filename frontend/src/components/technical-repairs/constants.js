@@ -35,6 +35,8 @@ export const statusColor = (status) => {
     reparado: 'green',
     entregado: 'teal',
     cancelado: 'red',
+    facturado: 'purple',
+    'cobrado s/facturacion': 'cyan',
   };
   return map[status] || 'gray';
 };

@@ -766,6 +766,8 @@ async function getSummary(req, res) {
         COALESCE(SUM(CASE WHEN m.movement_type='ingreso' AND m.status='cobrado' AND m.payment_method='efectivo' THEN m.amount ELSE 0 END),0) AS ingresos_cobrados_efectivo,
         COALESCE(SUM(CASE WHEN m.movement_type='ingreso' AND m.status='cobrado' AND m.payment_method='transferencia' THEN m.amount ELSE 0 END),0) AS ingresos_cobrados_transferencia,
         COALESCE(SUM(CASE WHEN m.movement_type='ingreso' AND m.status='cobrado' AND m.payment_method='cuenta_corriente' THEN m.amount ELSE 0 END),0) AS ingresos_cobrados_cuenta_corriente,
+        COALESCE(SUM(CASE WHEN m.movement_type='ingreso' AND m.status IN ('pendiente_verificacion','pendiente_cobro') AND m.payment_method='transferencia' THEN m.amount ELSE 0 END),0) AS ingresos_pendientes_transferencia,
+        COALESCE(SUM(CASE WHEN m.movement_type='ingreso' AND m.status='pendiente_verificacion' AND m.payment_method='transferencia' THEN m.amount ELSE 0 END),0) AS pendientes_verificacion_transferencia,
         COALESCE(SUM(CASE WHEN m.movement_type='egreso' AND m.status='registrado' AND m.payment_method='efectivo' THEN m.amount ELSE 0 END),0) AS egresos_efectivo
       FROM cash_movements m
       WHERE ${where}
@@ -810,6 +812,8 @@ async function getSummary(req, res) {
         ingresos_cobrados_efectivo: round2(row.ingresos_cobrados_efectivo),
         ingresos_cobrados_transferencia: round2(row.ingresos_cobrados_transferencia),
         ingresos_cobrados_cuenta_corriente: round2(row.ingresos_cobrados_cuenta_corriente),
+        ingresos_pendientes_transferencia: round2(row.ingresos_pendientes_transferencia),
+        pendientes_verificacion_transferencia: round2(row.pendientes_verificacion_transferencia),
         egresos_efectivo: round2(row.egresos_efectivo),
       },
       by_origin: byOrigin.map((r) => ({ ...r, cobrado: round2(r.cobrado), pendiente: round2(r.pendiente) })),

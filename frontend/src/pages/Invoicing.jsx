@@ -453,8 +453,8 @@ export default function Invoicing() {
       const { data } = await api.get(`/invoices/preload/repair/${id}`);
       if (data.already_invoiced?.length) {
         const refs = data.already_invoiced.map((i) => `#${i.number || i.id}`).join(', ');
-        const ok = window.confirm(`Esta reparación ya tiene comprobante(s) emitido(s): ${refs}. Agregarla puede generar doble facturación. ¿Continuar de todas formas?`);
-        if (!ok) return;
+        toast({ title: 'Reparación ya facturada', description: `Ya tiene comprobante(s) emitido(s): ${refs}. No se puede facturar dos veces.`, status: 'warning', duration: 6000, isClosable: true });
+        return;
       }
       setItems((prev) => [...prev.filter((i) => i.description?.trim() || prev.length === 1), ...(data.items || [])]);
       if (data.receiver?.name) {

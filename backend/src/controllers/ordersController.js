@@ -1,6 +1,7 @@
 const db = require('../db/database');
 const { v4: uuidv4 } = require('uuid');
 const { syncOrderCashMovement, getOpenSession, isStaleOpenSession, voidMovementByOrigin } = require('./cashController');
+const { restoreRepairsStatusIfLinked } = require('./invoicesController');
 
 function generateOrderNumber() {
   const date = new Date();
@@ -222,6 +223,19 @@ async function updateStatus(req, res) {
       : (status === 'cancelado' && order.status !== 'cancelado');
 
     const updated = await db.transaction(async (tx) => {
+      if (status === 'cobrado' && order.status !== 'cobrado') {
+        const open = await getOpenSession(tx);
+        if (!open) {
+          const err = new Error('No hay una sesión de caja abierta. Abrí la caja para registrar el cobro.');
+          err.httpStatus = 409;
+          throw err;
+        }
+        if (isStaleOpenSession(open)) {
+          const err = new Error(`Hay una sesión de caja abierta del día ${String(open.session_date).slice(0, 10)}. Debés cerrarla antes de realizar movimientos.`);
+          err.httpStatus = 409;
+          throw err;
+        }
+      }
       // Compare-and-swap sobre el estado anterior: dos admins cambiando a la
       // vez sólo uno gana, así el stock se mueve UNA sola vez.
       const claimed = await tx.prepare(
@@ -383,6 +397,7 @@ async function voidLinkedInvoice(req, res) {
         UPDATE invoices SET status = 'anulada', voided_at = now(), void_reason = $1, voided_by = $2
         WHERE id = $3
       `).run(reason || `Anulación desde pedido ${order.order_number || orderId}`, req.user?.id || null, invoice.id);
+      await restoreRepairsStatusIfLinked(tx, { id: invoice.id });
 
       // Reponer stock del pedido (se descontó al cobrar)
       const items = await tx.prepare(
