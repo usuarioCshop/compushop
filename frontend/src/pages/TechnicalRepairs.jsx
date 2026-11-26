@@ -19,6 +19,7 @@ import HistoricoTab from '../components/technical-repairs/HistoricoTab';
 import ReparacionTab from '../components/technical-repairs/ReparacionTab';
 import InformesTab from '../components/technical-repairs/InformesTab';
 import KpiCards from '../components/technical-repairs/KpiCards';
+import AdminHorizontalNav from './admin/AdminHorizontalNav';
 
 // Dashboard de servicio tecnico con Entrada, Historico, Reparacion e Informes.
 export default function TechnicalRepairs() {
@@ -59,16 +60,21 @@ export default function TechnicalRepairs() {
 
   if (!isTecnico) {
     return (
-      <Container maxW="4xl" py={20} textAlign="center">
-        <Text fontSize="lg" color="fg.muted">
-          No tenés permisos para acceder a Servicio Técnico.
-        </Text>
-      </Container>
+      <Box overflowX="hidden">
+        <AdminHorizontalNav />
+        <Container maxW="4xl" py={20} textAlign="center">
+          <Text fontSize="lg" color="fg.muted">
+            No tenés permisos para acceder a Servicio Técnico.
+          </Text>
+        </Container>
+      </Box>
     );
   }
 
   return (
-    <Container maxW="9xl" py={6} px={4}>
+    <Box overflowX="hidden">
+      <AdminHorizontalNav />
+      <Container maxW="9xl" py={6} px={4}>
       <VStack align="stretch" spacing={5}>
         <Box>
           <Heading as="h2" size="lg" letterSpacing="-0.02em">
@@ -117,5 +123,6 @@ export default function TechnicalRepairs() {
         </Tabs>
       </VStack>
     </Container>
+    </Box>
   );
 }

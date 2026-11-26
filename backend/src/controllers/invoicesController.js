@@ -180,11 +180,11 @@ async function assertNoDoubleRepairInvoicing(tx, invoiceId) {
   const rows = await tx.prepare(`
     SELECT DISTINCT ii.repair_id, i2.id AS other_invoice_id, i2.number AS other_number
     FROM invoice_items ii
-    JOIN invoices i2 ON i2.id = ii.invoice_id
+    JOIN invoice_items ii2 ON ii2.repair_id = ii.repair_id AND ii2.invoice_id <> ii.invoice_id
+    JOIN invoices i2 ON i2.id = ii2.invoice_id
     WHERE ii.invoice_id = $1
       AND ii.repair_id IS NOT NULL
       AND i2.status = 'emitida'
-      AND i2.id <> $1
     LIMIT 1
   `).all(invoiceId);
   if (rows.length) {
@@ -204,6 +204,60 @@ async function markOrderFacturadoIfLinked(tx, invoice, { userId = null } = {}) {
   }
   await tx.prepare('UPDATE orders SET status = $1 WHERE id = $2 AND status = $3').run('facturado', orderId, 'cobrado');
   return { ...order, status: 'facturado' };
+}
+
+async function markRepairsFacturadoIfLinked(tx, invoice) {
+  if (!invoice?.id) return [];
+  const rows = await tx.prepare(`
+    SELECT DISTINCT ii.repair_id
+    FROM invoice_items ii
+    WHERE ii.invoice_id = $1 AND ii.repair_id IS NOT NULL
+  `).all(invoice.id);
+  const updated = [];
+  for (const r of rows || []) {
+    const repair = await tx.prepare('SELECT id, status, status_before_invoice FROM technical_repairs WHERE id = $1 FOR UPDATE').get(r.repair_id);
+    if (!repair) continue;
+    if (repair.status !== 'cobrado s/facturacion') continue;
+    await tx.prepare(`
+      UPDATE technical_repairs
+      SET status = 'facturado', status_before_invoice = $1
+      WHERE id = $2 AND status = 'cobrado s/facturacion'
+    `).run(repair.status, repair.id);
+    updated.push(repair.id);
+  }
+  return updated;
+}
+
+async function restoreRepairsStatusIfLinked(tx, invoice) {
+  if (!invoice?.id) return [];
+  const rows = await tx.prepare(`
+    SELECT DISTINCT ii.repair_id
+    FROM invoice_items ii
+    WHERE ii.invoice_id = $1 AND ii.repair_id IS NOT NULL
+  `).all(invoice.id);
+  const restored = [];
+  for (const r of rows || []) {
+    const repair = await tx.prepare('SELECT id, status, status_before_invoice FROM technical_repairs WHERE id = $1 FOR UPDATE').get(r.repair_id);
+    if (!repair) continue;
+    if (repair.status !== 'facturado') continue;
+    // Solo restaurar si no hay otra factura emitida activa vinculada a esta reparación
+    const other = await tx.prepare(`
+      SELECT 1
+      FROM invoice_items ii
+      JOIN invoices i ON i.id = ii.invoice_id
+      WHERE ii.repair_id = $1 AND i.status = 'emitida' AND i.id <> $2
+      LIMIT 1
+    `).get(repair.id, invoice.id);
+    if (other) continue;
+    const prev = repair.status_before_invoice || 'entregado';
+    await tx.prepare(`
+      UPDATE technical_repairs
+      SET status = $1, status_before_invoice = NULL
+      WHERE id = $2 AND status = 'facturado'
+    `).run(prev, repair.id);
+    restored.push(repair.id);
+  }
+  return restored;
 }
 
 async function fetchInvoiceWithItems(id, txOrDb) {
@@ -477,6 +531,7 @@ async function issue(req, res) {
         await syncInvoiceCashMovement(tx, emitted, { created_by: req.user?.id || null });
       }
       await markOrderFacturadoIfLinked(tx, emitted, { userId: req.user?.id || null });
+      await markRepairsFacturadoIfLinked(tx, emitted);
       return await fetchInvoiceWithItems(req.params.id, tx);
     });
     res.json({ invoice });
@@ -515,6 +570,7 @@ async function voidInvoice(req, res) {
       if (!skipCashStockImpact) {
         await syncInvoiceCashMovement(tx, voided, { created_by: req.user?.id || null });
       }
+      await restoreRepairsStatusIfLinked(tx, voided);
       return await fetchInvoiceWithItems(req.params.id, tx);
     });
     res.json({ invoice });
@@ -1049,6 +1105,7 @@ async function authorizeArca(req, res) {
           updated = await fetchInvoiceWithItems(invoice.id, tx);
         }
         await markOrderFacturadoIfLinked(tx, updated, { userId: req.user?.id || null });
+        await markRepairsFacturadoIfLinked(tx, updated);
         updated = await fetchInvoiceWithItems(invoice.id, tx);
       }
       return { invoice: updated, arca: arcaRes, rejected: false };
@@ -1083,4 +1140,6 @@ module.exports = {
   getPdf,
   authorizeArca,
   getFiscalIssuer,
+  markRepairsFacturadoIfLinked,
+  restoreRepairsStatusIfLinked,
 };

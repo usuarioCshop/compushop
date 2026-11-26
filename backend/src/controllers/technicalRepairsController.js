@@ -899,6 +899,9 @@ async function create(req, res) {
         await applyParts(tx, created.id, parts, productMap);
       }
 
+      if (status === 'facturado') {
+        throw httpError(400, 'El estado "facturado" se asigna automáticamente al emitir la factura de la reparación.');
+      }
       if (status === 'cobrado s/facturacion') {
         const pm = body.payment_method || null;
         if (!['efectivo', 'transferencia'].includes(pm)) {
@@ -1011,6 +1014,12 @@ async function update(req, res) {
       }
 
       const updatedRepair = await tx.prepare('SELECT * FROM technical_repairs WHERE id = $1').get(id);
+      if (existing.status === 'facturado' && newStatus !== 'facturado') {
+        throw httpError(409, 'La reparación está facturada. Para cambiar su estado, anulá la factura vinculada.');
+      }
+      if (newStatus === 'facturado' && existing.status !== 'facturado') {
+        throw httpError(400, 'El estado "facturado" se asigna automáticamente al emitir la factura de la reparación.');
+      }
       if (newStatus === 'cobrado s/facturacion') {
         const pm = body.payment_method || null;
         if (!['efectivo', 'transferencia'].includes(pm)) {

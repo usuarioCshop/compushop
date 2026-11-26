@@ -9,6 +9,7 @@ import { useSearchParams } from 'react-router-dom';
 import { FiDownload, FiEdit2, FiEye, FiFileText, FiPlus, FiRefreshCw, FiSearch, FiTrash2, FiXCircle, FiCheckCircle } from 'react-icons/fi';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
+import AdminHorizontalNav from './admin/AdminHorizontalNav';
 
 const STATUS_COLOR = { borrador: 'yellow', emitida: 'green', anulada: 'red' };
 const STATUS_LABEL = { borrador: 'Borrador', emitida: 'Emitida', anulada: 'Anulada' };
@@ -453,8 +454,8 @@ export default function Invoicing() {
       const { data } = await api.get(`/invoices/preload/repair/${id}`);
       if (data.already_invoiced?.length) {
         const refs = data.already_invoiced.map((i) => `#${i.number || i.id}`).join(', ');
-        const ok = window.confirm(`Esta reparación ya tiene comprobante(s) emitido(s): ${refs}. Agregarla puede generar doble facturación. ¿Continuar de todas formas?`);
-        if (!ok) return;
+        toast({ title: 'Reparación ya facturada', description: `Ya tiene comprobante(s) emitido(s): ${refs}. No se puede facturar dos veces.`, status: 'warning', duration: 6000, isClosable: true });
+        return;
       }
       setItems((prev) => [...prev.filter((i) => i.description?.trim() || prev.length === 1), ...(data.items || [])]);
       if (data.receiver?.name) {
@@ -497,7 +498,9 @@ export default function Invoicing() {
   const removeItem = (idx) => setItems((prev) => (prev.length === 1 ? [emptyItem()] : prev.filter((_, i) => i !== idx)));
 
   return (
-    <Container maxW="7xl" py={8}>
+    <Box overflowX="hidden">
+      <AdminHorizontalNav />
+      <Container maxW="7xl" py={8}>
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={3}>
         <VStack align="start" spacing={0}>
           <Heading size="lg">Facturación</Heading>
@@ -550,10 +553,10 @@ export default function Invoicing() {
                       <Td isNumeric>{money(inv.total)}</Td>
                       <Td>
                         <HStack spacing={1}>
-                          <IconButton size="sm" icon={<FiEye />} aria-label="Ver" onClick={() => openDetail(inv)} />
-                          {inv.status === 'borrador' && <IconButton size="sm" icon={<FiEdit2 />} aria-label="Editar" onClick={() => openEdit(inv)} />}
-                          <IconButton size="sm" icon={<FiDownload />} aria-label="PDF" onClick={() => downloadPdf(inv.id, inv.number)} />
-                          {inv.status === 'borrador' && <IconButton size="sm" icon={<FiTrash2 />} aria-label="Eliminar" colorScheme="red" variant="ghost" onClick={() => removeInvoice(inv.id)} />}
+                          <IconButton size="md" icon={<FiEye />} aria-label="Ver" onClick={() => openDetail(inv)} />
+                          {inv.status === 'borrador' && <IconButton size="md" icon={<FiEdit2 />} aria-label="Editar" onClick={() => openEdit(inv)} />}
+                          <IconButton size="md" icon={<FiDownload />} aria-label="PDF" onClick={() => downloadPdf(inv.id, inv.number)} />
+                          {inv.status === 'borrador' && <IconButton size="md" icon={<FiTrash2 />} aria-label="Eliminar" colorScheme="red" variant="ghost" onClick={() => removeInvoice(inv.id)} />}
                         </HStack>
                       </Td>
                     </Tr>
@@ -611,7 +614,7 @@ export default function Invoicing() {
                     </Tbody>
                   </Table>
                 </TableContainer>
-                <Box alignSelf="flex-end" minW="240px">
+                <Box alignSelf={{ base: 'stretch', sm: 'flex-end' }} minW={{ base: 0, sm: '240px' }}>
                   <HStack justify="space-between"><Text>Subtotal</Text><Text>{money(selected.subtotal)}</Text></HStack>
                   <HStack justify="space-between"><Text>IVA</Text><Text>{money(selected.tax_total)}</Text></HStack>
                   <Divider my={1} />
@@ -929,7 +932,7 @@ export default function Invoicing() {
                             <Td isNumeric><Input size="sm" type="number" min={0} max={100} step="0.01" w="80px" value={it.vat_rate} onChange={(e) => updateItem(idx, 'vat_rate', e.target.value)} /></Td>
                             <Td isNumeric><Input size="sm" type="number" min={0} step="0.01" w="90px" value={it.discount || 0} onChange={(e) => updateItem(idx, 'discount', e.target.value)} /></Td>
                             <Td isNumeric fontWeight="semibold">{money(c.line_total)}</Td>
-                            <Td><IconButton size="sm" icon={<FiTrash2 />} aria-label="Quitar" variant="ghost" colorScheme="red" onClick={() => removeItem(idx)} /></Td>
+                            <Td><IconButton size="md" icon={<FiTrash2 />} aria-label="Quitar" variant="ghost" colorScheme="red" onClick={() => removeItem(idx)} /></Td>
                           </Tr>
                         );
                       })}
@@ -960,5 +963,6 @@ export default function Invoicing() {
         </ModalContent>
       </Modal>
     </Container>
+    </Box>
   );
 }

@@ -1,6 +1,7 @@
 const db = require('../db/database');
 const { v4: uuidv4 } = require('uuid');
 const { syncOrderCashMovement, getOpenSession, isStaleOpenSession, voidMovementByOrigin } = require('./cashController');
+const { restoreRepairsStatusIfLinked } = require('./invoicesController');
 
 function generateOrderNumber() {
   const date = new Date();
@@ -117,21 +118,47 @@ async function create(req, res) {
 // GET /api/orders (admin: todos | customer: solo los suyos)
 async function getAll(req, res) {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 20, search, payment_method, date_from, date_to } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     let sql = 'SELECT * FROM orders WHERE 1=1';
     const params = [];
 
     if (!['admin', 'superadmin'].includes(req.user.role)) {
-
       params.push(req.user.id);
       sql += ` AND user_id = $${params.length}`;
     }
 
     if (status) {
-      params.push(status);
-      sql += ` AND status = $${params.length}`;
+      const statuses = String(status).split(',').map((s) => s.trim()).filter(Boolean);
+      if (statuses.length === 1) {
+        params.push(statuses[0]);
+        sql += ` AND status = $${params.length}`;
+      } else if (statuses.length > 1) {
+        const placeholders = statuses.map((s) => { params.push(s); return `$${params.length}`; });
+        sql += ` AND status IN (${placeholders.join(', ')})`;
+      }
+    }
+
+    if (search && String(search).trim()) {
+      params.push(`%${String(search).trim()}%`);
+      const i = params.length;
+      sql += ` AND (order_number ILIKE $${i} OR customer_name ILIKE $${i} OR customer_email ILIKE $${i})`;
+    }
+
+    if (payment_method) {
+      params.push(String(payment_method));
+      sql += ` AND payment_method = $${params.length}`;
+    }
+
+    if (date_from) {
+      params.push(String(date_from));
+      sql += ` AND created_at >= $${params.length}::date`;
+    }
+
+    if (date_to) {
+      params.push(String(date_to));
+      sql += ` AND created_at < ($${params.length}::date + interval '1 day')`;
     }
 
     const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
@@ -147,8 +174,8 @@ async function getAll(req, res) {
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
+        total: Number(total),
+        pages: Math.ceil(Number(total) / parseInt(limit)),
       },
     });
   } catch (error) {
@@ -222,6 +249,19 @@ async function updateStatus(req, res) {
       : (status === 'cancelado' && order.status !== 'cancelado');
 
     const updated = await db.transaction(async (tx) => {
+      if (status === 'cobrado' && order.status !== 'cobrado') {
+        const open = await getOpenSession(tx);
+        if (!open) {
+          const err = new Error('No hay una sesión de caja abierta. Abrí la caja para registrar el cobro.');
+          err.httpStatus = 409;
+          throw err;
+        }
+        if (isStaleOpenSession(open)) {
+          const err = new Error(`Hay una sesión de caja abierta del día ${String(open.session_date).slice(0, 10)}. Debés cerrarla antes de realizar movimientos.`);
+          err.httpStatus = 409;
+          throw err;
+        }
+      }
       // Compare-and-swap sobre el estado anterior: dos admins cambiando a la
       // vez sólo uno gana, así el stock se mueve UNA sola vez.
       const claimed = await tx.prepare(
@@ -383,6 +423,7 @@ async function voidLinkedInvoice(req, res) {
         UPDATE invoices SET status = 'anulada', voided_at = now(), void_reason = $1, voided_by = $2
         WHERE id = $3
       `).run(reason || `Anulación desde pedido ${order.order_number || orderId}`, req.user?.id || null, invoice.id);
+      await restoreRepairsStatusIfLinked(tx, { id: invoice.id });
 
       // Reponer stock del pedido (se descontó al cobrar)
       const items = await tx.prepare(

@@ -266,7 +266,7 @@ export default function HistoricoTab({ onChanged, onEdit }) {
           <CardBody>
             <VStack spacing={4} align="stretch">
               <HStack spacing={3} flexWrap="wrap" align="center">
-                <InputGroup flex="1" minW="240px">
+                <InputGroup flex="1" minW={{ base: '100%', sm: '240px' }}>
                   <InputLeftElement>
                     <Icon as={FiSearch} color="fg.muted" />
                   </InputLeftElement>
@@ -278,7 +278,7 @@ export default function HistoricoTab({ onChanged, onEdit }) {
                   />
                 </InputGroup>
                 <Select
-                  minW="190px"
+                  minW={{ base: '100%', sm: '190px' }}
                   value={statusInput}
                   onChange={(e) => setStatusInput(e.target.value)}
                   bg="bg.surface"

@@ -4,9 +4,9 @@ import {
   Heading, HStack, IconButton, Input, Modal, ModalBody, ModalCloseButton, ModalContent,
   ModalFooter, ModalHeader, ModalOverlay, Select, SimpleGrid, Spinner, Stat, StatLabel,
   StatNumber, Tab, TabList, TabPanel, TabPanels, Table, TableContainer, Tabs, Tbody, Td,
-  Text, Textarea, Th, Thead, Tr, VStack, useDisclosure, useToast, Center,
+  Text, Textarea, Th, Thead, Tooltip, Tr, VStack, useDisclosure, useToast, Center,
 } from '@chakra-ui/react';
-import { FiCheck, FiEdit2, FiPlus, FiRefreshCw, FiSlash, FiTrash2 } from 'react-icons/fi';
+import { FiCheck, FiEdit2, FiEye, FiPlus, FiRefreshCw, FiSlash, FiTrash2 } from 'react-icons/fi';
 import api from '../../api/client';
 
 const money = (n) => `$ ${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -104,6 +104,8 @@ export default function AdminCash() {
   const filtersInitializedRef = useRef(false);
   const [sessionDetailTarget, setSessionDetailTarget] = useState(null);
   const sessionDetailDisc = useDisclosure();
+  const [movementDetailTarget, setMovementDetailTarget] = useState(null);
+  const movementDetailDisc = useDisclosure();
 
   // modals
   const openDisc = useDisclosure();
@@ -127,11 +129,8 @@ export default function AdminCash() {
   const loadPendingIncomes = useCallback(async () => {
     setLoadingPending(true);
     try {
-      const [verifRes, cobroRes] = await Promise.all([
-        api.get('/cash/movements', { params: { movement_type: 'ingreso', status: 'pendiente_verificacion', limit: 200 } }),
-        api.get('/cash/movements', { params: { movement_type: 'ingreso', status: 'pendiente_cobro', limit: 200 } }),
-      ]);
-      const merged = [...(verifRes.data.movements || []), ...(cobroRes.data.movements || [])];
+      const { data } = await api.get('/cash/movements', { params: { movement_type: 'ingreso', payment_method: 'transferencia', limit: 200 } });
+      const merged = [...(data.movements || [])];
       merged.sort((a, b) => {
         const da = new Date(a.movement_date || a.created_at || 0).getTime();
         const db = new Date(b.movement_date || b.created_at || 0).getTime();
@@ -140,7 +139,7 @@ export default function AdminCash() {
       });
       setPendingIncomes(merged);
     } catch (err) {
-      toast({ title: 'Error al cargar ingresos pendientes', description: err.response?.data?.error || err.message, status: 'error' });
+      toast({ title: 'Error al cargar ingresos por transferencia', description: err.response?.data?.error || err.message, status: 'error' });
     } finally {
       setLoadingPending(false);
     }
@@ -150,7 +149,7 @@ export default function AdminCash() {
     setLoading(true);
     try {
       const effectiveFilters = filtersOverride || filters;
-      const params = { ...effectiveFilters, page, limit: 50 };
+      const params = { ...effectiveFilters, page, limit: 20 };
       Object.keys(params).forEach((k) => { if (params[k] === '' || params[k] == null) delete params[k]; });
       const sumParams = {};
       if (effectiveFilters.date_from) sumParams.date_from = effectiveFilters.date_from;
@@ -396,6 +395,10 @@ export default function AdminCash() {
     setSessionDetailTarget(session || null);
     sessionDetailDisc.onOpen();
   };
+  const openMovementDetail = (movement) => {
+    setMovementDetailTarget(movement || null);
+    movementDetailDisc.onOpen();
+  };
 
   return (
     <Box>
@@ -433,7 +436,7 @@ export default function AdminCash() {
       <Tabs colorScheme="brand" onChange={(index) => { if (index === 1) loadPendingIncomes(); }}>
         <TabList overflowX="auto" flexWrap={{ base: 'nowrap', md: 'wrap' }}>
           <Tab>Resumen</Tab>
-          <Tab>Ingresos pendientes</Tab>
+          <Tab>Ingresos por transferencia</Tab>
           <Tab>Movimientos</Tab>
           <Tab>Egresos</Tab>
           <Tab>Cierre diario</Tab>
@@ -450,8 +453,8 @@ export default function AdminCash() {
 
             {summary && (
               <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4} mb={6}>
-                <Card bg={bg}><CardBody><Stat><StatLabel>Ingresos cobrados</StatLabel><StatNumber color="green.500">{money(summary.ingresos_cobrados)}</StatNumber></Stat></CardBody></Card>
-                <Card bg={bg}><CardBody><Stat><StatLabel>Ingresos pendientes</StatLabel><StatNumber color="orange.500">{money(summary.ingresos_pendientes)}</StatNumber><Text fontSize="xs" color="fg.muted">Verif.: {money(summary.pendientes_verificacion)} · Cobro: {money(summary.pendientes_cobro)}</Text></Stat></CardBody></Card>
+                <Card bg={bg}><CardBody><Stat><StatLabel>Ingresos por transferencia (cobrados)</StatLabel><StatNumber color="green.500">{money(summary.ingresos_cobrados_transferencia)}</StatNumber></Stat></CardBody></Card>
+                <Card bg={bg}><CardBody><Stat><StatLabel>Transferencias pendientes</StatLabel><StatNumber color="orange.500">{money(summary.ingresos_pendientes_transferencia)}</StatNumber><Text fontSize="xs" color="fg.muted">Verif.: {money(summary.pendientes_verificacion_transferencia)}</Text></Stat></CardBody></Card>
                 <Card bg={bg}><CardBody><Stat><StatLabel>Egresos</StatLabel><StatNumber color="red.500">{money(summary.egresos_total)}</StatNumber></Stat></CardBody></Card>
                 <Card bg={bg}><CardBody><Stat><StatLabel>Saldo neto (cobrados - egresos)</StatLabel><StatNumber color="brand.600">{money(summary.saldo_neto)}</StatNumber></Stat></CardBody></Card>
                 <Card bg={bg} gridColumn={{ base: 'auto', lg: 'span 2' }} borderColor="brand.200" borderWidth="1px">
@@ -512,42 +515,46 @@ export default function AdminCash() {
             <Card mb={4}><CardBody>
               <HStack justify="space-between" flexWrap="wrap" gap={3} mb={4}>
                 <Box>
-                  <Heading size="sm" mb={1}>Ingresos pendientes</Heading>
-                  <Text fontSize="sm" color="fg.muted">Listado dedicado para revisar y confirmar cobros pendientes.</Text>
+                  <Heading size="sm" mb={1}>Ingresos por transferencia</Heading>
+                  <Text fontSize="sm" color="fg.muted">Historial de pagos por transferencia, en cualquier estado. Podés confirmar los que estén pendientes.</Text>
                 </Box>
                 <HStack spacing={2} flexWrap="wrap">
                   {summary && (
                     <>
-                      <Badge colorScheme="orange" px={2} py={1}>Verificación: {money(summary.pendientes_verificacion)}</Badge>
-                      <Badge colorScheme="yellow" px={2} py={1}>Cobro: {money(summary.pendientes_cobro)}</Badge>
-                      <Badge colorScheme="gray" px={2} py={1}>Total: {money(summary.ingresos_pendientes)}</Badge>
+                      <Badge colorScheme="orange" px={2} py={1}>Verificación: {money(summary.pendientes_verificacion_transferencia)}</Badge>
+                      <Badge colorScheme="gray" px={2} py={1}>Total pendientes: {money(summary.ingresos_pendientes_transferencia)}</Badge>
                     </>
                   )}
                   <IconButton aria-label="Actualizar ingresos pendientes" icon={<FiRefreshCw />} onClick={() => { loadPendingIncomes(); loadAll(pagination.page); }} variant="outline" />
                 </HStack>
               </HStack>
               {loadingPending ? <Center py={10}><Spinner /></Center> : pendingIncomes.length === 0 ? (
-                <Text color="fg.muted" py={6} textAlign="center">No hay ingresos pendientes de confirmación.</Text>
+                <Text color="fg.muted" py={6} textAlign="center">No hay ingresos por transferencia registrados.</Text>
               ) : (
                 <TableContainer>
-                  <Table size="sm">
-                    <Thead><Tr><Th>Fecha</Th><Th>Concepto</Th><Th>Origen</Th><Th>Medio</Th><Th>Estado</Th><Th isNumeric>Monto</Th><Th>Acción</Th></Tr></Thead>
+                  <Table size="sm" sx={{ 'th, td': { px: 2, py: 2 }, 'th:last-child, td:last-child': { pr: 1 } }}>
+                    <Thead><Tr><Th whiteSpace="nowrap">Fecha</Th><Th>Concepto</Th><Th whiteSpace="nowrap">Estado</Th><Th isNumeric whiteSpace="nowrap">Monto</Th><Th whiteSpace="nowrap">Acciones</Th></Tr></Thead>
                     <Tbody>
                       {pendingIncomes.map((m) => (
                         <Tr key={m.id}>
-                          <Td>{fmtDate(m.movement_date)}</Td>
+                          <Td whiteSpace="nowrap">{fmtDate(m.movement_date)}</Td>
                           <Td>
-                            <Text fontWeight="500">{m.description}</Text>
-                            <Text fontSize="xs" color="fg.muted">{[m.reference, m.counterparty, m.category_name].filter(Boolean).join(' · ')}</Text>
+                            <Text fontWeight="500" noOfLines={2}>{m.description}</Text>
+                            <Text fontSize="xs" color="fg.muted" noOfLines={1}>{[m.reference, m.counterparty, m.category_name].filter(Boolean).join(' · ')}</Text>
                           </Td>
-                          <Td>{ORIGIN_LABEL[m.origin_type] || m.origin_type}{m.origin_id ? ` #${m.origin_id}` : ''}</Td>
-                          <Td>{PM_LABEL[m.payment_method] || m.payment_method}</Td>
-                          <Td><Badge colorScheme={STATUS_COLOR[m.status] || 'gray'}>{STATUS_LABEL[m.status] || m.status}</Badge></Td>
-                          <Td isNumeric fontWeight="600" color="green.600">+{money(m.amount)}</Td>
+                          <Td whiteSpace="nowrap"><Badge colorScheme={STATUS_COLOR[m.status] || 'gray'}>{STATUS_LABEL[m.status] || m.status}</Badge></Td>
+                          <Td isNumeric whiteSpace="nowrap" fontWeight="600" color="green.600">+{money(m.amount)}</Td>
                           <Td>
-                            <Button size="sm" leftIcon={<FiCheck />} colorScheme="green" onClick={() => confirmPending(m.id)}>
-                              Confirmar cobro
-                            </Button>
+                            <HStack spacing={1}>
+                              <Tooltip label="Ver detalle" hasArrow>
+                                <IconButton aria-label="Ver detalle" icon={<FiEye />} size="sm" variant="ghost" onClick={() => openMovementDetail(m)} />
+                              </Tooltip>
+                              {['pendiente_verificacion', 'pendiente_cobro'].includes(m.status) && (
+                                <Tooltip label="Confirmar cobro" hasArrow>
+                                  <IconButton aria-label="Confirmar cobro" icon={<FiCheck />} size="sm" variant="ghost" colorScheme="green" onClick={() => confirmPending(m.id)} />
+                                </Tooltip>
+                              )}
+                            </HStack>
                           </Td>
                         </Tr>
                       ))}
@@ -597,19 +604,19 @@ export default function AdminCash() {
                           <Td>
                             <HStack spacing={1}>
                               {m.movement_type === 'ingreso' && ['pendiente_verificacion', 'pendiente_cobro'].includes(m.status) && (
-                                <IconButton size="sm" aria-label="Confirmar cobro" icon={<FiCheck />} colorScheme="green" variant="ghost" onClick={() => confirmPending(m.id)} title="Confirmar cobro" />
+                                <IconButton size="md" aria-label="Confirmar cobro" icon={<FiCheck />} colorScheme="green" variant="ghost" onClick={() => confirmPending(m.id)} title="Confirmar cobro" />
                               )}
                               {m.movement_type === 'egreso' && m.origin_type === 'egreso_manual' && m.status !== 'anulado' && (
-                                <IconButton size="sm" aria-label="Editar" icon={<FiEdit2 />} variant="ghost" onClick={() => openExpense(m)} />
+                                <IconButton size="md" aria-label="Editar" icon={<FiEdit2 />} variant="ghost" onClick={() => openExpense(m)} />
                               )}
                               {m.status !== 'anulado' && !(m.movement_type === 'egreso' && m.origin_type === 'egreso_manual') && (
-                                <IconButton size="sm" aria-label="Anular" icon={<FiSlash />} colorScheme="orange" variant="ghost" onClick={() => askVoid(m)} title="Anular" />
+                                <IconButton size="md" aria-label="Anular" icon={<FiSlash />} colorScheme="orange" variant="ghost" onClick={() => askVoid(m)} title="Anular" />
                               )}
                               {m.movement_type === 'egreso' && m.origin_type === 'egreso_manual' && m.status !== 'anulado' && (
-                                <IconButton size="sm" aria-label="Anular egreso" icon={<FiSlash />} colorScheme="orange" variant="ghost" onClick={() => askVoid(m)} />
+                                <IconButton size="md" aria-label="Anular egreso" icon={<FiSlash />} colorScheme="orange" variant="ghost" onClick={() => askVoid(m)} />
                               )}
                               {m.movement_type === 'egreso' && m.origin_type === 'egreso_manual' && (
-                                <IconButton size="sm" aria-label="Eliminar" icon={<FiTrash2 />} colorScheme="red" variant="ghost" onClick={() => askDelete(m)} />
+                                <IconButton size="md" aria-label="Eliminar" icon={<FiTrash2 />} colorScheme="red" variant="ghost" onClick={() => askDelete(m)} />
                               )}
                             </HStack>
                           </Td>
@@ -852,6 +859,46 @@ export default function AdminCash() {
             })() : <Text color="fg.muted">Sin datos.</Text>}
           </ModalBody>
           <ModalFooter><Button onClick={() => { sessionDetailDisc.onClose(); setSessionDetailTarget(null); }}>Cerrar</Button></ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Detalle de movimiento */}
+      <Modal isOpen={movementDetailDisc.isOpen} onClose={() => { movementDetailDisc.onClose(); setMovementDetailTarget(null); }} size="lg">
+        <ModalOverlay /><ModalContent>
+          <ModalHeader>Detalle de ingreso</ModalHeader><ModalCloseButton />
+          <ModalBody>
+            {movementDetailTarget ? (() => {
+              const m = movementDetailTarget;
+              const rows = [
+                ['Fecha', fmtDate(m.movement_date)],
+                ['Tipo', m.movement_type === 'ingreso' ? 'Ingreso' : m.movement_type === 'egreso' ? 'Egreso' : m.movement_type],
+                ['Estado', STATUS_LABEL[m.status] || m.status],
+                ['Origen', `${ORIGIN_LABEL[m.origin_type] || m.origin_type}${m.origin_id ? ` #${m.origin_id}` : ''}`],
+                ['Descripción', m.description || '—'],
+                ['Medio de pago', PM_LABEL[m.payment_method] || m.payment_method || '—'],
+                ['Monto', money(m.amount)],
+                ['Categoría', m.category_name || '—'],
+                ['Referencia', m.reference || '—'],
+                ['Contraparte', m.counterparty || '—'],
+                ['Sesión de caja', m.cash_session_id ? `#${m.cash_session_id}` : '—'],
+                ['Acreditado', m.accredited_at ? fmtDateTime(m.accredited_at) : '—'],
+                ['Anulado', m.voided_at ? fmtDateTime(m.voided_at) : '—'],
+                ['Motivo anulación', m.void_reason || '—'],
+                ['Notas', m.notes || '—'],
+              ];
+              return (
+                <VStack align="stretch" spacing={2}>
+                  {rows.map(([label, value]) => (
+                    <HStack key={label} justify="space-between" align="start">
+                      <Text fontSize="sm" color="fg.muted">{label}</Text>
+                      <Text fontSize="sm" fontWeight="500" textAlign="right" maxW="70%">{value}</Text>
+                    </HStack>
+                  ))}
+                </VStack>
+              );
+            })() : <Text color="fg.muted">Sin datos.</Text>}
+          </ModalBody>
+          <ModalFooter><Button onClick={() => { movementDetailDisc.onClose(); setMovementDetailTarget(null); }}>Cerrar</Button></ModalFooter>
         </ModalContent>
       </Modal>
 
