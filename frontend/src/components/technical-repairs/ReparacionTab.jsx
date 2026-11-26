@@ -30,7 +30,6 @@ import EmptyState from '../EmptyState';
 import { FiTool } from 'react-icons/fi';
 import RepairPartsEditor from './RepairPartsEditor';
 import {
-  ACTIVE_REPAIR_STATUSES,
   DEFAULT_STATUSES,
   formatCurrency,
   formatDateTime,
@@ -80,26 +79,13 @@ export default function ReparacionTab({ onChanged }) {
   const fetchList = useCallback(async () => {
     setListLoading(true);
     try {
-      const responses = await Promise.all(
-        ACTIVE_REPAIR_STATUSES.map((status) =>
-          api.get('/technical-repairs', {
-            params: { status, limit: 100, sort_by: 'received_at', sort_dir: 'desc' },
-          })
-        )
-      );
-      const merged = responses.flatMap((response) => response.data.repairs || []);
-      const unique = [];
-      const seen = new Set();
-      merged.forEach((item) => {
-        if (seen.has(item.id)) return;
-        seen.add(item.id);
-        unique.push(item);
+      const { data } = await api.get('/technical-repairs', {
+        params: { limit: 100, sort_by: 'received_at', sort_dir: 'desc' },
       });
-      unique.sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
-      setRepairs(unique);
+      setRepairs(data.repairs || []);
     } catch (error) {
       toast({
-        title: 'No se pudieron cargar las boletas activas',
+        title: 'No se pudieron cargar las boletas',
         description: error.response?.data?.error,
         status: 'error',
         duration: 4000,

@@ -604,19 +604,19 @@ export default function AdminCash() {
                           <Td>
                             <HStack spacing={1}>
                               {m.movement_type === 'ingreso' && ['pendiente_verificacion', 'pendiente_cobro'].includes(m.status) && (
-                                <IconButton size="sm" aria-label="Confirmar cobro" icon={<FiCheck />} colorScheme="green" variant="ghost" onClick={() => confirmPending(m.id)} title="Confirmar cobro" />
+                                <IconButton size="md" aria-label="Confirmar cobro" icon={<FiCheck />} colorScheme="green" variant="ghost" onClick={() => confirmPending(m.id)} title="Confirmar cobro" />
                               )}
                               {m.movement_type === 'egreso' && m.origin_type === 'egreso_manual' && m.status !== 'anulado' && (
-                                <IconButton size="sm" aria-label="Editar" icon={<FiEdit2 />} variant="ghost" onClick={() => openExpense(m)} />
+                                <IconButton size="md" aria-label="Editar" icon={<FiEdit2 />} variant="ghost" onClick={() => openExpense(m)} />
                               )}
                               {m.status !== 'anulado' && !(m.movement_type === 'egreso' && m.origin_type === 'egreso_manual') && (
-                                <IconButton size="sm" aria-label="Anular" icon={<FiSlash />} colorScheme="orange" variant="ghost" onClick={() => askVoid(m)} title="Anular" />
+                                <IconButton size="md" aria-label="Anular" icon={<FiSlash />} colorScheme="orange" variant="ghost" onClick={() => askVoid(m)} title="Anular" />
                               )}
                               {m.movement_type === 'egreso' && m.origin_type === 'egreso_manual' && m.status !== 'anulado' && (
-                                <IconButton size="sm" aria-label="Anular egreso" icon={<FiSlash />} colorScheme="orange" variant="ghost" onClick={() => askVoid(m)} />
+                                <IconButton size="md" aria-label="Anular egreso" icon={<FiSlash />} colorScheme="orange" variant="ghost" onClick={() => askVoid(m)} />
                               )}
                               {m.movement_type === 'egreso' && m.origin_type === 'egreso_manual' && (
-                                <IconButton size="sm" aria-label="Eliminar" icon={<FiTrash2 />} colorScheme="red" variant="ghost" onClick={() => askDelete(m)} />
+                                <IconButton size="md" aria-label="Eliminar" icon={<FiTrash2 />} colorScheme="red" variant="ghost" onClick={() => askDelete(m)} />
                               )}
                             </HStack>
                           </Td>

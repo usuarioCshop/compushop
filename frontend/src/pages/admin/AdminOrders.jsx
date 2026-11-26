@@ -4,6 +4,7 @@ import {
   Box, Button, Heading, Table, Thead, Tbody, Tr, Th, Td, Select, Badge, Spinner, Center, useToast, Text,
   IconButton, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalCloseButton, ModalFooter,
   VStack, HStack, Divider, useDisclosure, Checkbox, Link, Image, Textarea, FormControl, FormLabel,
+  Input, SimpleGrid,
 } from '@chakra-ui/react';
 import { FiEye, FiFileText, FiXCircle } from 'react-icons/fi';
 import api from '../../api/client';
@@ -50,11 +51,52 @@ export default function AdminOrders() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const load = () => {
+  const initialStatus = searchParams.get('status') || '';
+  const [filters, setFilters] = useState({
+    search: '',
+    status: initialStatus,
+    payment_method: '',
+    date_from: '',
+    date_to: '',
+  });
+  const [appliedFilters, setAppliedFilters] = useState({
+    search: '',
+    status: initialStatus,
+    payment_method: '',
+    date_from: '',
+    date_to: '',
+  });
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, pages: 1 });
+
+  const load = (page = 1, f = appliedFilters) => {
     setLoading(true);
-    api.get('/orders?limit=50').then(r => setOrders(r.data.orders || [])).finally(() => setLoading(false));
+    const params = { page, limit: 20 };
+    if (f.search?.trim()) params.search = f.search.trim();
+    if (f.status) params.status = f.status;
+    if (f.payment_method) params.payment_method = f.payment_method;
+    if (f.date_from) params.date_from = f.date_from;
+    if (f.date_to) params.date_to = f.date_to;
+    api.get('/orders', { params })
+      .then(r => {
+        setOrders(r.data.orders || []);
+        setPagination(r.data.pagination || { page: 1, limit: 20, total: 0, pages: 1 });
+      })
+      .finally(() => setLoading(false));
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(1, appliedFilters); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const applyFilters = () => {
+    const next = { ...filters };
+    setAppliedFilters(next);
+    load(1, next);
+  };
+
+  const clearFilters = () => {
+    const empty = { search: '', status: '', payment_method: '', date_from: '', date_to: '' };
+    setFilters(empty);
+    setAppliedFilters(empty);
+    load(1, empty);
+  };
 
   const changeStatus = async (id, status) => {
     try {
@@ -64,7 +106,7 @@ export default function AdminOrders() {
         if (selectedOrder?.id === id) setPrep({});
       }
       toast({ title: 'Estado actualizado', status: 'success' });
-      load();
+      load(pagination.page, appliedFilters);
       window.dispatchEvent(new Event('orders:pending-changed'));
       window.setTimeout(() => window.dispatchEvent(new Event('orders:pending-changed')), 300);
     } catch (err) {
@@ -92,7 +134,7 @@ export default function AdminOrders() {
       voidDisc.onClose();
       setVoidOrder(null);
       setVoidReason('');
-      load();
+      load(pagination.page, appliedFilters);
       window.dispatchEvent(new Event('orders:pending-changed'));
     } catch (err) {
       toast({ title: 'No se pudo anular la factura', description: err.response?.data?.error || err.message, status: 'error', duration: 6000 });
@@ -117,31 +159,55 @@ export default function AdminOrders() {
     }
   };
 
-  const statusFilter = useMemo(() => {
-    const raw = searchParams.get('status');
-    if (!raw) return null;
-    const set = new Set(raw.split(',').map((s) => s.trim()).filter(Boolean));
-    return set.size ? set : null;
-  }, [searchParams]);
-
-  const visibleOrders = useMemo(() => {
-    if (!statusFilter) return orders;
-    return orders.filter((o) => statusFilter.has(o.status));
-  }, [orders, statusFilter]);
-
   if (loading) return <Center py={10}><Spinner color="brand.500" /></Center>;
 
   return (
     <Box>
       <HStack justify="space-between" mb={6} flexWrap="wrap" gap={2}>
         <Heading size="lg" fontWeight="700" letterSpacing="-0.02em">Pedidos</Heading>
-        {statusFilter && <Text fontSize="sm" color="fg.muted">Filtro: {Array.from(statusFilter).join(', ')} ({visibleOrders.length})</Text>}
+        <Text fontSize="sm" color="fg.muted">{pagination.total} pedido{pagination.total === 1 ? '' : 's'}</Text>
       </HStack>
+
+      <Box bg={bg} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" p={4} mb={4}>
+        <SimpleGrid columns={{ base: 1, md: 3, lg: 6 }} spacing={3}>
+          <FormControl>
+            <FormLabel fontSize="sm">Buscar</FormLabel>
+            <Input size="sm" placeholder="Nº, cliente o email" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
+          </FormControl>
+          <FormControl>
+            <FormLabel fontSize="sm">Estado</FormLabel>
+            <Select size="sm" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+              <option value="">Todos</option>
+              {ORDER_STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </Select>
+          </FormControl>
+          <FormControl>
+            <FormLabel fontSize="sm">Forma de pago</FormLabel>
+            <Select size="sm" value={filters.payment_method} onChange={(e) => setFilters({ ...filters, payment_method: e.target.value })}>
+              <option value="">Todas</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+            </Select>
+          </FormControl>
+          <FormControl>
+            <FormLabel fontSize="sm">Desde</FormLabel>
+            <Input size="sm" type="date" value={filters.date_from} onChange={(e) => setFilters({ ...filters, date_from: e.target.value })} />
+          </FormControl>
+          <FormControl>
+            <FormLabel fontSize="sm">Hasta</FormLabel>
+            <Input size="sm" type="date" value={filters.date_to} onChange={(e) => setFilters({ ...filters, date_to: e.target.value })} />
+          </FormControl>
+          <HStack align="end" spacing={2}>
+            <Button size="sm" colorScheme="brand" onClick={applyFilters}>Aplicar</Button>
+            <Button size="sm" variant="outline" onClick={clearFilters}>Limpiar</Button>
+          </HStack>
+        </SimpleGrid>
+      </Box>
       <Box bg={bg} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" overflowX="auto">
         <Table size="sm">
           <Thead><Tr><Th>Nº</Th><Th>Cliente</Th><Th>Total</Th><Th>Estado</Th><Th>Fecha</Th><Th></Th></Tr></Thead>
           <Tbody>
-            {visibleOrders.map(o => (
+            {orders.map(o => (
               <Tr key={o.id}>
                 <Td fontFamily="mono" fontWeight="500">{o.order_number}</Td>
                 <Td>
@@ -168,12 +234,12 @@ export default function AdminOrders() {
                 <Td color="fg.muted">{new Date(o.created_at).toLocaleString('es-AR')}</Td>
                 <Td>
                   <HStack spacing={1}>
-                    <IconButton aria-label="Ver detalle" icon={<FiEye />} size="sm" variant="ghost" onClick={() => openDetail(o.id)} />
+                    <IconButton aria-label="Ver detalle" icon={<FiEye />} size="md" variant="ghost" onClick={() => openDetail(o.id)} />
                     {o.status === 'cobrado' && (
                       <IconButton
                         aria-label="Facturar pedido"
                         icon={<FiFileText />}
-                        size="sm"
+                        size="md"
                         variant="ghost"
                         colorScheme="green"
                         onClick={() => navigate(`/facturacion?order_id=${o.id}`)}
@@ -184,7 +250,7 @@ export default function AdminOrders() {
                       <IconButton
                         aria-label="Anular factura del pedido"
                         icon={<FiXCircle />}
-                        size="sm"
+                        size="md"
                         variant="ghost"
                         colorScheme="red"
                         onClick={() => openVoidModal(o)}
@@ -195,10 +261,20 @@ export default function AdminOrders() {
                 </Td>
               </Tr>
             ))}
-            {visibleOrders.length === 0 && <Tr><Td colSpan={6}><Text textAlign="center" color="fg.muted" py={6}>Sin pedidos</Text></Td></Tr>}
+            {orders.length === 0 && <Tr><Td colSpan={6}><Text textAlign="center" color="fg.muted" py={6}>Sin pedidos</Text></Td></Tr>}
           </Tbody>
         </Table>
       </Box>
+
+      {pagination.pages > 1 && (
+        <HStack justify="space-between" mt={4} flexWrap="wrap" gap={2}>
+          <Text fontSize="sm" color="fg.muted">Página {pagination.page} de {pagination.pages}</Text>
+          <HStack spacing={2}>
+            <Button size="sm" variant="outline" onClick={() => load(pagination.page - 1, appliedFilters)} isDisabled={pagination.page <= 1}>Anterior</Button>
+            <Button size="sm" variant="outline" onClick={() => load(pagination.page + 1, appliedFilters)} isDisabled={pagination.page >= pagination.pages}>Siguiente</Button>
+          </HStack>
+        </HStack>
+      )}
 
       <Modal isOpen={isOpen} onClose={onClose} size="xl" scrollBehavior="inside">
         <ModalOverlay />

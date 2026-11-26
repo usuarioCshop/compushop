@@ -4,6 +4,7 @@ import {
   SimpleGrid, Box, Stat, StatLabel, StatNumber, Heading, Text, Table, Thead, Tbody, Tr, Th, Td,
   Spinner, Center, Badge, HStack, Input, Button, useToast, FormControl, FormLabel,
 } from '@chakra-ui/react';
+import { FiDownload } from 'react-icons/fi';
 import api from '../../api/client';
 
 const formatPrice = (n) =>
@@ -16,6 +17,7 @@ export default function Dashboard() {
   const [iibbPercent, setIibbPercent] = useState('');
   const [saving, setSaving] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
   const toast = useToast();
   const bg = 'bg.surface';
   const navigate = useNavigate();
@@ -54,6 +56,34 @@ export default function Dashboard() {
     }
   };
 
+  const downloadBackup = async () => {
+    try {
+      setBackingUp(true);
+      const response = await api.get('/dashboard/backup', { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/sql' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `compushop-backup-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.sql`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'Backup generado', status: 'success', duration: 3000 });
+    } catch (err) {
+      let msg = err.message || 'Error al generar backup';
+      const data = err.response?.data;
+      if (data instanceof Blob) {
+        try { const parsed = JSON.parse(await data.text()); msg = parsed.error || msg; } catch (_) {}
+      } else if (data?.error) {
+        msg = data.error;
+      }
+      toast({ title: 'Error al generar backup', description: msg, status: 'error' });
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
   if (!data) return <Center py={20}><Spinner size="xl" color="brand.500" thickness="3px" /></Center>;
 
   const cards = [
@@ -68,49 +98,56 @@ export default function Dashboard() {
 
   return (
     <Box>
-      <Heading size="lg" mb={6} fontWeight="700" letterSpacing="-0.02em">Dashboard</Heading>
-      <Box bg={bg} p={5} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card" mb={8} maxW="520px">
-        <Heading size="md" mb={3} fontWeight="700" letterSpacing="-0.01em">Cotización y márgenes</Heading>
-        <HStack align="end" flexWrap="wrap">
-          <FormControl maxW="200px">
-            <FormLabel fontSize="sm">Valor 1 USD (ARS)</FormLabel>
-            <Input value={usdRate} onChange={(e) => setUsdRate(e.target.value)} placeholder="Ej: 1200" />
-          </FormControl>
-          <FormControl maxW="200px">
-            <FormLabel fontSize="sm">IIBB (%)</FormLabel>
-            <Input value={iibbPercent} onChange={(e) => setIibbPercent(e.target.value)} placeholder="Ej: 3" />
-          </FormControl>
-          <Button colorScheme="brand" onClick={saveUsd} isLoading={saving}>Guardar</Button>
-        </HStack>
-        <HStack mt={4} spacing={3} flexWrap="wrap">
-          <Button colorScheme="green" onClick={updatePrices} isLoading={updating}>Actualizar precios desde compra USD</Button>
-        </HStack>
-        <Text fontSize="xs" color="fg.muted" mt={2}>Fórmula: (Compra USD × Dólar × (1+IVA) × (1+IIBB) × (1+Gasto Variable)) + Flete + Ganancia</Text>
-      </Box>
-      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} mb={10}>
-        {cards.map(c => (
-          <Box
-            key={c.label}
-            bg={bg}
-            p={5}
-            borderRadius="lg"
-            borderWidth="1px"
-            borderColor="border.subtle"
-            boxShadow="shadow-card"
-            cursor={c.to ? 'pointer' : 'default'}
-            _hover={c.to ? { borderColor: 'brand.300', transform: 'translateY(-1px)' } : undefined}
-            transition="all 0.15s"
-            onClick={() => c.to && navigate(c.to)}
-            role={c.to ? 'button' : undefined}
-            tabIndex={c.to ? 0 : undefined}
-            onKeyDown={(e) => { if (c.to && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigate(c.to); } }}
-          >
-            <Stat>
-              <StatLabel color="fg.muted" fontSize="sm">{c.label}</StatLabel>
-              <StatNumber fontSize="2xl" fontWeight="700" letterSpacing="-0.02em">{c.value}</StatNumber>
-            </Stat>
-          </Box>
-        ))}
+      <HStack justify="space-between" align="center" mb={6} flexWrap="wrap" gap={3}>
+        <Heading size="lg" fontWeight="700" letterSpacing="-0.02em">Dashboard</Heading>
+        <Button leftIcon={<FiDownload />} variant="outline" colorScheme="brand" onClick={downloadBackup} isLoading={backingUp} loadingText="Generando backup">
+          Backup BD
+        </Button>
+      </HStack>
+      <SimpleGrid columns={{ base: 1, xl: 2 }} spacing={6} mb={10} alignItems="start">
+        <Box bg={bg} p={5} borderRadius="lg" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card">
+          <Heading size="md" mb={3} fontWeight="700" letterSpacing="-0.01em">Cotización y márgenes</Heading>
+          <HStack align="end" flexWrap="wrap">
+            <FormControl maxW="200px">
+              <FormLabel fontSize="sm">Valor 1 USD (ARS)</FormLabel>
+              <Input value={usdRate} onChange={(e) => setUsdRate(e.target.value)} placeholder="Ej: 1200" />
+            </FormControl>
+            <FormControl maxW="200px">
+              <FormLabel fontSize="sm">IIBB (%)</FormLabel>
+              <Input value={iibbPercent} onChange={(e) => setIibbPercent(e.target.value)} placeholder="Ej: 3" />
+            </FormControl>
+            <Button colorScheme="brand" onClick={saveUsd} isLoading={saving}>Guardar</Button>
+          </HStack>
+          <HStack mt={4} spacing={3} flexWrap="wrap">
+            <Button colorScheme="green" onClick={updatePrices} isLoading={updating}>Actualizar precios desde compra USD</Button>
+          </HStack>
+          <Text fontSize="xs" color="fg.muted" mt={2}>Fórmula: (Compra USD × Dólar × (1+IVA) × (1+IIBB) × (1+Gasto Variable)) + Flete + Ganancia</Text>
+        </Box>
+        <SimpleGrid columns={{ base: 2, sm: 3 }} spacing={4}>
+          {cards.map(c => (
+            <Box
+              key={c.label}
+              bg={bg}
+              p={5}
+              borderRadius="lg"
+              borderWidth="1px"
+              borderColor="border.subtle"
+              boxShadow="shadow-card"
+              cursor={c.to ? 'pointer' : 'default'}
+              _hover={c.to ? { borderColor: 'brand.300', transform: 'translateY(-1px)' } : undefined}
+              transition="all 0.15s"
+              onClick={() => c.to && navigate(c.to)}
+              role={c.to ? 'button' : undefined}
+              tabIndex={c.to ? 0 : undefined}
+              onKeyDown={(e) => { if (c.to && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); navigate(c.to); } }}
+            >
+              <Stat>
+                <StatLabel color="fg.muted" fontSize="sm">{c.label}</StatLabel>
+                <StatNumber fontSize="2xl" fontWeight="700" letterSpacing="-0.02em">{c.value}</StatNumber>
+              </Stat>
+            </Box>
+          ))}
+        </SimpleGrid>
       </SimpleGrid>
 
       <Heading size="md" mb={4} fontWeight="700" letterSpacing="-0.01em">Pedidos recientes</Heading>
