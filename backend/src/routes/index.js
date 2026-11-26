@@ -210,6 +210,7 @@ router.put('/settings', authenticate, requireAdmin, settingsCtrl.update);
 
 // ========== DASHBOARD ==========
 router.get('/dashboard/stats', authenticate, requireAdmin, dashboardCtrl.getStats);
+router.get('/dashboard/backup', authenticate, requireAdmin, dashboardCtrl.backupDatabase);
 
 // ========== WISHLIST ==========
 router.get('/wishlist', authenticate, wishlistCtrl.getAll);

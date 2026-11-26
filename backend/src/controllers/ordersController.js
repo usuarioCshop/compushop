@@ -118,21 +118,47 @@ async function create(req, res) {
 // GET /api/orders (admin: todos | customer: solo los suyos)
 async function getAll(req, res) {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 20, search, payment_method, date_from, date_to } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     let sql = 'SELECT * FROM orders WHERE 1=1';
     const params = [];
 
     if (!['admin', 'superadmin'].includes(req.user.role)) {
-
       params.push(req.user.id);
       sql += ` AND user_id = $${params.length}`;
     }
 
     if (status) {
-      params.push(status);
-      sql += ` AND status = $${params.length}`;
+      const statuses = String(status).split(',').map((s) => s.trim()).filter(Boolean);
+      if (statuses.length === 1) {
+        params.push(statuses[0]);
+        sql += ` AND status = $${params.length}`;
+      } else if (statuses.length > 1) {
+        const placeholders = statuses.map((s) => { params.push(s); return `$${params.length}`; });
+        sql += ` AND status IN (${placeholders.join(', ')})`;
+      }
+    }
+
+    if (search && String(search).trim()) {
+      params.push(`%${String(search).trim()}%`);
+      const i = params.length;
+      sql += ` AND (order_number ILIKE $${i} OR customer_name ILIKE $${i} OR customer_email ILIKE $${i})`;
+    }
+
+    if (payment_method) {
+      params.push(String(payment_method));
+      sql += ` AND payment_method = $${params.length}`;
+    }
+
+    if (date_from) {
+      params.push(String(date_from));
+      sql += ` AND created_at >= $${params.length}::date`;
+    }
+
+    if (date_to) {
+      params.push(String(date_to));
+      sql += ` AND created_at < ($${params.length}::date + interval '1 day')`;
     }
 
     const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as total');
@@ -148,8 +174,8 @@ async function getAll(req, res) {
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit)),
+        total: Number(total),
+        pages: Math.ceil(Number(total) / parseInt(limit)),
       },
     });
   } catch (error) {
