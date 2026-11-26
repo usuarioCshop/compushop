@@ -12,7 +12,7 @@
 - [x] **F3 — Servicio Técnico / Reparación:** las boletas deben aparecer todas, independientemente del estado. (implementado en `ReparacionTab.jsx`)
 - [x] **F4 — Frontend auto-reload en desarrollo:** instalar/configurar las dependencias necesarias para que el frontend se reinicie/actualice automáticamente ante cada cambio durante el desarrollo. (configurado `server.watch.usePolling: true` en `frontend/vite.config.js`)
 - [x] **F5 — Adaptación y optimización para diseño móvil:** adaptar la experiencia frontend para uso cómodo en dispositivos móviles (ver detalle y criterios de aceptación). (CA1-CA8 completados; CA8 confirmado por usuario)
-- [x] **F6 — Dashboard backup BD (admin/superAdmin):** agregar en el Dashboard una opción para que `admin` y `superAdmin` puedan realizar backup de la base de datos. (endpoint `GET /dashboard/backup`, botón en Dashboard; requiere `pg_dump` en el servidor)
+- [x] **F6 — Dashboard backup BD (admin/superAdmin):** agregar en el Dashboard una opción para que `admin` y `superAdmin` puedan realizar backup de la base de datos. (endpoint `GET /dashboard/backup`, botón en Dashboard; usa `pg_dump` si está disponible o fallback lógico Node/SQL)
 
 ## Detalle F5 — Adaptación y optimización para diseño móvil
 
@@ -51,3 +51,4 @@ Permitir que las vistas principales del frontend (especialmente admin/superadmin
 - L11 (2026-11-26): F5 CA5 — verificados modales/formularios críticos con tamaños responsive, scrollBehavior y grillas base 1 columna.
 - L12 (2026-11-26): F5 CA6-CA8 cerrados con confirmación del usuario; F5 marcado completo.
 - L13 (2026-11-26): F6 implementado — `GET /api/dashboard/backup` (admin/superAdmin, usa `pg_dump`) y botón "Backup BD" en Dashboard.
+- L14 (2026-11-26): F6 mejorado para Vercel — fallback lógico Node/SQL cuando `pg_dump` no está disponible.
