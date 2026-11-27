@@ -34,18 +34,16 @@ export default function Services() {
         <Container maxW="6xl" position="relative" zIndex={1}>
           <VStack align={{ base: 'center', md: 'start' }} textAlign={{ base: 'center', md: 'left' }} spacing={6}>
             <Heading
-              fontSize={{ base: '3rem', md: '4.5rem', lg: '5.5rem' }}
-              fontWeight="700"
-              letterSpacing="-0.04em"
-              textTransform="uppercase"
-              sx={{
-                backgroundImage: 'linear-gradient(120deg, #f8fafc 0%, var(--chakra-colors-brand-300) 38%, var(--chakra-colors-accent-300) 68%, var(--chakra-colors-accent-400) 100%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-              }}
+              fontSize={{ base: '2.75rem', md: '4rem', lg: '5rem' }}
+              fontWeight="800"
+              letterSpacing="-0.03em"
+              lineHeight="1"
+              bgGradient="gradient-hero-text"
+              bgClip="text"
+              color="transparent"
+              sx={{ fontFamily: "'Sora', 'Inter', system-ui, sans-serif" }}
             >
-              Servicios Técnicos
+              Servicio técnico con diagnóstico claro
             </Heading>
             <Text fontSize={{ base: 'lg', md: 'xl' }} color="gray.200" maxW="680px" lineHeight="1.9">
               Armado de PC a medida, reparación, mantenimiento, diagnóstico y soporte especializado. Soluciones rápidas, claras y con garantía.

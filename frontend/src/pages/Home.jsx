@@ -5,7 +5,7 @@ import {
 } from '@chakra-ui/react';
 import { Link as RouterLink } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { FiArrowRight, FiZap } from 'react-icons/fi';
+import { FiArrowRight } from 'react-icons/fi';
 import api from '../api/client';
 import ProductCard from '../components/ProductCard';
 import portada from '../assets/portada.jpg';
@@ -60,69 +60,55 @@ export default function Home() {
             w="100%"
             h="100%"
             sx={{ objectFit: 'cover', objectPosition: 'center' }}
-            filter="brightness(0.4) contrast(1.1) saturate(1.2)"
+            filter="brightness(0.38) contrast(1.08) saturate(1.15)"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
           />
         </Box>
         <Box
           position="absolute"
           inset={0}
           zIndex={1}
-          bgGradient="radial-gradient(120% 120% at 50% 0%, rgba(59,130,246,0.18) 0%, rgba(15,23,42,0.9) 55%, rgba(2,6,23,0.98) 100%)"
+          bgGradient="linear(to-r, rgba(7,11,20,0.92) 0%, rgba(15,23,42,0.78) 45%, rgba(15,23,42,0.45) 100%)"
         />
         <Box
           position="absolute"
           inset={0}
           zIndex={1}
-          sx={{
-            backgroundImage:
-              'radial-gradient(circle at 15% 25%, rgba(96,165,250,0.10) 0, transparent 40%), radial-gradient(circle at 85% 0%, rgba(167,139,250,0.10) 0, transparent 35%)',
-          }}
+          bgGradient="linear(to-t, rgba(2,6,23,0.72) 0%, rgba(2,6,23,0.1) 45%, rgba(2,6,23,0.2) 100%)"
         />
-        <Container maxW="6xl" position="relative" zIndex={2} px={{ base: 6, md: 8 }} py={{ base: 24, md: 32 }}>
-          <VStack align={{ base: 'center', md: 'start' }} textAlign={{ base: 'center', md: 'left' }} spacing={8} maxW="3xl">
-            <HStack
-              spacing={2}
-              px={4}
-              py={1.5}
-              borderRadius="full"
-              border="1px solid"
-              borderColor="whiteAlpha.300"
-              bg="whiteAlpha.100"
-              backdropFilter="blur(12px)"
-              color="whiteAlpha.900"
-              fontSize="sm"
-              fontWeight="500"
-              letterSpacing="0.02em"
+        <Container maxW="6xl" position="relative" zIndex={2} px={{ base: 6, md: 8 }} py={{ base: 20, md: 28 }}>
+          <VStack align={{ base: 'center', md: 'start' }} textAlign={{ base: 'center', md: 'left' }} spacing={7} maxW="3xl">
+            <Text
+              fontSize="xs"
+              fontWeight="600"
+              letterSpacing="0.16em"
               textTransform="uppercase"
+              color="whiteAlpha.800"
             >
-              <Box as={FiZap} boxSize={4} />
-              <Text>Soluciones tecnológicas a medida</Text>
-            </HStack>
+              Venta, servicio técnico y asesoramiento
+            </Text>
             <Heading
               as="h1"
-              fontSize={{ base: '4rem', sm: '5rem', md: '6rem', lg: '7rem' }}
-              fontWeight="900"
-              letterSpacing="-0.06em"
-              lineHeight="0.95"
-              textTransform="uppercase"
-              sx={{
-                backgroundImage: 'linear-gradient(120deg, #f8fafc 0%, var(--chakra-colors-brand-300) 38%, var(--chakra-colors-accent-300) 68%, var(--chakra-colors-accent-400) 100%)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                color: 'transparent',
-                fontFamily: "'Sora', 'Inter', system-ui, sans-serif",
-              }}
+              fontSize={{ base: '3.25rem', sm: '4.5rem', md: '5.5rem', lg: '6.5rem' }}
+              fontWeight="800"
+              letterSpacing="-0.04em"
+              lineHeight="0.98"
+              bgGradient="gradient-hero-text"
+              bgClip="text"
+              color="transparent"
+              sx={{ fontFamily: "'Sora', 'Inter', system-ui, sans-serif" }}
             >
-              Tecnología Nítida
+              Tecnología para trabajar, jugar y crear
             </Heading>
             <Text
-              fontSize={{ base: 'lg', md: 'xl' }}
+              fontSize={{ base: 'md', md: 'lg' }}
               color="gray.200"
-              maxW="640px"
-              lineHeight="1.9"
-              fontWeight="400"
+              maxW="620px"
+              lineHeight="1.8"
             >
-              Notebooks, PCs, componentes, insumos de oficina y servicio técnico especializado. Precisión, honestidad y asesoramiento experto para que tu tecnología siempre funcione al máximo.
+              Notebooks, PCs, componentes, insumos de oficina y servicio técnico especializado. Te ayudamos a elegir, armar y mantener tu equipo con criterio.
             </Text>
             <HStack justify={{ base: 'center', md: 'start' }} spacing={4} flexWrap="wrap">
               <Button
@@ -130,7 +116,7 @@ export default function Home() {
                 to="/productos"
                 size="lg"
                 borderRadius="full"
-                px={10}
+                px={8}
                 bg="brand.600"
                 color="white"
                 _hover={{ bg: 'brand.700', transform: 'translateY(-1px)', boxShadow: 'shadow-cardHover' }}
@@ -144,60 +130,71 @@ export default function Home() {
                 size="lg"
                 variant="outline"
                 borderRadius="full"
-                px={10}
+                px={8}
                 borderColor="whiteAlpha.500"
                 color="whiteAlpha.900"
-                _hover={{ bg: 'whiteAlpha.100', borderColor: 'whiteAlpha.600' }}
+                _hover={{ bg: 'whiteAlpha.100', borderColor: 'whiteAlpha.700' }}
               >
                 Ver servicios
               </Button>
             </HStack>
-            <HStack spacing={{ base: 6, md: 10 }} pt={6} flexWrap="wrap" justify={{ base: 'center', md: 'start' }}>
+            <HStack
+              spacing={{ base: 4, md: 8 }}
+              pt={4}
+              flexWrap="wrap"
+              justify={{ base: 'center', md: 'start' }}
+              divider={<Box w="1px" h="32px" bg="whiteAlpha.300" display={{ base: 'none', sm: 'block' }} />}
+            >
               {[
-                { value: '20+', label: 'Años de experiencia' },
-                { value: '1500+', label: 'Clientes satisfechos' },
-                { value: 'Garantía', label: 'Servicio post-venta' },
+                { value: '20+ años', label: 'de experiencia' },
+                { value: '1500+ clientes', label: 'atendidos' },
+                { value: 'Garantía', label: 'y servicio post-venta' },
               ].map((item) => (
-                <VStack key={item.label} align={{ base: 'center', md: 'start' }} spacing={1}>
-                  <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="800" letterSpacing="-0.02em" color="white">
+                <Box key={item.label}>
+                  <Text fontSize="sm" fontWeight="700" color="white" letterSpacing="-0.01em">
                     {item.value}
                   </Text>
-                  <Text fontSize="sm" color="gray.400" textTransform="uppercase" letterSpacing="0.12em">
+                  <Text fontSize="sm" color="gray.300">
                     {item.label}
                   </Text>
-                </VStack>
+                </Box>
               ))}
             </HStack>
           </VStack>
         </Container>
-        <Box position="absolute" bottom={0} left={0} right={0} h="24" bgGradient="linear(to-t, rgba(2,6,23,1), transparent)" zIndex={2} />
       </Box>
 
       {/* ===== SOBRE NOSOTROS ===== */}
       <Box bg={sectionBg} borderTop="1px solid" borderBottom="1px solid" borderColor="border.subtle" py={{ base: 16, md: 24 }}>
         <Container maxW="6xl">
-          <Flex direction={{ base: 'column', md: 'row' }} gap={{ base: 10, md: 16 }} align="center">
-            <Box flex="1" borderRadius="2xl" overflow="hidden" border="1px solid" borderColor="border.subtle" boxShadow="lg">
-              <Image src={portada} alt="Espacio de trabajo Compushop" w="100%" h="100%" sx={{ objectFit: 'cover' }} />
-            </Box>
-            <VStack align={{ base: 'center', md: 'start' }} spacing={5} flex="1" textAlign={{ base: 'center', md: 'left' }}>
-              <Heading size="xl" fontWeight="700" letterSpacing="-0.02em">
-                Nuestra pasión por la tecnología
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={{ base: 10, md: 16 }} alignItems="start">
+            <VStack align={{ base: 'start', md: 'start' }} spacing={5}>
+              <Text fontSize="xs" fontWeight="600" letterSpacing="0.14em" textTransform="uppercase" color="brand.600" _dark={{ color: 'brand.300' }}>
+                Sobre Compushop
+              </Text>
+              <Heading size="xl" fontWeight="700" letterSpacing="-0.02em" lineHeight="1.2">
+                Equipos, insumos y soporte técnico en un mismo lugar
               </Heading>
               <Text color="fg.muted" fontSize="md" lineHeight="1.8">
-                En Compushop ofrecemos soluciones de calidad en notebooks, PCs, componentes,
-                muebles de oficina e insumos. Nuestro equipo técnico está capacitado para
-                resolver cualquier necesidad de tu equipo o tu empresa.
-              </Text>
-              <Text color="fg.muted" lineHeight="1.8">
-                Creemos en la honestidad y el compromiso: cada producto y servicio refleja
-                nuestra dedicación a tu satisfacción.
+                Trabajamos con notebooks, PCs, componentes, muebles de oficina e insumos. Te asesoramos para que compres lo que necesitás y acompañamos con servicio técnico cuando tu equipo lo requiere.
               </Text>
               <Button as={RouterLink} to="/contacto" colorScheme="brand" borderRadius="full" size="md" px={6}>
-                Contáctanos
+                Hablar con el equipo
               </Button>
             </VStack>
-          </Flex>
+            <SimpleGrid columns={1} spacing={4}>
+              {[
+                { title: 'Asesoramiento claro', text: 'Te ayudamos a elegir según uso, presupuesto y compatibilidad.' },
+                { title: 'Servicio técnico', text: 'Diagnóstico, reparación y mantenimiento con seguimiento.' },
+                { title: 'Soluciones para oficina', text: 'Equipos, periféricos e insumos para trabajar sin fricción.' },
+              ].map((item) => (
+                <Box key={item.title} p={5} bg="bg.canvas" borderWidth="1px" borderColor="border.subtle" borderRadius="lg">
+                  <Text fontWeight="600" mb={1}>{item.title}</Text>
+                  <Text color="fg.muted" fontSize="sm" lineHeight="1.7">{item.text}</Text>
+                </Box>
+              ))}
+            </SimpleGrid>
+          </SimpleGrid>
         </Container>
       </Box>
 
@@ -277,59 +274,30 @@ export default function Home() {
         </Container>
       </Box>
 
-      {/* ===== STATS ===== */}
-      <Box bg={mutedBg} borderTop="1px solid" borderBottom="1px solid" borderColor="border.subtle" py={{ base: 12, md: 16 }}>
-        <Container maxW="5xl">
-          <SimpleGrid columns={{ base: 1, md: 3 }} spacing={8} textAlign="center">
-            {[
-              { n: '1.500+', l: 'Clientes satisfechos' },
-              { n: '300+', l: 'Productos disponibles' },
-              { n: '20+', l: 'Años de experiencia' },
-            ].map((s) => (
-              <Box key={s.l}>
-                <Heading
-                  fontSize={{ base: '3rem', md: '3.5rem' }}
-                  fontWeight="800"
-                  letterSpacing="-0.03em"
-                  sx={{
-                    backgroundImage: 'linear-gradient(135deg, var(--chakra-colors-brand-400), var(--chakra-colors-accent-400))',
-                    WebkitBackgroundClip: 'text',
-                    backgroundClip: 'text',
-                    color: 'transparent',
-                  }}
-                >
-                  {s.n}
-                </Heading>
-                <Text color="fg.muted" fontSize="md" mt={2}>
-                  {s.l}
-                </Text>
-              </Box>
-            ))}
-          </SimpleGrid>
-        </Container>
-      </Box>
-
       {/* ===== CTA FINAL ===== */}
       <Box py={{ base: 16, md: 24 }}>
-        <Container maxW="4xl">
+        <Container maxW="5xl">
           <Box
             bg="bg.surface"
-            border="2px solid"
-            borderColor="border.strong"
+            borderWidth="1px"
+            borderColor="border.subtle"
             borderRadius="2xl"
             p={{ base: 8, md: 12 }}
-            textAlign="center"
-            boxShadow="shadow-cardHover"
+            boxShadow="shadow-card"
           >
-            <Heading size="lg" mb={3} fontWeight="700">
-              ¿Necesitás asesoramiento?
-            </Heading>
-            <Text mb={6} color="fg.muted" maxW="md" mx="auto">
-              Contactanos y te ayudamos a armar la solución ideal para vos o tu empresa.
-            </Text>
-            <Button as={RouterLink} to="/contacto" colorScheme="brand" size="md" borderRadius="full" px={6}>
-              Contáctanos Ahora
-            </Button>
+            <Flex direction={{ base: 'column', md: 'row' }} align={{ base: 'start', md: 'center' }} justify="space-between" gap={6}>
+              <Box maxW="2xl">
+                <Heading size="lg" mb={3} fontWeight="700" letterSpacing="-0.02em">
+                  ¿Necesitás ayuda para elegir o reparar tu equipo?
+                </Heading>
+                <Text color="fg.muted" lineHeight="1.8">
+                  Contanos qué necesitás y te asesoramos con una recomendación clara, sea para comprar, armar o hacer servicio técnico.
+                </Text>
+              </Box>
+              <Button as={RouterLink} to="/contacto" colorScheme="brand" size="lg" borderRadius="full" px={8} flexShrink={0}>
+                Contactar
+              </Button>
+            </Flex>
           </Box>
         </Container>
       </Box>

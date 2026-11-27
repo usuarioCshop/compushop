@@ -58,6 +58,8 @@ const semanticTokens = {
     border: {
       subtle: { default: '#e2e8f0', _dark: '#1e293b' },
       strong: { default: '#cbd5e1', _dark: '#334155' },
+      card: { default: '#e2e8f0', _dark: '#1e293b' },
+      cardHover: { default: '#93c5fd', _dark: '#60a5fa' },
     },
 
     // Tokens internos de Chakra
@@ -88,9 +90,28 @@ const radii = {
 
 const styles = {
   global: {
+    'html': {
+      scrollBehavior: 'smooth',
+    },
     body: {
       bg: 'bg.canvas',
       color: 'fg.default',
+    },
+    '*:focus-visible': {
+      outline: '2px solid',
+      outlineColor: 'brand.500',
+      outlineOffset: '2px',
+    },
+    '@media (prefers-reduced-motion: reduce)': {
+      'html': {
+        scrollBehavior: 'auto',
+      },
+      '*, *::before, *::after': {
+        animationDuration: '0.01ms !important',
+        animationIterationCount: '1 !important',
+        transitionDuration: '0.01ms !important',
+        scrollBehavior: 'auto !important',
+      },
     },
   },
 };
@@ -192,6 +213,18 @@ const components = {
       dialog: { bg: 'bg.surface' },
     },
   },
+  Card: {
+    baseStyle: {
+      container: {
+        bg: 'bg.surface',
+        borderWidth: '1px',
+        borderColor: 'border.card',
+        borderRadius: 'lg',
+        boxShadow: 'shadow-card',
+        transition: 'all 0.2s ease',
+      },
+    },
+  },
   Table: {
     baseStyle: {
       table: { borderColor: 'border.subtle' },
@@ -217,6 +250,10 @@ const semanticGradients = {
   'gradient-brand': {
     default: 'linear(90deg, #2563eb 0%, #6d28d9 100%)',
     _dark: 'linear(90deg, #1d4ed8 0%, #7c3aed 100%)',
+  },
+  'gradient-hero-text': {
+    default: 'linear(120deg, #f8fafc 0%, brand.300 38%, accent.300 68%, accent.400 100%)',
+    _dark: 'linear(120deg, #f8fafc 0%, brand.300 38%, accent.300 68%, accent.400 100%)',
   },
 };
 

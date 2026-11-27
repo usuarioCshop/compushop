@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   Box, Heading, VStack, Text, Badge, Button, Spinner, Center, HStack, useToast,
 } from '@chakra-ui/react';
+import { FiMail } from 'react-icons/fi';
 import api from '../../api/client';
+import EmptyState from '../../components/EmptyState';
 
 export default function AdminMessages() {
   const [messages, setMessages] = useState([]);
@@ -22,11 +24,11 @@ export default function AdminMessages() {
     load();
   };
 
-  if (loading) return <Center py={10}><Spinner /></Center>;
+  if (loading) return <Center py={20}><Spinner size="xl" color="brand.500" thickness="3px" /></Center>;
 
   return (
     <Box>
-      <Heading size="lg" mb={6}>Mensajes de contacto</Heading>
+      <Heading size="lg" mb={6} fontWeight="700" letterSpacing="-0.02em">Mensajes de contacto</Heading>
       <VStack spacing={4} align="stretch">
         {messages.map(m => (
           <Box key={m.id} bg={bg} p={5} borderRadius="xl" borderWidth="1px" borderLeftWidth="4px"
@@ -46,7 +48,7 @@ export default function AdminMessages() {
             )}
           </Box>
         ))}
-        {messages.length === 0 && <Text color="fg.muted" textAlign="center">No hay mensajes</Text>}
+        {messages.length === 0 && <EmptyState icon={FiMail} title="No hay mensajes" description="Los mensajes del formulario de contacto aparecerán acá." />}
       </VStack>
     </Box>
   );
