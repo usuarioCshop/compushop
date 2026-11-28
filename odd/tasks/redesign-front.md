@@ -105,7 +105,7 @@ Revisar y mejorar el frontend de Compushop con foco en buenas prácticas, diseñ
 ### Paso 6 — Optimización y verificación
 - [x] **6a — Imágenes y performance rápida**
   - [x] Revisar `loading/decoding/fetchPriority` en imágenes clave.
-  - [x] Identificar assets pesados y aplicar optimización segura. (logo 640KB JPEG como .png identificado; sin herramientas de conversión en entorno)
+  - [x] Identificar assets pesados y aplicar optimización segura. (`logo-header.png`: 1152x912 JPEG 640KB -> 121x96 PNG 30KB)
 - [x] **6b — Limpieza y calidad**
   - [x] Limpiar patrones inline/redundantes evidentes.
   - [x] Verificar build/lint (si aplica) y warnings. (build OK; warning chunk grande preexistente; no lint script en frontend)
@@ -127,4 +127,4 @@ Revisar y mejorar el frontend de Compushop con foco en buenas prácticas, diseñ
 - L11 (2026-11-27): Paso 4 completo — Navbar drawer con estado activo, Footer pulido (hover/copy), ProductDetail normalizado (badges/CTA/tipografía). Build frontend OK.
 - L12 (2026-11-27): Paso 5 desglosado en 5a-5d; ejecución iniciada.
 - L13 (2026-11-27): Paso 5 completo — pulido ligero admin (AdminMessages con EmptyState/loading consistente; revisión de layouts/headers complejos sin cambios de lógica). Build frontend OK.
-- L14 (2026-11-27): Paso 6 completo — atributos de imagen/CLS en logos, revisión de assets pesados (logo-header.png 640KB JPEG mal etiquetado como PNG, pendiente optimización con herramienta de imagen), build frontend OK. Redesign-front finalizado.
+- L14 (2026-11-27): Paso 6 completo — atributos de imagen/CLS en logos, `logo-header.png` optimizado (1152x912 JPEG 640KB -> 121x96 PNG 30KB), build frontend OK. Redesign-front finalizado.
