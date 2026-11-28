@@ -99,6 +99,10 @@ export default function Navbar() {
                 w="auto"
                 borderRadius="4px"
                 flexShrink={0}
+                htmlWidth="40"
+                htmlHeight="32"
+                loading="eager"
+                decoding="async"
               />
               <Text
                 display={{ base: 'none', sm: 'block' }}
@@ -286,19 +290,24 @@ export default function Navbar() {
           <DrawerHeader>Menú</DrawerHeader>
           <DrawerBody>
             <VStack align="stretch" spacing={3}>
-              {links.map((l) => (
-                <Button
-                  key={l.to}
-                  as={RouterLink}
-                  to={l.to}
-                  variant="ghost"
-                  justifyContent="flex-start"
-                  borderRadius="full"
-                  onClick={onClose}
-                >
-                  {l.label}
-                </Button>
-              ))}
+              {links.map((l) => {
+                const active = location.pathname === l.to;
+                return (
+                  <Button
+                    key={l.to}
+                    as={RouterLink}
+                    to={l.to}
+                    variant="ghost"
+                    justifyContent="flex-start"
+                    borderRadius="full"
+                    onClick={onClose}
+                    bg={active ? 'bg.subtle' : undefined}
+                    fontWeight={active ? '600' : '500'}
+                  >
+                    {l.label}
+                  </Button>
+                );
+              })}
               {!user && (
                 <>
                   <Button as={RouterLink} to="/login" variant="ghost" borderRadius="full" onClick={onClose}>

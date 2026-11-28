@@ -5,7 +5,7 @@ import {
   SimpleGrid, useToast, List, ListItem,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { FiShoppingCart, FiAlertCircle } from 'react-icons/fi';
+import { FiShoppingCart, FiAlertCircle, FiArrowLeft, FiShoppingBag } from 'react-icons/fi';
 import api from '../api/client';
 import { useCart } from '../context/CartContext';
 import { resolveUploadUrl } from '../api/uploads';
@@ -46,42 +46,54 @@ export default function ProductDetail() {
     toast({ title: 'Agregado al carrito', status: 'success', duration: 2000 });
   };
 
+  const handleBuy = () => {
+    addItem(product, 1, 'product');
+    navigate('/carrito');
+  };
+
   return (
     <Container maxW="6xl" py={10}>
       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={10}>
         <Box bg={bg} borderRadius="lg" overflow="hidden" borderWidth="1px" borderColor="border.subtle" boxShadow="shadow-card">
-          <Image src={resolveUploadUrl(product.image)} alt={product.name} w="100%" maxH="420px" objectFit="cover"
+          <Image src={resolveUploadUrl(product.image)} alt={product.name} w="100%" maxH="420px" objectFit="cover" loading="lazy" decoding="async"
             fallbackSrc="https://via.placeholder.com/600x400?text=Compushop" />
         </Box>
-        <VStack align="start" spacing={4}>
+        <VStack align="start" spacing={5}>
           <HStack spacing={2} flexWrap="wrap">
-            {product.is_promo && <Badge colorScheme="accent" fontSize="sm" px={3} py={1} borderRadius="full">PROMOCIÓN</Badge>}
-            {product.brand && <Badge colorScheme="brand" variant="subtle" px={2} borderRadius="full">{product.brand}</Badge>}
-            {!product.is_promo && product.stock <= 5 && product.stock > 0 && <Badge colorScheme="accent">Últimas unidades</Badge>}
-            {!product.is_promo && product.stock === 0 && <Badge colorScheme="red">Sin stock</Badge>}
+            {product.is_promo && <Badge colorScheme="accent" fontSize="sm" px={3} py={1} borderRadius="full">Promoción</Badge>}
+            {product.brand && <Badge colorScheme="brand" variant="subtle" px={2} py={1} borderRadius="full">{product.brand}</Badge>}
+            {!product.is_promo && product.stock <= 5 && product.stock > 0 && <Badge colorScheme="orange" variant="subtle" px={2} py={1} borderRadius="full">Últimas unidades</Badge>}
+            {!product.is_promo && product.stock === 0 && <Badge colorScheme="red" variant="subtle" px={2} py={1} borderRadius="full">Sin stock</Badge>}
           </HStack>
-          <Heading size="lg">{product.name}</Heading>
-          <Text fontSize="2xl" fontWeight="800" letterSpacing="-0.02em" color="brand.600" className="price">{formatPrice(product.price)}</Text>
-          <Text color="fg.muted">{product.description}</Text>
+          <Heading size="lg" letterSpacing="-0.02em" lineHeight="1.2">{product.name}</Heading>
+          <Text fontSize="3xl" fontWeight="800" letterSpacing="-0.02em" color="fg.default">{formatPrice(product.price)}</Text>
+          <Text color="fg.muted" lineHeight="1.8">{product.description}</Text>
           {product.stock !== undefined && (
-            <Text fontSize="sm" color={product.stock > 0 ? 'green.500' : 'red.500'}>
-              {product.stock > 0 ? `Stock: ${product.stock} unidades` : 'Sin stock'}
+            <Text fontSize="sm" color={product.stock > 0 ? 'green.600' : 'red.500'} _dark={{ color: product.stock > 0 ? 'green.300' : 'red.300' }}>
+              {product.stock > 0 ? `Stock disponible: ${product.stock} unidades` : 'Sin stock'}
             </Text>
           )}
           {product.specs && (
-            <Box>
-              <Text fontWeight="semibold" mb={2}>Especificaciones</Text>
-              <List spacing={1} fontSize="sm">
+            <Box w="100%">
+              <Text fontWeight="600" mb={3}>Especificaciones</Text>
+              <List spacing={2} fontSize="sm" color="fg.muted">
                 {Object.entries(product.specs).map(([k, v]) => (
-                  <ListItem key={k}><b>{k}:</b> {String(v)}</ListItem>
+                  <ListItem key={k}><Text as="span" fontWeight="600" color="fg.default">{k}:</Text> {String(v)}</ListItem>
                 ))}
               </List>
             </Box>
           )}
-          <Button leftIcon={<FiShoppingCart />} colorScheme="accent" size="lg" onClick={handleAdd}
-            isDisabled={product.stock === 0}>
-            Agregar al carrito
-          </Button>
+          <HStack w="100%" spacing={2} pt={2} flexWrap="nowrap">
+            <Button leftIcon={<FiShoppingBag />} colorScheme="brand" size="sm" borderRadius="full" flex="1" minW={0} px={3} onClick={handleBuy} isDisabled={product.stock === 0}>
+              Comprar
+            </Button>
+            <Button leftIcon={<FiShoppingCart />} variant="outline" colorScheme="brand" size="sm" borderRadius="full" flex="1" minW={0} px={3} onClick={handleAdd} isDisabled={product.stock === 0}>
+              Carrito
+            </Button>
+            <Button leftIcon={<FiArrowLeft />} variant="ghost" size="sm" borderRadius="full" flex="1" minW={0} px={3} onClick={() => navigate('/productos')}>
+              Catálogo
+            </Button>
+          </HStack>
         </VStack>
       </SimpleGrid>
     </Container>
