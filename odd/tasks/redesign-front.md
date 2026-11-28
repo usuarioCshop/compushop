@@ -128,3 +128,4 @@ Revisar y mejorar el frontend de Compushop con foco en buenas prácticas, diseñ
 - L12 (2026-11-27): Paso 5 desglosado en 5a-5d; ejecución iniciada.
 - L13 (2026-11-27): Paso 5 completo — pulido ligero admin (AdminMessages con EmptyState/loading consistente; revisión de layouts/headers complejos sin cambios de lógica). Build frontend OK.
 - L14 (2026-11-27): Paso 6 completo — atributos de imagen/CLS en logos, `logo-header.png` optimizado (1152x912 JPEG 640KB -> 121x96 PNG 30KB), build frontend OK. Redesign-front finalizado.
+- L15 (2026-11-28): Ajuste mobile post-redesign — ProductCard compacta en móvil (layout horizontal, imagen pequeña izquierda, acciones por íconos).

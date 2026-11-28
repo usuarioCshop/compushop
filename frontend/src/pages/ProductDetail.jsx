@@ -5,7 +5,7 @@ import {
   SimpleGrid, useToast, List, ListItem,
 } from '@chakra-ui/react';
 import { useNavigate } from 'react-router-dom';
-import { FiShoppingCart, FiAlertCircle } from 'react-icons/fi';
+import { FiShoppingCart, FiAlertCircle, FiArrowLeft, FiShoppingBag } from 'react-icons/fi';
 import api from '../api/client';
 import { useCart } from '../context/CartContext';
 import { resolveUploadUrl } from '../api/uploads';
@@ -46,6 +46,11 @@ export default function ProductDetail() {
     toast({ title: 'Agregado al carrito', status: 'success', duration: 2000 });
   };
 
+  const handleBuy = () => {
+    addItem(product, 1, 'product');
+    navigate('/carrito');
+  };
+
   return (
     <Container maxW="6xl" py={10}>
       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={10}>
@@ -78,10 +83,17 @@ export default function ProductDetail() {
               </List>
             </Box>
           )}
-          <Button leftIcon={<FiShoppingCart />} colorScheme="brand" size="lg" borderRadius="full" px={8} onClick={handleAdd}
-            isDisabled={product.stock === 0}>
-            {product.stock === 0 ? 'Sin stock' : 'Agregar al carrito'}
-          </Button>
+          <HStack w="100%" spacing={2} pt={2} flexWrap="nowrap">
+            <Button leftIcon={<FiShoppingBag />} colorScheme="brand" size="sm" borderRadius="full" flex="1" minW={0} px={3} onClick={handleBuy} isDisabled={product.stock === 0}>
+              Comprar
+            </Button>
+            <Button leftIcon={<FiShoppingCart />} variant="outline" colorScheme="brand" size="sm" borderRadius="full" flex="1" minW={0} px={3} onClick={handleAdd} isDisabled={product.stock === 0}>
+              Carrito
+            </Button>
+            <Button leftIcon={<FiArrowLeft />} variant="ghost" size="sm" borderRadius="full" flex="1" minW={0} px={3} onClick={() => navigate('/productos')}>
+              Catálogo
+            </Button>
+          </HStack>
         </VStack>
       </SimpleGrid>
     </Container>

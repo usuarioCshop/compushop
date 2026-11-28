@@ -1,8 +1,8 @@
 import {
   Box, Image, Text, Badge, Button, VStack, HStack, IconButton, useToast,
 } from '@chakra-ui/react';
-import { Link as RouterLink } from 'react-router-dom';
-import { FiHeart } from 'react-icons/fi';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { FiHeart, FiShoppingCart, FiEye, FiShoppingBag } from 'react-icons/fi';
 import { FaHeart } from 'react-icons/fa';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -17,6 +17,7 @@ export default function ProductCard({ product, type = 'product' }) {
   const { toggle, has } = useWishlist();
   const { user } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
   const fav = has(product.id);
   const bg = 'bg.surface';
   const muted = 'fg.muted';
@@ -32,6 +33,13 @@ export default function ProductCard({ product, type = 'product' }) {
       isClosable: true,
       position: 'top-right',
     });
+  };
+
+  const handleBuy = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addItem(product, 1, type);
+    navigate('/carrito');
   };
 
   const handleFavorite = (e) => {
@@ -64,7 +72,7 @@ export default function ProductCard({ product, type = 'product' }) {
       borderColor="border.card"
       h="100%"
       display="flex"
-      flexDirection="column"
+      flexDirection={{ base: 'row', sm: 'column' }}
       transition="all 0.2s ease"
       boxShadow="shadow-card"
       _hover={{
@@ -77,8 +85,9 @@ export default function ProductCard({ product, type = 'product' }) {
         as={RouterLink}
         to={to}
         position="relative"
-        w="100%"
-        sx={{ aspectRatio: '4 / 3' }}
+        w={{ base: '112px', sm: '100%' }}
+        minW={{ base: '112px', sm: 'auto' }}
+        sx={{ aspectRatio: { base: '1 / 1', sm: '4 / 3' } }}
         bg="bg.subtle"
         overflow="hidden"
         flexShrink={0}
@@ -87,19 +96,19 @@ export default function ProductCard({ product, type = 'product' }) {
           <IconButton
             aria-label={fav ? 'Quitar de favoritos' : 'Agregar a favoritos'}
             icon={fav ? <FaHeart /> : <FiHeart />}
-            size="sm"
+            size="xs"
             position="absolute"
-            top={3}
-            right={3}
+            top={2}
+            right={2}
             borderRadius="full"
             colorScheme={fav ? 'red' : 'gray'}
-            variant={fav ? 'solid' : 'solid'}
+            variant="solid"
             bg={fav ? undefined : 'whiteAlpha.900'}
             color={fav ? undefined : 'gray.700'}
             _dark={!fav ? { bg: 'blackAlpha.700', color: 'gray.100' } : undefined}
-            _hover={{ transform: 'scale(1.04)' }}
             onClick={handleFavorite}
             zIndex={1}
+            display={{ base: 'none', sm: 'inline-flex' }}
           />
         )}
         <Image
@@ -118,70 +127,105 @@ export default function ProductCard({ product, type = 'product' }) {
         {type === 'product' && product.is_promo && (
           <Badge
             position="absolute"
-            top={3}
-            left={3}
+            top={2}
+            left={2}
             colorScheme="accent"
             variant="solid"
             borderRadius="full"
-            px={3}
-            fontSize="xs"
+            px={2}
+            fontSize="10px"
             fontWeight="700"
           >
-            Promoción
+            Promo
           </Badge>
         )}
         {lowStock && (
-          <Badge position="absolute" top={3} left={3} colorScheme="orange" variant="solid" borderRadius="full" px={3} fontSize="xs" fontWeight="600">
-            Últimas unidades
+          <Badge position="absolute" top={2} left={2} colorScheme="orange" variant="solid" borderRadius="full" px={2} fontSize="10px" fontWeight="600">
+            Últimas
           </Badge>
         )}
         {outOfStock && (
-          <Badge position="absolute" top={3} left={3} bg="gray.700" color="white" borderRadius="full" px={3} fontSize="xs" fontWeight="600">
+          <Badge position="absolute" top={2} left={2} bg="gray.700" color="white" borderRadius="full" px={2} fontSize="10px" fontWeight="600">
             Sin stock
           </Badge>
         )}
       </Box>
 
-      <VStack p={5} align="stretch" spacing={3} flex="1">
-        <Box>
-          <Text fontSize="xs" color="brand.500" _dark={{ color: 'brand.300' }} textTransform="uppercase" letterSpacing="0.05em" fontWeight="600" mb={1}>
+      <VStack p={{ base: 3, sm: 5 }} align="stretch" spacing={{ base: 1, sm: 3 }} flex="1" minW={0}>
+        <Box minW={0}>
+          <Text fontSize="10px" color="brand.500" _dark={{ color: 'brand.300' }} textTransform="uppercase" letterSpacing="0.04em" fontWeight="600" mb={{ base: 0, sm: 1 }} noOfLines={1}>
             {product.brand || (type === 'service' ? 'Servicio' : 'Compushop')}
           </Text>
           <Text
             as={RouterLink}
             to={to}
             fontWeight="600"
-            fontSize="md"
+            fontSize={{ base: 'sm', sm: 'md' }}
             noOfLines={2}
-            minH="2.7em"
-            lineHeight="1.35"
+            minH={{ base: '2.4em', sm: '2.7em' }}
+            lineHeight="1.3"
             title={product.name}
             _hover={{ color: 'brand.600', _dark: { color: 'brand.300' } }}
           >
             {product.name}
           </Text>
           {product.description && (
-            <Text fontSize="sm" color={muted} noOfLines={2} mt={2} minH="2.6em">
+            <Text fontSize="sm" color={muted} noOfLines={2} mt={2} minH="2.6em" display={{ base: 'none', sm: '-webkit-box' }}>
               {product.description}
             </Text>
           )}
         </Box>
 
-        <HStack justify="space-between" align="center" mt="auto" pt={1} spacing={3}>
-          <Text fontWeight="700" fontSize="xl" letterSpacing="-0.02em" color="fg.default">
+        <HStack justify="space-between" align="center" mt="auto" pt={{ base: 1, sm: 1 }} spacing={2}>
+          <Text fontWeight="700" fontSize={{ base: 'md', sm: 'xl' }} letterSpacing="-0.02em" color="fg.default" noOfLines={1}>
             {formatPrice(product.price)}
           </Text>
-          <Button
-            colorScheme="brand"
-            borderRadius="full"
-            size="sm"
-            onClick={handleAdd}
-            isDisabled={outOfStock}
-            px={5}
-            flexShrink={0}
-          >
-            {type === 'service' ? 'Contratar' : outOfStock ? 'Sin stock' : 'Agregar'}
-          </Button>
+          <HStack spacing={1} flexShrink={0}>
+            <IconButton
+              aria-label={type === 'service' ? 'Ver servicio' : 'Ver producto'}
+              icon={<FiEye />}
+              as={RouterLink}
+              to={to}
+              size="sm"
+              variant="ghost"
+              borderRadius="full"
+              display={{ base: 'inline-flex', sm: 'none' }}
+            />
+            <IconButton
+              aria-label={type === 'service' ? 'Contratar servicio' : 'Agregar al carrito'}
+              icon={<FiShoppingCart />}
+              size="sm"
+              colorScheme="brand"
+              variant="outline"
+              borderRadius="full"
+              onClick={handleAdd}
+              isDisabled={outOfStock}
+              display={{ base: 'inline-flex', sm: 'none' }}
+            />
+            <IconButton
+              aria-label={type === 'service' ? 'Contratar ahora' : 'Comprar ahora'}
+              icon={<FiShoppingBag />}
+              size="sm"
+              colorScheme="brand"
+              variant="solid"
+              borderRadius="full"
+              onClick={handleBuy}
+              isDisabled={outOfStock}
+              display={{ base: 'inline-flex', sm: 'none' }}
+            />
+            <Button
+              colorScheme="brand"
+              borderRadius="full"
+              size="sm"
+              onClick={handleAdd}
+              isDisabled={outOfStock}
+              px={5}
+              flexShrink={0}
+              display={{ base: 'none', sm: 'inline-flex' }}
+            >
+              {type === 'service' ? 'Contratar' : outOfStock ? 'Sin stock' : 'Agregar'}
+            </Button>
+          </HStack>
         </HStack>
       </VStack>
     </Box>
